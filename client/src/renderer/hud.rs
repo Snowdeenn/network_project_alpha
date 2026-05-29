@@ -4,7 +4,7 @@ use shared::protocol::StateSnapshot;
 pub fn render(d: &mut RaylibDrawHandle, snap: &StateSnapshot) {
     // vague + ennemis
     d.draw_text(
-        &format!("Vague {} — {} ennemis", snap.wave_info.wave_number, snap.wave_info.enemy_remaining),
+        &format!("Vague {} | {} ennemis", snap.wave_info.wave_number, snap.wave_info.enemy_remaining),
         20, 20, 24, Color::WHITE,
     );
 

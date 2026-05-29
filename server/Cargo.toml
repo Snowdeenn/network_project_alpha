@@ -6,5 +6,6 @@ edition = "2024"
 [dependencies]
 shared    = { path = "../shared" }
 renet      = "2.0.0"
-renetcode  = "2.0.0"
+renet_netcode  = "2.0.0"
 tokio      = { version = "1.52", features = ["full"] }
+bincode = "2"

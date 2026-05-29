@@ -5,3 +5,6 @@ edition = "2024"
 
 [dependencies]
 shared    = { path = "../shared" }
+renet_netcode = "2.0.0"
+renet = "2.0.0"
+bincode = "2"

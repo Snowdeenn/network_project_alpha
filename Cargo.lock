@@ -89,6 +89,9 @@ dependencies = [
 name = "client"
 version = "0.1.0"
 dependencies = [
+ "bincode",
+ "renet",
+ "renet_netcode",
  "shared",
 ]
 
@@ -284,6 +287,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "renet_netcode"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c9479f1355a92d5aa04a0339ad341878fa572492cb9be09db7b34954bdb13a30"
+dependencies = [
+ "log",
+ "renet",
+ "renetcode",
+]
+
+[[package]]
 name = "renetcode"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -333,8 +347,9 @@ dependencies = [
 name = "server"
 version = "0.1.0"
 dependencies = [
+ "bincode",
  "renet",
- "renetcode",
+ "renet_netcode",
  "shared",
  "tokio",
 ]
@@ -344,6 +359,7 @@ name = "shared"
 version = "0.1.0"
 dependencies = [
  "bincode",
+ "renet",
  "serde",
 ]
 

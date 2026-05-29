@@ -91,7 +91,8 @@ pub enum EntityKind {
     Player,
     Boss(BossKind),
     Enemy,
-    Projectile
+    Projectile,
+    Coin,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Decode, Encode)]
@@ -122,4 +123,12 @@ pub struct StateSnapshot {
     pub tick_id: u64,
     pub entities: Vec<EntityState>,
     pub wave_info: WaveInfo,
+    pub player_info: Option<PlayerInfo>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Decode, Encode)]
+pub struct PlayerInfo {
+    pub health:     f32,
+    pub max_health: f32,
+    pub gold:       u32,
 }

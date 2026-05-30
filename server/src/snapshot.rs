@@ -41,9 +41,10 @@ fn build_entities(world: &World) -> Vec<EntityState> {
 
     // joueurs
     {
-        let mut player_query = <(&EntityId, &Position, &Health)>::query()
+        let mut player_query = <(&EntityId, &Position, &Health, &Active)>::query()
             .filter(component::<Player>() & component::<Active>());
-        for (id, pos, health) in player_query.iter(world) {
+        for (id, pos, health, active) in player_query.iter(world) {
+            if !active.0 { continue; }
             entities.push(EntityState {
                 entity_id: id.0,
                 position: [pos.x as f32, pos.y as f32],
@@ -56,9 +57,10 @@ fn build_entities(world: &World) -> Vec<EntityState> {
 
     // ennemis
     {
-        let mut ia_query = <(&EntityId, &Position, &Health)>::query()
+        let mut ia_query = <(&EntityId, &Position, &Health, &Active)>::query()
             .filter(component::<IA>() & component::<Active>());
-        for (id, pos, health) in ia_query.iter(world) {
+        for (id, pos, health, active) in ia_query.iter(world) {
+            if !active.0 { continue; }
             entities.push(EntityState {
                 entity_id: id.0,
                 position: [pos.x as f32, pos.y as f32],
@@ -72,8 +74,9 @@ fn build_entities(world: &World) -> Vec<EntityState> {
     // coins
     {
         let mut coin_query =
-            <(&EntityId, &Position)>::query().filter(component::<Coin>() & component::<Active>());
-        for (id, pos) in coin_query.iter(world) {
+            <(&EntityId, &Position, &Active)>::query().filter(component::<Coin>() & component::<Active>());
+        for (id, pos, active) in coin_query.iter(world) {
+            if !active.0 { continue; }
             entities.push(EntityState {
                 entity_id: id.0,
                 position: [pos.x as f32, pos.y as f32],

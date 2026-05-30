@@ -34,7 +34,7 @@ pub fn update_player_pos(pos: &Position, #[resource] player_pos: &mut PlayerPos)
 #[filter(component::<Player>())]
 pub fn update_velocity(
     velo: &mut Velocity,
-    #[resource] state: &InputState,
+    state: &InputState,
     #[resource] dt: &Duration,
 ) {
     let input_x = state.move_dir[0] as f64 * ACCEL * (*dt).as_secs_f64();
@@ -56,7 +56,7 @@ pub fn friction(velo: &mut Velocity) {
 pub fn dash(
     velo: &mut Velocity,
     dash: &mut Dash,
-    #[resource] state: &InputState,
+    state: &InputState,
     #[resource] delta_time: &Duration,
 ) {
     let new_state = match dash.0 {
@@ -64,7 +64,7 @@ pub fn dash(
             if state.dash {
                 velo.dx *= 7.0;
                 velo.dy *= 7.0;
-                DashState::Dashing(Duration::from_millis(25))
+                DashState::Dashing(Duration::from_millis(20))
             } else {
                 DashState::Idle
             }
@@ -206,13 +206,16 @@ pub fn ia_seek(
     let dy = pos_target.y - pos.y;
     let len = (dx * dx + dy * dy).sqrt();
     let (nx, ny) = if len > 0.0 {
-        (dx / len, dy / len)
+        ((dx / len) * IA_SPEED, (dy / len) * IA_SPEED)
     } else {
         (0.0, 0.0)
     };
 
-    velo.dx += nx * (*dt).as_secs_f64();
-    velo.dy += ny * (*dt).as_secs_f64();
+    let steering_x = nx - velo.dx;
+    let steering_y = ny - velo.dy;
+
+    velo.dx += steering_x * (*dt).as_secs_f64();
+    velo.dy += steering_y * (*dt).as_secs_f64();
 }
 
 #[system]
@@ -280,11 +283,19 @@ pub fn wave_update(
                             if active.0 {
                                 continue; // Skip enemis actifs
                             } else {
+                                // dans le snapshot, avant le push ennemi
                                 *active = Active(true);
+
+                                // nouvel id à chaque spawn
+                                if let Ok(id) = entry.get_component_mut::<EntityId>() {
+                                    *id = EntityId(crate::next_id());
+                                }
+
                                 if let Ok(pos) = entry.get_component_mut::<Position>() {
                                     let angle = rand::random::<f64>() * 2.0 * PI;
                                     pos.x = player_pos.x + angle.cos() * SPAWN_RADIUS;
                                     pos.y = player_pos.y + angle.sin() * SPAWN_RADIUS;
+                                    // dans le snapshot, avant le push ennemi
                                 }
 
                                 if let Ok(health) = entry.get_component_mut::<Health>() {
@@ -467,5 +478,3 @@ pub fn apply_pickup(
         }
     }
 }
-
-

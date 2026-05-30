@@ -5,17 +5,16 @@ mod snapshot;
 use legion::*;
 use net::server::GameNetServer;
 use renet::ServerEvent;
+use shared::protocol::InputPacket;
 use simulation::{
-    components::*,
-    eco::*,
-    event::*,
-    input::{InputQueue, InputState},
-    systems::*,
+    components::*, eco::*, event::*, helper::clear_resource_queues, input::InputQueue, systems::*,
     wave::*,
-    helper::clear_resource_queues,
 };
 use snapshot::build_snapshot;
+use std::collections::HashMap;
 use std::time::{Duration, Instant};
+
+use crate::simulation::helper::{PlayerHp, PlayerPos};
 
 const TICK_DURATION: Duration = Duration::from_millis(50); // 20 Hz
 
@@ -27,7 +26,7 @@ pub enum GameState {
 
 pub fn next_id() -> u64 {
     use std::sync::atomic::{AtomicU64, Ordering};
-    static NEXT_ID: AtomicU64 = AtomicU64::new(1);
+    static NEXT_ID: AtomicU64 = AtomicU64::new(1000);
     NEXT_ID.fetch_add(1, Ordering::Relaxed)
 }
 
@@ -35,6 +34,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut net = GameNetServer::new();
     let mut world = World::default();
     let mut resources = Resources::default();
+    let mut players_entities: HashMap<u64, Entity> = HashMap::new();
 
     // --- resources ---
     {
@@ -47,7 +47,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         resources.insert(PickupQueue(vec![]));
         resources.insert(Gold(0));
         resources.insert(GameState::Playing);
-        resources.insert(simulation::helper::PlayerPos { x: 0.0, y: 0.0 });
+        resources.insert(PlayerPos { x: 0.0, y: 0.0 });
+        resources.insert(PlayerHp {
+            hp: 100.0,
+            max_hp: 100.0,
+        });
     }
 
     // --- wave config ---
@@ -86,6 +90,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         resources.insert(pool)
     };
 
+    // --- Coin Pool ---
     {
         let mut coin_pool = CoinPool { coins: vec![] };
         for _ in 0..50 {
@@ -135,9 +140,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ServerEvent::ClientConnected { client_id } => {
                     println!("Client connecté : {}", client_id);
 
-                    world.push((
-                        EntityId(client_id),
+                    let entity = world.push((
+                        EntityId(next_id()),
                         Player,
+                        InputState::default(),
                         Position { x: 960.0, y: 540.0 },
                         Velocity { dx: 0.0, dy: 0.0 },
                         Dash(DashState::Idle),
@@ -146,47 +152,78 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             hp: 100,
                             state: HealthState::Alive,
                         },
-                        Active(true),
                     ));
+                    
+                    let mut entry = world.entry(entity).unwrap();
+                    entry.add_component(Active(true));
+
+                    players_entities.insert(client_id, entity);
                 }
-                ServerEvent::ClientDisconnected { client_id: _, .. } => {
-                    println!("Client déconnecté");
-                    // TODO : supprimer l'entité joueur
+                ServerEvent::ClientDisconnected { client_id, .. } => {
+                    println!("Client déconnecté {}", client_id);
+                    if let Some(entity) = players_entities.remove(&client_id) {
+                        world.remove(entity);
+                    }
                 }
             }
         }
 
-        let inputs = net.drain_inputs();
-        if let Some((_, packet)) = inputs.first() {
-            if let Some(mut state) = resources.get_mut::<InputState>() {
-                state.move_dir = packet.move_dir;
-                state.aim_dir = packet.aim_dir;
-                state.dash = packet.dash;
-                state.spell = packet.spell;
+        // Traite les inputs reçus du client et les stocke dans les ressources globales
+        {
+            for (client_id, packet) in net.drain_inputs() {
+                if let Some(&entity) = players_entities.get(&client_id) {
+                    apply_input(&mut world, entity, &packet);
+                }
             }
         }
 
+        // Met à jour le tick actuel dans les ressources pour que les systèmes puissent y accéder
         if let Some(mut res_dt) = resources.get_mut::<Duration>() {
             *res_dt = TICK_DURATION; // timestep fixe côté serveur
         }
+
+        // Met à jour la position et la santé du joueur dans les ressources pour que les systèmes IA puissent y accéder
+        {
+            let mut player_query = <(&Position, &Health)>::query()
+                .filter(component::<Player>() & component::<Active>());
+            if let Some((pos, health)) = player_query.iter(&world).next() {
+                if let Some(mut player_pos) = resources.get_mut::<PlayerPos>() {
+                    player_pos.x = pos.x;
+                    player_pos.y = pos.y;
+                }
+                if let Some(mut player_hp) = resources.get_mut::<PlayerHp>() {
+                    player_hp.hp = health.hp.into();
+                }
+            }
+        }
+
         schedule.execute(&mut world, &mut resources);
 
         {
-          let snapshot = build_snapshot(&world, &resources, tick_id);
-            net.broadcast_snapshot(&snapshot);  
+            let snapshot = build_snapshot(&world, &resources, tick_id);
+            net.broadcast_snapshot(&snapshot);
         }
-        
 
         net.flush();
         clear_resource_queues(&mut resources);
 
         tick_id += 1;
         {
-           let elapsed = last.elapsed();
+            let elapsed = last.elapsed();
             if elapsed < TICK_DURATION {
                 std::thread::sleep(TICK_DURATION - elapsed);
-            } 
+            }
         }
-        
+    }
+}
+
+fn apply_input(world: &mut World, entity: Entity, packet: &InputPacket) {
+    if let Ok(mut entry) = world.entry_mut(entity) {
+        if let Ok(state) = entry.get_component_mut::<InputState>() {
+            state.move_dir = packet.move_dir;
+            state.aim_dir = packet.aim_dir;
+            state.dash = packet.dash;
+            state.spell = packet.spell;
+        }
     }
 }

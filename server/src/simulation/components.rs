@@ -1,4 +1,5 @@
 use std::time::Duration;
+use legion::*;
 
 pub struct Player;
 pub struct IA;
@@ -49,4 +50,12 @@ pub struct Health {
 pub struct Active(pub bool);
 
 pub struct CoinValue(pub u32); 
+
+#[derive(Debug, Default, Clone, Copy)]
+pub struct InputState {
+    pub move_dir: [f32; 2],
+    pub aim_dir:  [f32; 2],
+    pub dash:     bool,
+    pub spell:    Option<u8>,
+}
 

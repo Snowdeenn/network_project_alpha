@@ -26,7 +26,7 @@ pub struct PlayerPos {
 }
 
 #[derive(Debug)]
-pub struct PlayerHealth {
+pub struct PlayerHp {
     pub hp: f64,
     pub max_hp: f64,
 }

@@ -59,14 +59,14 @@ impl GameNetClient {
         let bytes = self.client.receive_message(CHANNEL_STATE)?;
         bincode::decode_from_slice(&bytes, bincode::config::standard())
             .ok()
-            .map(|(s, _)| s)
+            .map(|(s, _)| -> StateSnapshot { s })
     }
 
     pub fn recv_event(&mut self) -> Option<GameEvent> {
         let bytes = self.client.receive_message(CHANNEL_EVENT)?;
         bincode::decode_from_slice(&bytes, bincode::config::standard())
             .ok()
-            .map(|(e, _)| e)
+            .map(|(e, _)| -> GameEvent { e })
     }
 
     pub fn flush(&mut self) {

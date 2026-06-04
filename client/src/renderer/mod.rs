@@ -1,9 +1,10 @@
 pub mod hud;
 
-use crate::TICK_DURATION;
+use crate::{TICK_DURATION};
 use raylib::prelude::*;
 use shared::protocol::{EntityKind, StateSnapshot};
 use std::time::Instant;
+use crate::event::ClientState;
 
 pub struct Renderer {
     pub rl: RaylibHandle,
@@ -43,6 +44,7 @@ impl Renderer {
         prev: Option<&StateSnapshot>,
         current: Option<&StateSnapshot>,
         last_snap_time: Instant,
+        client_state: &ClientState,
     ) {
         let t =
             (last_snap_time.elapsed().as_secs_f32() / TICK_DURATION.as_secs_f32()).clamp(0.0, 1.0);
@@ -75,7 +77,7 @@ fn render_world(
 ) {
     for entity in &curr.entities {
         let prev_entity =
-            prev.and_then(|p| p.entities.iter().find(|e| e.entity_id == entity.entity_id));
+            prev.and_then(|p| p.entities.iter().find(|e | e.entity_id == entity.entity_id));
 
         let (x, y) = match prev_entity {
             Some(prev) => (
@@ -106,6 +108,8 @@ fn render_world(
         }
     }
 }
+
+
 
 fn lerp(a: f32, b: f32, t: f32) -> f32 {
     a + (b - a) * t

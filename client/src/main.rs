@@ -2,11 +2,13 @@ mod camera;
 mod input;
 mod net;
 mod renderer;
+mod event;
 
 use net::client::GameNetClient;
 use renderer::Renderer;
-use shared::protocol::StateSnapshot;
+use shared::protocol::{GameEvent, StateSnapshot};
 use std::time::{Duration, Instant};
+use event::ClientState;
 
 const TICK_DURATION: Duration = Duration::from_millis(50);
 const SCREEN_W: i32 = 1920;
@@ -21,6 +23,7 @@ fn main() {
     let mut prev_snapshot: Option<StateSnapshot> = None;
     let mut last_snapshot: Option<StateSnapshot> = None;
     let mut last_snap_time: Instant = Instant::now();
+    let mut client_state = ClientState::new();
 
     // tick réseau 20 Hz
     while !renderer.rl.window_should_close() {
@@ -33,6 +36,10 @@ fn main() {
             prev_snapshot = last_snapshot.take();
             last_snapshot = Some(snap);
             last_snap_time = Instant::now();
+        }
+
+        while let Some(event) = client.recv_event() {
+            client_state.handle_event(event);
         }
 
         // tick réseau 20 Hz — envoi uniquement

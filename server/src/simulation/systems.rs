@@ -2,12 +2,12 @@ use std::time::Duration;
 
 use crate::simulation::components::*;
 use crate::simulation::eco::{CoinPool, CoinSpawnQueue, Gold, PickupQueue};
-use crate::simulation::event::{CoinEvent, DamageEvent, DamageQueue, EnemyDied, EnemyDiedQueue};
+use crate::simulation::event::{CoinEvent, DamageEvent, DamageQueue, EnemyDied, EnemyDiedQueue, GameEventQueue};
 use crate::simulation::helper::*;
-use crate::simulation::input::*;
 use crate::simulation::wave::{EnemyPool, WaveConfigs, WaveManager, WaveState};
 use legion::world::SubWorld;
 use legion::*;
+use shared::protocol::{GameEvent, GameEventKind};
 
 const ACCEL: f64 = 1500.0;
 // todo: Ajouter plusieurs friction en fonction
@@ -270,6 +270,7 @@ pub fn wave_update(
     #[resource] player_pos: &PlayerPos,
     #[resource] enemy_die_queue: &mut EnemyDiedQueue,
     #[resource] enemy_pool: &EnemyPool,
+    #[resource] game_event_queue: &mut GameEventQueue,
 ) {
     match wave_manager.wave_state {
         WaveState::InProgress => {
@@ -325,6 +326,11 @@ pub fn wave_update(
 
             if wave_manager.enemies_remaining == 0 && wave_manager.enemies_to_spawn == 0 {
                 wave_manager.wave_state = WaveState::BetweenWave(Duration::from_secs(5));
+                game_event_queue.0.push(GameEvent {
+                    kind: GameEventKind::WaveEnd {
+                        coins_earned: 0, // TODO : calculer les pieces gagnees
+                    },
+                });
             }
         }
         WaveState::BetweenWave(d) => {

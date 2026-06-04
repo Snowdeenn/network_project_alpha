@@ -2,7 +2,7 @@ mod net;
 mod simulation;
 mod snapshot;
 
-use legion::*;
+use legion::{component, Entity, Resources, Schedule, world::World, IntoQuery, EntityStore};
 use net::server::GameNetServer;
 use renet::ServerEvent;
 use shared::protocol::InputPacket;
@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 
 use crate::simulation::helper::{PlayerHp, PlayerPos};
 
-const TICK_DURATION: Duration = Duration::from_millis(50); // 20 Hz
+const TICK_DURATION: Duration = Duration::from_millis(50);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum GameState {
@@ -52,6 +52,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             hp: 100.0,
             max_hp: 100.0,
         });
+        resources.insert(GameEventQueue(vec![]));
     }
 
     // --- wave config ---
@@ -153,7 +154,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             state: HealthState::Alive,
                         },
                     ));
-                    
+
                     let mut entry = world.entry(entity).unwrap();
                     entry.add_component(Active(true));
 
@@ -161,7 +162,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 ServerEvent::ClientDisconnected { client_id, .. } => {
                     println!("Client déconnecté {}", client_id);
-                    if let Some(entity) = players_entities.remove(&client_id) {
+                    if let Option::Some(entity) = players_entities.remove(&client_id) {
                         world.remove(entity);
                     }
                 }
@@ -176,6 +177,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
+
+        {
+            for (client_id, shop_action) in net.drain_shop_actions() {
+                if let Some(&entity) = players_entities.get(&client_id) {
+                    
+                }
+            }   
+
+        }     
 
         // Met à jour le tick actuel dans les ressources pour que les systèmes puissent y accéder
         if let Some(mut res_dt) = resources.get_mut::<Duration>() {
@@ -202,6 +212,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         {
             let snapshot = build_snapshot(&world, &resources, tick_id);
             net.broadcast_snapshot(&snapshot);
+        }
+
+        {
+            let mut game_events = resources.get_mut::<GameEventQueue>().unwrap();
+            for event in game_events.0.drain(..) {
+                net.broadcast_event(&event);
+            }
         }
 
         net.flush();

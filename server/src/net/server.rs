@@ -40,7 +40,6 @@ impl GameNetServer {
         self.transport.update(delta, &mut self.server).unwrap();
     }
 
-    // ── Connexions / déconnexions ───────────────────────────────────────
     pub fn drain_events(&mut self) -> Vec<ServerEvent> {
         let mut events = Vec::new();
         while let Some(event) = self.server.get_event() {
@@ -49,7 +48,6 @@ impl GameNetServer {
         events
     }
 
-    // ── Lecture des inputs clients ──────────────────────────────────────
     pub fn drain_inputs(&mut self) -> Vec<(u64, InputPacket)> {
         let mut inputs = Vec::new();
         for client_id in self.server.clients_id() {

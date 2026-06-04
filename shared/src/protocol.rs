@@ -77,7 +77,7 @@ pub enum GameEventKind {
         entity_id: u64,
     },
     ShopOpened {
-        inventory: Vec<ShopItem>,
+        inventory: Vec<Option<ShopItem>>,
     },
 }
 

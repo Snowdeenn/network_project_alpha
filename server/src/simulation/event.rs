@@ -1,4 +1,5 @@
 use legion::world::Entity;
+use shared::protocol::GameEvent;
 #[derive(Debug, Clone, Copy)]
 pub struct DamageEvent {
     pub target: Entity,
@@ -20,3 +21,6 @@ pub struct PlayerDied(pub bool);
 pub struct CoinEvent {
     pub pos: [f32; 2],
 }
+
+#[derive(Debug)]
+pub struct GameEventQueue(pub Vec<GameEvent>);

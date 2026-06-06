@@ -2,10 +2,13 @@ mod net;
 mod simulation;
 mod snapshot;
 
-use legion::{component, Entity, Resources, Schedule, world::World, IntoQuery, EntityStore};
+use crate::simulation::helper::{PlayerHp, PlayerPos};
+use legion::{Entity, EntityStore, IntoQuery, Resources, Schedule, component, world::World};
 use net::server::GameNetServer;
 use renet::ServerEvent;
-use shared::protocol::InputPacket;
+use shared::protocol::{InputPacket, ShopAction};
+use shared::protocol::{ShopActionKind, ShopItem};
+use simulation::shop::PlayerShops;
 use simulation::{
     components::*, eco::*, event::*, helper::clear_resource_queues, input::InputQueue, systems::*,
     wave::*,
@@ -13,9 +16,6 @@ use simulation::{
 use snapshot::build_snapshot;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
-
-use crate::simulation::helper::{PlayerHp, PlayerPos};
-
 const TICK_DURATION: Duration = Duration::from_millis(50);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -53,6 +53,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             max_hp: 100.0,
         });
         resources.insert(GameEventQueue(vec![]));
+        resources.insert(PlayerShops::new());
     }
 
     // --- wave config ---
@@ -106,6 +107,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             coin_pool.coins.push(e);
         }
         resources.insert(coin_pool);
+    }
+
+    // ---- Items Pool ----
+    {
+        let items_json = std::fs::read_to_string("asset/items.json")?;
+        let items: Vec<ShopItem> = serde_json::from_str(&items_json)?;
     }
 
     let mut schedule = Schedule::builder()
@@ -180,12 +187,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         {
             for (client_id, shop_action) in net.drain_shop_actions() {
-                if let Some(&entity) = players_entities.get(&client_id) {
-                    
-                }
-            }   
-
-        }     
+                if let Some(&entity) = players_entities.get(&client_id) {}
+            }
+        }
 
         // Met à jour le tick actuel dans les ressources pour que les systèmes puissent y accéder
         if let Some(mut res_dt) = resources.get_mut::<Duration>() {
@@ -241,6 +245,25 @@ fn apply_input(world: &mut World, entity: Entity, packet: &InputPacket) {
             state.aim_dir = packet.aim_dir;
             state.dash = packet.dash;
             state.spell = packet.spell;
+        }
+    }
+}
+
+fn handle_shop_action(client: u64, action: ShopAction, res: &Resources, item_pool: &ItemPool) {
+    match action.kind {
+        ShopActionKind::Open => {
+            println!("Client {} à ouvert le shop", client);
+
+            let shop_inventory = res
+                .get_mut::<ItemPool>()
+                .unwrap()
+                .generate(client, item_pool);
+        }
+        ShopActionKind::Buy => {
+            // TODO: handle Buy action
+        }
+        ShopActionKind::Close => {
+            println!("Client {} à fermer le shop", client);
         }
     }
 }

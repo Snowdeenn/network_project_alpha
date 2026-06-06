@@ -1,5 +1,4 @@
 use std::time::Duration;
-use legion::*;
 
 pub struct Player;
 pub struct IA;

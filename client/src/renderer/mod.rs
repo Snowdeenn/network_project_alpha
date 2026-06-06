@@ -1,10 +1,42 @@
 pub mod hud;
 
-use crate::{TICK_DURATION};
+use crate::TICK_DURATION;
+use crate::config::*;
+use crate::event::ClientState;
 use raylib::prelude::*;
 use shared::protocol::{EntityKind, StateSnapshot};
 use std::time::Instant;
-use crate::event::ClientState;
+
+#[derive(Clone, Copy)]
+pub struct ScreenScale {
+    pub w: f32,
+    pub h: f32,
+}
+
+impl ScreenScale {
+    pub fn new(w: i32, h: i32) -> Self {
+        Self {
+            w: w as f32,
+            h: h as f32,
+        }
+    }
+
+    pub fn x(&self, ratio: f32) -> i32 {
+        (ratio * self.w) as i32
+    }
+    pub fn y(&self, ratio: f32) -> i32 {
+        (ratio * self.h) as i32
+    }
+    pub fn w(&self, ratio: f32) -> i32 {
+        (ratio * self.w) as i32
+    }
+    pub fn h(&self, ratio: f32) -> i32 {
+        (ratio * self.h) as i32
+    }
+    pub fn font(&self, ratio: f32) -> i32 {
+        (ratio * self.h) as i32
+    }
+}
 
 pub struct Renderer {
     pub rl: RaylibHandle,
@@ -12,6 +44,7 @@ pub struct Renderer {
     pub cam: Camera2D,
     screen_w: i32,
     screen_h: i32,
+    screen_scale: ScreenScale,
 }
 
 impl Renderer {
@@ -23,19 +56,25 @@ impl Renderer {
             .build();
         rl.set_target_fps(120);
 
+        let real_w = rl.get_screen_width();
+        let real_h = rl.get_screen_height();
+        
+        let zoom = real_h as f32 / REFERENCE_H;
+
         let cam = Camera2D {
-            offset: Vector2::new(screen_w as f32 / 2.0, screen_h as f32 / 2.0),
+            offset: Vector2::new(real_w as f32 / 2.0, real_h as f32 / 2.0),
             target: Vector2::zero(),
             rotation: 0.0,
-            zoom: 1.0,
+            zoom,
         };
 
         Self {
             rl,
             thread,
             cam,
-            screen_w,
-            screen_h,
+            screen_w: real_w,
+            screen_h: real_h,
+            screen_scale: ScreenScale::new(real_w, real_h),
         }
     }
 
@@ -48,6 +87,7 @@ impl Renderer {
     ) {
         let t =
             (last_snap_time.elapsed().as_secs_f32() / TICK_DURATION.as_secs_f32()).clamp(0.0, 1.0);
+        let s = &self.screen_scale;
 
         let mut d = self.rl.begin_drawing(&self.thread);
         d.clear_background(Color::BLACK);
@@ -63,8 +103,21 @@ impl Renderer {
         }
 
         if let Some(snap) = current {
-            hud::render(&mut d, snap);
+            hud::render(&mut d, snap, s);
         }
+
+        if client_state.shop_available && !client_state.show_shop {
+            d.draw_text(
+                "Shop disponible — appuie sur G",
+                s.x(HUD_SHOP_NOTIF_X),
+                s.y(HUD_SHOP_NOTIF_Y),
+                s.font(HUD_SHOP_NOTIF_FONT),
+                Color::GOLD,
+            );
+        }
+
+        hud::render_shop(&mut d, client_state, s);
+
         d.draw_fps(self.screen_w - 100, 20);
     }
 }
@@ -77,7 +130,7 @@ fn render_world(
 ) {
     for entity in &curr.entities {
         let prev_entity =
-            prev.and_then(|p| p.entities.iter().find(|e | e.entity_id == entity.entity_id));
+            prev.and_then(|p| p.entities.iter().find(|e| e.entity_id == entity.entity_id));
 
         let (x, y) = match prev_entity {
             Some(prev) => (
@@ -108,8 +161,6 @@ fn render_world(
         }
     }
 }
-
-
 
 fn lerp(a: f32, b: f32, t: f32) -> f32 {
     a + (b - a) * t

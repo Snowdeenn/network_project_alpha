@@ -1,14 +1,17 @@
 mod camera;
+mod event;
 mod input;
 mod net;
 mod renderer;
-mod event;
+mod config;
 
-use net::client::GameNetClient;
-use renderer::Renderer;
-use shared::protocol::{GameEvent, StateSnapshot};
-use std::time::{Duration, Instant};
 use event::ClientState;
+use net::client::GameNetClient;
+use raylib::ffi::MouseButton;
+use renderer::Renderer;
+use shared::protocol::{StateSnapshot};
+use std::time::{Duration, Instant};
+use shared::protocol::{ShopAction, ShopActionKind};
 
 const TICK_DURATION: Duration = Duration::from_millis(50);
 const SCREEN_W: i32 = 1920;
@@ -42,6 +45,27 @@ fn main() {
             client_state.handle_event(event);
         }
 
+        input::handle_shop_input(&renderer.rl, &mut client, &mut client_state);
+
+        if client_state.show_shop && renderer.rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT) {
+            let mouse = renderer.rl.get_mouse_position();
+            let slots_x = [335, 785, 1235];
+
+            let clicked = slots_x.iter().enumerate().find(|&(_, &x)| {
+                mouse.x >= x as f32
+                    && mouse.x <= (x + 350) as f32
+                    && mouse.y >= 290.0
+                    && mouse.y <= 790.0
+            });
+
+            if let Some((slot, _)) = clicked {
+                client.send_shop_action(&ShopAction {
+                    kind: ShopActionKind::Buy,
+                    slot: slot as u8,
+                });
+            }
+        }
+
         // tick réseau 20 Hz — envoi uniquement
         if last_tick.elapsed() >= TICK_DURATION {
             last_tick = Instant::now();
@@ -67,6 +91,7 @@ fn main() {
             prev_snapshot.as_ref(),
             last_snapshot.as_ref(),
             last_snap_time,
+            &client_state,
         );
     }
 }

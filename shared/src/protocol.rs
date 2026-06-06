@@ -12,8 +12,8 @@ pub struct InputPacket {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Decode, Encode)]
 pub enum ShopActionKind {
+    Open,
     Buy,
-    Sell,
     Close,
 }
 
@@ -55,7 +55,7 @@ pub enum BossKind {
     Big,
     Fast,
     Tank,
-    Sorcerer
+    Sorcerer,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Decode, Encode)]
@@ -128,7 +128,8 @@ pub struct StateSnapshot {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Decode, Encode)]
 pub struct PlayerInfo {
-    pub health:     f32,
+    pub health: f32,
     pub max_health: f32,
-    pub gold:       u32,
+    pub gold: u32,
 }
+

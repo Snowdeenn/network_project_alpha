@@ -1,5 +1,8 @@
 use raylib::prelude::*;
 use shared::protocol::InputPacket;
+use crate::net::client::GameNetClient;
+use crate::event::ClientState;
+use shared::protocol::{ShopActionKind, ShopAction};
 
 pub fn read_input(rl: &RaylibHandle, tick_id: u64, screen_w: i32, screen_h: i32) -> InputPacket {
     let move_dir = {
@@ -26,5 +29,26 @@ pub fn read_input(rl: &RaylibHandle, tick_id: u64, screen_w: i32, screen_h: i32)
         dash:  rl.is_key_pressed(KeyboardKey::KEY_SPACE),
         spell: None,
         aim_dir,
+    }
+}
+
+pub fn handle_shop_input(
+    rl:     &RaylibHandle,
+    client: &mut GameNetClient,
+    state:  &mut ClientState,
+) {
+    if !rl.is_key_pressed(KeyboardKey::KEY_G) { return; }
+
+    if state.shop_available && !state.show_shop {
+        client.send_shop_action(&ShopAction {
+            kind: ShopActionKind::Open,
+            slot: 0,
+        });
+    } else if state.show_shop {
+        client.send_shop_action(&ShopAction {
+            kind: ShopActionKind::Close,
+            slot: 0,
+        });
+        state.close_shop();
     }
 }

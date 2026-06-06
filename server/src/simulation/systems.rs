@@ -2,7 +2,9 @@ use std::time::Duration;
 
 use crate::simulation::components::*;
 use crate::simulation::eco::{CoinPool, CoinSpawnQueue, Gold, PickupQueue};
-use crate::simulation::event::{CoinEvent, DamageEvent, DamageQueue, EnemyDied, EnemyDiedQueue, GameEventQueue};
+use crate::simulation::event::{
+    CoinEvent, DamageEvent, DamageQueue, EnemyDied, EnemyDiedQueue, GameEventQueue,
+};
 use crate::simulation::helper::*;
 use crate::simulation::wave::{EnemyPool, WaveConfigs, WaveManager, WaveState};
 use legion::world::SubWorld;
@@ -32,11 +34,7 @@ pub fn update_player_pos(pos: &Position, #[resource] player_pos: &mut PlayerPos)
 
 #[system(for_each)]
 #[filter(component::<Player>())]
-pub fn update_velocity(
-    velo: &mut Velocity,
-    state: &InputState,
-    #[resource] dt: &Duration,
-) {
+pub fn update_velocity(velo: &mut Velocity, state: &InputState, #[resource] dt: &Duration) {
     let input_x = state.move_dir[0] as f64 * ACCEL * (*dt).as_secs_f64();
     let input_y = state.move_dir[1] as f64 * ACCEL * (*dt).as_secs_f64();
 
@@ -343,9 +341,17 @@ pub fn wave_update(
                     wave_manager.enemies_remaining = config.enemy_count;
                     wave_manager.spawn_timer = Duration::from_millis(config.spawn_interval);
                     wave_manager.wave_state = WaveState::InProgress;
+                    game_event_queue.0.push(GameEvent {
+                        kind: GameEventKind::WaveStart {
+                            wave_number: wave_manager.current_wave as u32,
+                            enemy_count: config.enemy_count,
+                            enemy_hp: config.enemy_hp,
+                            enemy_speed: config.enemy_speed as f32,
+                        },
+                    });
+                } else {
+                    wave_manager.wave_state = WaveState::BetweenWave(remaining);
                 }
-            } else {
-                wave_manager.wave_state = WaveState::BetweenWave(remaining);
             }
         }
     }

@@ -7,7 +7,6 @@ use crate::InputQueue;
 use crate::DamageQueue;
 use crate::CoinSpawnQueue;
 use crate::PickupQueue;
-use crate::GameEventQueue;
 
 #[derive(Debug)]
 pub struct Resolution {

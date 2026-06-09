@@ -1,4 +1,4 @@
-use rand::prelude::IndexedRandom;
+use rand::{prelude::IndexedRandom};
 use shared::protocol::ShopItem;
 use std::collections::HashMap;
 
@@ -13,13 +13,11 @@ impl PlayerShops {
         }
     }
 
-    pub fn generate(&mut self, player_id: u64, item_pool: &[ShopItem]) -> Vec<Option<ShopItem>> {
-        let mut rng = rand::rng();
+    pub fn generate(&mut self, player_id: u64, item_pool: &[Option<ShopItem>]) -> Vec<Option<ShopItem>> {
         let count = item_pool.len().min(3);
         let items: Vec<Option<ShopItem>> = item_pool
-            .sample(&mut rng, count)
-            .iter()
-            .map(|i| Some((*i).clone()))
+            .sample(&mut rand::rng(), count)
+            .cloned()
             .collect();
         self.inventories.insert(player_id, items.clone());
         items
@@ -27,6 +25,7 @@ impl PlayerShops {
 
     pub fn buy(&mut self, player_id: u64, slot: usize) -> Option<ShopItem> {
         let inventory = self.inventories.get_mut(&player_id)?;
+        
         inventory.get_mut(slot)?.take()
     }
 }

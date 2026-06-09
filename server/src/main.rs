@@ -6,8 +6,9 @@ use crate::simulation::helper::{PlayerHp, PlayerPos};
 use legion::{Entity, EntityStore, IntoQuery, Resources, Schedule, component, world::World};
 use net::server::GameNetServer;
 use renet::ServerEvent;
-use shared::protocol::{InputPacket, ShopAction};
-use shared::protocol::{ShopActionKind, ShopItem};
+use shared::protocol::{
+    GameEvent, GameEventKind, InputPacket, ShopAction, ShopActionKind, ShopItem,
+};
 use simulation::shop::PlayerShops;
 use simulation::{
     components::*, eco::*, event::*, helper::clear_resource_queues, input::InputQueue, systems::*,
@@ -111,8 +112,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // ---- Items Pool ----
     {
-        let items_json = std::fs::read_to_string("asset/items.json")?;
-        let items: Vec<ShopItem> = serde_json::from_str(&items_json)?;
+        let items_json = std::fs::read_to_string("assets/items.json")?;
+        let items: Vec<Option<ShopItem>> = serde_json::from_str(&items_json)?;
+        resources.insert(ItemPool { items });
     }
 
     let mut schedule = Schedule::builder()
@@ -187,7 +189,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         {
             for (client_id, shop_action) in net.drain_shop_actions() {
-                if let Some(&entity) = players_entities.get(&client_id) {}
+                handle_shop_action(client_id, &mut net, shop_action, &resources);
             }
         }
 
@@ -249,18 +251,39 @@ fn apply_input(world: &mut World, entity: Entity, packet: &InputPacket) {
     }
 }
 
-fn handle_shop_action(client: u64, action: ShopAction, res: &Resources, item_pool: &ItemPool) {
+fn handle_shop_action(
+    client: u64,
+    server: &mut GameNetServer,
+    action: ShopAction,
+    res: &Resources,
+) {
+    let item_pool = res.get::<ItemPool>().unwrap();
+    let mut player_shop = res.get_mut::<PlayerShops>().unwrap();
+
     match action.kind {
         ShopActionKind::Open => {
             println!("Client {} à ouvert le shop", client);
 
-            let shop_inventory = res
-                .get_mut::<ItemPool>()
-                .unwrap()
-                .generate(client, item_pool);
+            let shop_inventory = player_shop.generate(client, &item_pool.items);
+            server.send_event(
+                client,
+                &GameEvent {
+                    kind: GameEventKind::ShopOpened {
+                        inventory: shop_inventory,
+                    },
+                },
+            );
         }
         ShopActionKind::Buy => {
-            // TODO: handle Buy action
+            println!("Client {} à acheté un item du shop", client);
+            if let Some(item) = player_shop.buy(client, action.slot as usize) {
+                server.send_event(
+                    client,
+                    &GameEvent {
+                        kind: GameEventKind::ItemBought { item },
+                    },
+                );
+            }
         }
         ShopActionKind::Close => {
             println!("Client {} à fermer le shop", client);

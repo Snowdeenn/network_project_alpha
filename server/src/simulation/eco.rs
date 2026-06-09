@@ -18,6 +18,6 @@ pub struct Gold(pub u32);
 
 #[derive(Debug)]
 pub struct ItemPool {
-    pub items: Vec<ShopItem>,
+    pub items: Vec<Option<ShopItem>>,
 }
 

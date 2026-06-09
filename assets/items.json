@@ -5,7 +5,8 @@
     "price": 50,
     "description": "+20 HP",
     "effect_type": "Health",
-    "effect_value": 20.0
+    "effect_value": 20.0,
+    "rarity": "Common"
   },
   {
     "id": 2,
@@ -13,7 +14,8 @@
     "price": 75,
     "description": "+15% dégâts",
     "effect_type": "Damage",
-    "effect_value": 0.15
+    "effect_value": 0.15,
+    "rarity": "Rare"
   },
   {
     "id": 3,
@@ -21,7 +23,8 @@
     "price": 60,
     "description": "+20% vitesse",
     "effect_type": "Speed",
-    "effect_value": 0.2
+    "effect_value": 0.2,
+    "rarity": "Common"
   },
   {
     "id": 4,
@@ -29,7 +32,8 @@
     "price": 40,
     "description": "+30 or",
     "effect_type": "Gold",
-    "effect_value": 30.0
+    "effect_value": 30.0,
+    "rarity": "Common"
   },
   {
     "id": 5,
@@ -37,7 +41,8 @@
     "price": 80,
     "description": "+40 HP",
     "effect_type": "Health",
-    "effect_value": 40.0
+    "effect_value": 40.0,
+    "rarity": "Rare"
   },
   {
     "id": 6,
@@ -45,7 +50,8 @@
     "price": 90,
     "description": "+25% dégâts",
     "effect_type": "Damage",
-    "effect_value": 0.25
+    "effect_value": 0.25,
+    "rarity": "Epic"
   },
   {
     "id": 7,
@@ -53,7 +59,8 @@
     "price": 70,
     "description": "+35% vitesse",
     "effect_type": "Speed",
-    "effect_value": 0.35
+    "effect_value": 0.35,
+    "rarity": "Rare"
   },
   {
     "id": 8,
@@ -61,7 +68,8 @@
     "price": 55,
     "description": "+75 or",
     "effect_type": "Gold",
-    "effect_value": 75.0
+    "effect_value": 75.0,
+    "rarity": "Rare"
   },
   {
     "id": 9,
@@ -69,7 +77,8 @@
     "price": 110,
     "description": "+60 HP",
     "effect_type": "Health",
-    "effect_value": 60.0
+    "effect_value": 60.0,
+    "rarity": "Epic"
   },
   {
     "id": 10,
@@ -77,6 +86,7 @@
     "price": 130,
     "description": "+40% dégâts",
     "effect_type": "Damage",
-    "effect_value": 0.4
+    "effect_value": 0.4,
+    "rarity": "Legendary"
   }
 ]

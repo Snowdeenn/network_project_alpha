@@ -79,6 +79,9 @@ pub enum GameEventKind {
     ShopOpened {
         inventory: Vec<Option<ShopItem>>,
     },
+    ItemBought {
+        item: ShopItem,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Encode, Decode)]

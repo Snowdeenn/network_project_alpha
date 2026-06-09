@@ -82,6 +82,7 @@ pub enum GameEventKind {
     ItemBought {
         item: ShopItem,
     },
+    PurchaseFailed,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Encode, Decode)]

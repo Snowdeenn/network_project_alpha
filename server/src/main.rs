@@ -276,13 +276,16 @@ fn handle_shop_action(
         }
         ShopActionKind::Buy => {
             println!("Client {} à acheté un item du shop", client);
-            if let Some(item) = player_shop.buy(client, action.slot as usize) {
-                server.send_event(
-                    client,
-                    &GameEvent {
-                        kind: GameEventKind::ItemBought { item },
-                    },
-                );
+            let gold = res.get::<Gold>().unwrap().0;
+            let item = player_shop.buy(client, action.slot as usize, gold);
+            match item {
+                Some(item) => {
+                    server.send_event(client, &GameEvent { kind: GameEventKind::ItemBought { item }});
+                },
+                None => {
+                    println!("Client {} n'a pas pu acheter l'item du slot {}", client, action.slot);
+                    server.send_event(client, &GameEvent { kind: GameEventKind::PurchaseFailed });
+                }
             }
         }
         ShopActionKind::Close => {

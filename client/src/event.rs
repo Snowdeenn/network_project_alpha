@@ -32,6 +32,7 @@ impl ClientState {
             GameEventKind::BossSpawn { .. } => {},
             GameEventKind::PlayerDied { .. } => {},
             GameEventKind::ItemBought { .. } => {},
+            GameEventKind::PurchaseFailed => {},
         }
     }
 

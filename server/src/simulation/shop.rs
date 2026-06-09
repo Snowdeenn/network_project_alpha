@@ -23,9 +23,14 @@ impl PlayerShops {
         items
     }
 
-    pub fn buy(&mut self, player_id: u64, slot: usize) -> Option<ShopItem> {
+    pub fn buy(&mut self, player_id: u64, slot: usize, gold: u32) -> Option<ShopItem> {
         let inventory = self.inventories.get_mut(&player_id)?;
-        
-        inventory.get_mut(slot)?.take()
+        let item = inventory.get_mut(slot)?.take();
+        if let Some(item) = item {
+            if gold >= item.price {
+                return Some(item);
+            }
+        }
+        None
     }
 }

@@ -7,7 +7,8 @@ mod config;
 
 use event::ClientState;
 use net::client::GameNetClient;
-use raylib::ffi::MouseButton;
+use raylib::ffi::{MouseButton};
+use raylib::ffi::KeyboardKey;
 use renderer::Renderer;
 use shared::protocol::{StateSnapshot};
 use std::time::{Duration, Instant};

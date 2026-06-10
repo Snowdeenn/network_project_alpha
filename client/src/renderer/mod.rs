@@ -39,8 +39,8 @@ impl ScreenScale {
 }
 
 pub struct Renderer {
-    pub rl: RaylibHandle,
     pub thread: RaylibThread,
+    pub rl: RaylibHandle,
     pub cam: Camera2D,
     pub screen_w: i32,
     pub screen_h: i32,
@@ -55,6 +55,8 @@ impl Renderer {
             //.fullscreen()
             .build();
         rl.set_target_fps(120);
+
+        rl.set_exit_key(None);
 
         let monitor_id = raylib::window::get_current_monitor();
         let monitor_info = raylib::window::get_monitor_info(monitor_id).unwrap();

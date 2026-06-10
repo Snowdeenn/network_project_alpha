@@ -193,6 +193,7 @@ name = "client"
 version = "0.1.0"
 dependencies = [
  "bincode",
+ "rand",
  "raylib",
  "renet",
  "renet_netcode",

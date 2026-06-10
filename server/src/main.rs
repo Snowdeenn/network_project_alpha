@@ -189,7 +189,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         {
             for (client_id, shop_action) in net.drain_shop_actions() {
-                handle_shop_action(client_id, &mut net, shop_action, &resources);
+                handle_shop_action(client_id, &mut net, shop_action, &mut resources);
             }
         }
 
@@ -255,15 +255,15 @@ fn handle_shop_action(
     client: u64,
     server: &mut GameNetServer,
     action: ShopAction,
-    res: &Resources,
+    res: &mut Resources,
 ) {
-    let item_pool = res.get::<ItemPool>().unwrap();
     let mut player_shop = res.get_mut::<PlayerShops>().unwrap();
 
     match action.kind {
         ShopActionKind::Open => {
             println!("Client {} à ouvert le shop", client);
 
+            let item_pool = res.get::<ItemPool>().unwrap();
             let shop_inventory = player_shop.generate(client, &item_pool.items);
             server.send_event(
                 client,
@@ -276,8 +276,7 @@ fn handle_shop_action(
         }
         ShopActionKind::Buy => {
             println!("Client {} à acheté un item du shop", client);
-            let gold = res.get::<Gold>().unwrap().0;
-            let item = player_shop.buy(client, action.slot as usize, gold);
+            let item = player_shop.buy(client, action.slot as usize, res);
             match item {
                 Some(item) => {
                     server.send_event(client, &GameEvent { kind: GameEventKind::ItemBought { item }});

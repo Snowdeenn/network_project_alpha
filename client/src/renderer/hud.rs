@@ -46,7 +46,7 @@ pub fn render(d: &mut RaylibDrawHandle, snap: &StateSnapshot, s: &ScreenScale) {
 
 use shared::protocol::{EffectType, ShopItem};
 
-pub fn render_shop(d: &mut RaylibDrawHandle, state: &ClientState, s: &ScreenScale) {
+pub fn render_shop(d: &mut RaylibDrawHandle, state: &mut ClientState, s: &ScreenScale) {
     if !state.show_shop {
         return;
     }
@@ -71,6 +71,11 @@ pub fn render_shop(d: &mut RaylibDrawHandle, state: &ClientState, s: &ScreenScal
         match item_opt {
             Some(item) => render_card(d, x, item, s),
             None => render_sold(d, x, s),
+        }
+        
+        if state.item_bought && item_opt.is_some() {
+            state.item_bought = false;
+            render_sold(d, x, s);
         }
     }
 

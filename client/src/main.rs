@@ -13,6 +13,7 @@ use shared::protocol::{StateSnapshot};
 use std::time::{Duration, Instant};
 use shared::protocol::{ShopAction, ShopActionKind};
 
+
 const TICK_DURATION: Duration = Duration::from_millis(50);
 const SCREEN_W: i32 = 1920;
 const SCREEN_H: i32 = 1080;
@@ -64,6 +65,7 @@ fn main() {
                     slot: slot as u8,
                 });
             }
+
         }
 
         // tick réseau 20 Hz — envoi uniquement
@@ -91,7 +93,7 @@ fn main() {
             prev_snapshot.as_ref(),
             last_snapshot.as_ref(),
             last_snap_time,
-            &client_state,
+            &mut client_state,
         );
     }
 }

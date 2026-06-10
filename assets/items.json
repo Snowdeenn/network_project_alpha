@@ -38,7 +38,7 @@
   {
     "id": 5,
     "name": "Armure légère",
-    "price": 80,
+    "price": 10,
     "description": "+40 HP",
     "effect_type": "Health",
     "effect_value": 40.0,

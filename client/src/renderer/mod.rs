@@ -83,7 +83,7 @@ impl Renderer {
         prev: Option<&StateSnapshot>,
         current: Option<&StateSnapshot>,
         last_snap_time: Instant,
-        client_state: &ClientState,
+        client_state: &mut ClientState,
     ) {
         let t =
             (last_snap_time.elapsed().as_secs_f32() / TICK_DURATION.as_secs_f32()).clamp(0.0, 1.0);

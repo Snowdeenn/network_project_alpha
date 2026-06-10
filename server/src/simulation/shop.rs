@@ -1,7 +1,8 @@
 use rand::{prelude::IndexedRandom};
 use shared::protocol::ShopItem;
 use std::collections::HashMap;
-
+use crate::simulation::eco::Gold;
+use legion::Resources;
 pub struct PlayerShops {
     pub inventories: HashMap<u64, Vec<Option<ShopItem>>>,
 }
@@ -23,12 +24,15 @@ impl PlayerShops {
         items
     }
 
-    pub fn buy(&mut self, player_id: u64, slot: usize, gold: u32) -> Option<ShopItem> {
+    pub fn buy(&mut self, player_id: u64, slot: usize, res: &mut Resources) -> Option<ShopItem> {
         let inventory = self.inventories.get_mut(&player_id)?;
         let item = inventory.get_mut(slot)?.take();
         if let Some(item) = item {
-            if gold >= item.price {
-                return Some(item);
+            if let Some(mut gold) = res.get_mut::<Gold>() {
+                if gold.0 >= item.price {
+                    gold.0 -= item.price;
+                    return Some(item);
+                }
             }
         }
         None

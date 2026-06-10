@@ -42,8 +42,8 @@ pub struct Renderer {
     pub rl: RaylibHandle,
     pub thread: RaylibThread,
     pub cam: Camera2D,
-    screen_w: i32,
-    screen_h: i32,
+    pub screen_w: i32,
+    pub screen_h: i32,
     screen_scale: ScreenScale,
 }
 
@@ -56,9 +56,15 @@ impl Renderer {
             .build();
         rl.set_target_fps(120);
 
-        let real_w = rl.get_screen_width();
-        let real_h = rl.get_screen_height();
-        
+        let monitor_id = raylib::window::get_current_monitor();
+        let monitor_info = raylib::window::get_monitor_info(monitor_id).unwrap();
+        println!(
+            "Monitor {}: {}x{}",
+            monitor_id, monitor_info.width, monitor_info.height
+        );
+        let real_w = monitor_info.width;
+        let real_h = monitor_info.height;
+
         let zoom = real_h as f32 / REFERENCE_H;
 
         let cam = Camera2D {

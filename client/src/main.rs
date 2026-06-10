@@ -15,11 +15,9 @@ use shared::protocol::{ShopAction, ShopActionKind};
 
 
 const TICK_DURATION: Duration = Duration::from_millis(50);
-const SCREEN_W: i32 = 1366;
-const SCREEN_H: i32 = 768;
 
 fn main() {
-    let mut renderer = Renderer::new(SCREEN_W, SCREEN_H);
+    let mut renderer = Renderer::new(1280, 720);
     let mut client = GameNetClient::new(1);
     let mut last_tick = Instant::now();
     let mut last_frame = Instant::now();
@@ -73,7 +71,7 @@ fn main() {
             last_tick = Instant::now();
 
             if client.is_connected() {
-                let packet = input::read_input(&renderer.rl, tick_id, SCREEN_W, SCREEN_H);
+                let packet = input::read_input(&renderer.rl, tick_id, renderer.screen_w, renderer.screen_h);
                 client.send_input(&packet);
             }
 

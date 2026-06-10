@@ -17,8 +17,9 @@ use shared::protocol::{ShopAction, ShopActionKind};
 const TICK_DURATION: Duration = Duration::from_millis(50);
 
 fn main() {
+    let client_id = rand::random::<u64>();
     let mut renderer = Renderer::new(1280, 720);
-    let mut client = GameNetClient::new(1);
+    let mut client = GameNetClient::new(client_id);
     let mut last_tick = Instant::now();
     let mut last_frame = Instant::now();
     let mut tick_id = 0u64;
@@ -94,4 +95,6 @@ fn main() {
             &mut client_state,
         );
     }
+
+    std::process::exit(0);
 }

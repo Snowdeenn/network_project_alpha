@@ -1,8 +1,7 @@
-use rand::{prelude::IndexedRandom, seq::index};
+use rand::{prelude::IndexedRandom};
 use shared::protocol::ShopItem;
 use std::collections::HashMap;
-use crate::simulation::eco::Gold;
-use legion::Resources;
+
 pub struct PlayerShops {
     pub inventories: HashMap<u64, Vec<Option<ShopItem>>>,
 }

@@ -35,10 +35,6 @@ pub const SHOP_SOLD_TEXT_OFFSET_X: f32 = 120.0 / 1920.0;
 pub const SHOP_SOLD_TEXT_OFFSET_Y: f32 = 230.0 / 1080.0;
 pub const SHOP_SOLD_FONT_SIZE: f32     = 40.0  / 1080.0;
 
-pub const SHOP_FAILED_TEXT_OFFSET_X: f32 = 100.0 / 1920.0;
-pub const SHOP_FAILED_TEXT_OFFSET_Y: f32 = 230.0 / 1080.0;
-pub const SHOP_FAILED_FONT_SIZE: f32     = 32.0  / 1080.0;
-
 // --- HUD ---
 pub const HUD_PADDING_X: f32    = 20.0 / 1920.0;
 pub const HUD_WAVE_Y: f32       = 20.0 / 1080.0;

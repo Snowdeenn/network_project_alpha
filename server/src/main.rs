@@ -32,10 +32,11 @@ pub fn next_id() -> u64 {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut net = GameNetServer::new();
-    let mut world = World::default();
-    let mut resources = Resources::default();
-    let mut players_entities: HashMap<u64, Entity> = HashMap::new();
+    let mut net                 = GameNetServer::new();
+    let mut world                       = World::default();
+    let mut resources               = Resources::default();
+    let players_entities: HashMap<u64, Entity> = HashMap::new();
+    let mut client_ids: Vec<u64>               = Vec::new();
 
     // --- resources ---
     {
@@ -46,7 +47,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         resources.insert(EnemyDiedQueue(vec![]));
         resources.insert(CoinSpawnQueue(vec![]));
         resources.insert(PickupQueue(vec![]));
-        resources.insert(Gold(0));
         resources.insert(GameState::Playing);
         resources.insert(PlayerPos { x: 0.0, y: 0.0 });
         resources.insert(PlayerHp {
@@ -55,6 +55,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
         resources.insert(GameEventQueue(vec![]));
         resources.insert(PlayerShops::new());
+        resources.insert(PlayerGold::new());
+        resources.insert(players_entities);
     }
 
     // --- wave config ---
@@ -149,6 +151,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             match event {
                 ServerEvent::ClientConnected { client_id } => {
                     println!("Client connecté : {}", client_id);
+                    client_ids.push(client_id);
 
                     let entity = world.push((
                         EntityId(next_id()),
@@ -167,13 +170,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let mut entry = world.entry(entity).unwrap();
                     entry.add_component(Active(true));
 
-                    players_entities.insert(client_id, entity);
+                    if let Some(mut players_entity) = resources.get_mut::<HashMap<u64, Entity>>() {
+                        players_entity.insert(client_id, entity);
+                    }
+                
+                    // Creation de la ressource gold individuel pour chaque joueur
+                    if let Some(mut player_gold) = resources.get_mut::<PlayerGold>() {
+                        player_gold.0.insert(client_id, 0);
+                    }
                 }
                 ServerEvent::ClientDisconnected { client_id, .. } => {
                     println!("Client déconnecté {}", client_id);
-                    if let Option::Some(entity) = players_entities.remove(&client_id) {
+                    if let Option::Some(entity) = resources.get_mut::<HashMap<u64, Entity>>().unwrap().remove(&client_id) {
                         world.remove(entity);
                     }
+                    resources.get_mut::<PlayerGold>().unwrap().0.remove(&client_id);
                 }
             }
         }
@@ -181,7 +192,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Traite les inputs reçus du client et les stocke dans les ressources globales
         {
             for (client_id, packet) in net.drain_inputs() {
-                if let Some(&entity) = players_entities.get(&client_id) {
+                if let Some(&entity) = resources.get::<HashMap<u64, Entity>>().unwrap().get(&client_id) {
                     apply_input(&mut world, entity, &packet);
                 }
             }
@@ -216,8 +227,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         schedule.execute(&mut world, &mut resources);
 
         {
-            let snapshot = build_snapshot(&world, &resources, tick_id);
-            net.broadcast_snapshot(&snapshot);
+            // On récupère temporairement les IDs des joueurs connectés
+            let active_clients: Vec<u64> = {
+                let players_entities = resources.get::<HashMap<u64, Entity>>().unwrap();
+                players_entities.keys().cloned().collect()
+            };
+
+            // On génère et on envoie un snapshot dédié à chaque client
+            for client_id in active_clients {
+                let snapshot = build_snapshot(client_id, &mut world, &resources, tick_id);
+                
+                net.send_snapshot(client_id, &snapshot); 
+            }
         }
 
         {
@@ -280,18 +301,18 @@ fn handle_shop_action(
         ShopActionKind::Buy => {
             println!("Client {} à acheté un item du shop", client);
 
-            let gold_avaible = res.get::<Gold>().unwrap();
+            let gold_avaible = res.get::<PlayerGold>().unwrap();
             let item = {
                 let mut player_shop = res.get_mut::<PlayerShops>().unwrap();
-                player_shop.buy(client, action.slot as usize, gold_avaible.0)
+                player_shop.buy(client, action.slot as usize, gold_avaible.get(client))
             };
             drop(gold_avaible); // On libère le verrou sur res après utilisation de gold_avaible
             
             match item {
                 Some(item) => {
                     println!("Client {} as acheter l'item du slot {}", client, action.slot);
-                    if let Some(mut gold) = res.get_mut::<Gold>() {
-                        gold.0 -= item.price;
+                    if let Some(mut gold) = res.get_mut::<PlayerGold>() {
+                        gold.sub(client, item.price);
                     }
                     server.send_event(client, &GameEvent { kind: GameEventKind::ItemBought { slot: action.slot as usize}});
                 },

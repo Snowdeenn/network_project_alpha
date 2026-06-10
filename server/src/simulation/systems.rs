@@ -1,7 +1,8 @@
 use std::time::Duration;
+use std::collections::HashMap;
 
 use crate::simulation::components::*;
-use crate::simulation::eco::{CoinPool, CoinSpawnQueue, Gold, PickupQueue};
+use crate::simulation::eco::{CoinPool, CoinSpawnQueue, PlayerGold, PickupQueue};
 use crate::simulation::event::{
     CoinEvent, DamageEvent, DamageQueue, EnemyDied, EnemyDiedQueue, GameEventQueue,
 };
@@ -435,36 +436,17 @@ pub fn coin_pickup(word: &mut SubWorld, #[resource] pick_up_queue: &mut PickupQu
             let (ent_b, pos_b, col_b) = entities[j];
 
             if let Some(_) = aabb_overlap(pos_a, col_a, pos_b, col_b) {
-                //println!("Collision detected between {:?} and {:?}", ent_a, ent_b);
-                let a_is_player = {
-                    word.entry_ref(*ent_a)
-                        .map(|e| e.get_component::<Player>().is_ok())
-                        .unwrap_or(false)
-                };
+                let a_is_player = word.entry_ref(*ent_a).map(|e| e.get_component::<Player>().is_ok()).unwrap_or(false);
+                let b_is_player = word.entry_ref(*ent_b).map(|e| e.get_component::<Player>().is_ok()).unwrap_or(false);
+                let a_is_coin   = word.entry_ref(*ent_a).map(|e| e.get_component::<Coin>().is_ok()).unwrap_or(false);
+                let b_is_coin   = word.entry_ref(*ent_b).map(|e| e.get_component::<Coin>().is_ok()).unwrap_or(false);
 
-                let b_is_player = {
-                    word.entry_ref(*ent_b)
-                        .map(|e| e.get_component::<Player>().is_ok())
-                        .unwrap_or(false)
-                };
-
-                let a_is_coin = {
-                    word.entry_ref(*ent_a)
-                        .map(|e| e.get_component::<Coin>().is_ok())
-                        .unwrap_or(false)
-                };
-
-                let b_is_coin = {
-                    word.entry_ref(*ent_b)
-                        .map(|e| e.get_component::<Coin>().is_ok())
-                        .unwrap_or(false)
-                };
                 if a_is_player && b_is_coin {
-                    pick_up_queue.0.push(*ent_b);
+                    pick_up_queue.0.push((*ent_a, *ent_b));
                 }
 
                 if b_is_player && a_is_coin {
-                    pick_up_queue.0.push(*ent_a);
+                    pick_up_queue.0.push((*ent_b, *ent_a));
                 }
             }
         }
@@ -477,15 +459,29 @@ pub fn coin_pickup(word: &mut SubWorld, #[resource] pick_up_queue: &mut PickupQu
 pub fn apply_pickup(
     world: &mut SubWorld,
     #[resource] pick_up_queue: &mut PickupQueue,
-    #[resource] gold: &mut Gold,
+    #[resource] gold: &mut PlayerGold,
+    #[resource] players_entities: &HashMap<u64, Entity>,
 ) {
-    for coin in pick_up_queue.0.iter() {
+    for (player_entity, coin) in pick_up_queue.0.iter() {
         if let Ok(mut entry) = world.entry_mut(*coin) {
+            
             if let Ok(active) = entry.get_component_mut::<Active>() {
                 *active = Active(false);
             }
+            
             if let Ok(value) = entry.get_component::<CoinValue>() {
-                gold.0 += value.0;
+                
+                let player_id = players_entities
+                    .iter()
+                    .find(|&(_, &ent)| ent == *player_entity)
+                    .map(|(&id, _)| id);
+
+                if let Some(id) = player_id {
+                    gold.add(id, value.0); 
+                    
+
+                    println!("Le joueur {} a ramassé une pièce d'une valeur de {} !", id, value.0);
+                }
             }
         }
     }

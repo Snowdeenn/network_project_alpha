@@ -86,6 +86,11 @@ impl GameNetServer {
         self.server.broadcast_message(CHANNEL_EVENT, bytes);
     }
 
+    pub fn send_snapshot(&mut self, client_id: u64, snapshot: &StateSnapshot) {
+        let bytes = bincode::encode_to_vec(snapshot, bincode::config::standard()).unwrap();
+        self.server.send_message(client_id, CHANNEL_STATE, bytes);
+    }
+
     pub fn send_event(&mut self, client_id: u64, event: &GameEvent) {
         let bytes = bincode::encode_to_vec(event, bincode::config::standard()).unwrap();
         self.server.send_message(client_id, CHANNEL_EVENT, bytes);

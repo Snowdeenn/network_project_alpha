@@ -52,7 +52,7 @@ impl Renderer {
         let (mut rl, thread) = raylib::init()
             .size(screen_w, screen_h)
             .title("Project Alpha")
-            .fullscreen()
+            //.fullscreen()
             .build();
         rl.set_target_fps(120);
 

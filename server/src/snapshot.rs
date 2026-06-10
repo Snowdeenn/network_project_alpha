@@ -1,18 +1,21 @@
+use std::collections::HashMap;
+
 use crate::simulation::components::{Active, EntityId, Health, IA, Player, Position};
 use crate::simulation::wave::{WaveManager, WaveState as SimWaveState};
 use legion::*;
 use shared::protocol::{EntityKind, EntityState, StateSnapshot, WaveInfo, WaveState, PlayerInfo};
 use crate::Coin;
-use crate::Gold;
+use crate::PlayerGold;
 
-pub fn build_snapshot(world: &World, resources: &Resources, tick_id: u64) -> StateSnapshot {
+pub fn build_snapshot(player_id: u64, world: &mut World, resources: &Resources, tick_id: u64) -> StateSnapshot {
     let wave_info = build_wave_info(resources);
     let entities = build_entities(world);
+    
     StateSnapshot {
         tick_id,
         entities,
         wave_info,
-        player_info: build_player_info(world, resources),
+        player_info: build_player_info(player_id,  world, resources),
     }
 }
 
@@ -90,11 +93,18 @@ fn build_entities(world: &World) -> Vec<EntityState> {
     entities
 }
 
-fn build_player_info(world: &World, resources: &Resources) -> Option<PlayerInfo> {
-    let gold = resources.get::<Gold>()?.0;
+fn build_player_info(player_id: u64, world: &mut World, resources: &Resources) -> Option<PlayerInfo> {
+    // 1. On récupère la table de correspondance ID -> Entity
+    let players_entities = resources.get::<HashMap<u64, Entity>>().unwrap();
+    let entity = players_entities.get(&player_id)?;
 
-    let mut query = <(&Health,)>::query().filter(component::<Player>() & component::<Active>());
-    let (health,) = query.iter(world).next()?;
+    // 2. On accède directement au composant Health via l'entry de Legion (Zéro boucle query !)
+    let entry = world.entry(*entity)?;
+    let health = entry.get_component::<Health>().ok()?;
+
+    // 3. On récupère l'or de CE joueur spécifique
+    let player_gold_res = resources.get::<PlayerGold>().unwrap();
+    let gold = player_gold_res.0.get(&player_id).cloned().unwrap_or(0);
 
     Some(PlayerInfo {
         health:     health.hp as f32,

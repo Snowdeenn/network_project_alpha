@@ -293,11 +293,11 @@ fn handle_shop_action(
                     if let Some(mut gold) = res.get_mut::<Gold>() {
                         gold.0 -= item.price;
                     }
-                    server.send_event(client, &GameEvent { kind: GameEventKind::ItemBought { item }});
+                    server.send_event(client, &GameEvent { kind: GameEventKind::ItemBought { slot: action.slot as usize}});
                 },
                 None => {
                     println!("Client {} n'a pas pu acheter l'item du slot {}", client, action.slot);
-                    server.send_event(client, &GameEvent { kind: GameEventKind::PurchaseFailed });
+                    server.send_event(client, &GameEvent { kind: GameEventKind::PurchaseFailed { slot: action.slot as usize } });
                 }
             }
         }

@@ -80,9 +80,11 @@ pub enum GameEventKind {
         inventory: Vec<Option<ShopItem>>,
     },
     ItemBought {
-        item: ShopItem,
+        slot: usize,
     },
-    PurchaseFailed,
+    PurchaseFailed {
+        slot: usize,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Encode, Decode)]

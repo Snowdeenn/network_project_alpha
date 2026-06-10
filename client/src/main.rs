@@ -15,8 +15,8 @@ use shared::protocol::{ShopAction, ShopActionKind};
 
 
 const TICK_DURATION: Duration = Duration::from_millis(50);
-const SCREEN_W: i32 = 1920;
-const SCREEN_H: i32 = 1080;
+const SCREEN_W: i32 = 1366;
+const SCREEN_H: i32 = 768;
 
 fn main() {
     let mut renderer = Renderer::new(SCREEN_W, SCREEN_H);

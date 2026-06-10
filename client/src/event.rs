@@ -4,7 +4,6 @@ pub struct ClientState {
     pub shop_available: bool,
     pub show_shop:      bool,
     pub curr_inventory: Option<Vec<Option<ShopItem>>>,
-    pub item_bought:    bool
 }
 
 impl ClientState {
@@ -13,7 +12,6 @@ impl ClientState {
             shop_available: false,
             show_shop:      false,
             curr_inventory: None,
-            item_bought:    false,
         }
     }
 
@@ -33,9 +31,7 @@ impl ClientState {
             },
             GameEventKind::BossSpawn { .. } => {},
             GameEventKind::PlayerDied { .. } => {},
-            GameEventKind::ItemBought { .. } => {
-                self.item_bought = true;
-            },
+            GameEventKind::ItemBought { .. } => {},
             GameEventKind::PurchaseFailed => {},
         }
     }

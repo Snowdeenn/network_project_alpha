@@ -73,10 +73,6 @@ pub fn render_shop(d: &mut RaylibDrawHandle, state: &mut ClientState, s: &Screen
             None => render_sold(d, x, s),
         }
         
-        if state.item_bought && item_opt.is_some() {
-            state.item_bought = false;
-            render_sold(d, x, s);
-        }
     }
 
     d.draw_text(

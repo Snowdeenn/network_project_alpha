@@ -257,14 +257,17 @@ fn handle_shop_action(
     action: ShopAction,
     res: &mut Resources,
 ) {
-    let mut player_shop = res.get_mut::<PlayerShops>().unwrap();
+    
 
     match action.kind {
         ShopActionKind::Open => {
             println!("Client {} à ouvert le shop", client);
 
-            let item_pool = res.get::<ItemPool>().unwrap();
-            let shop_inventory = player_shop.generate(client, &item_pool.items);
+            let shop_inventory = {
+                let item_pool = res.get::<ItemPool>().unwrap();
+                let mut player_shops = res.get_mut::<PlayerShops>().unwrap();
+                player_shops.generate(client, &item_pool.items)
+            };
             server.send_event(
                 client,
                 &GameEvent {
@@ -276,9 +279,20 @@ fn handle_shop_action(
         }
         ShopActionKind::Buy => {
             println!("Client {} à acheté un item du shop", client);
-            let item = player_shop.buy(client, action.slot as usize, res);
+
+            let gold_avaible = res.get::<Gold>().unwrap();
+            let item = {
+                let mut player_shop = res.get_mut::<PlayerShops>().unwrap();
+                player_shop.buy(client, action.slot as usize, gold_avaible.0)
+            };
+            drop(gold_avaible); // On libère le verrou sur res après utilisation de gold_avaible
+            
             match item {
                 Some(item) => {
+                    println!("Client {} as acheter l'item du slot {}", client, action.slot);
+                    if let Some(mut gold) = res.get_mut::<Gold>() {
+                        gold.0 -= item.price;
+                    }
                     server.send_event(client, &GameEvent { kind: GameEventKind::ItemBought { item }});
                 },
                 None => {

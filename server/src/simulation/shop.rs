@@ -1,4 +1,4 @@
-use rand::{prelude::IndexedRandom};
+use rand::{prelude::IndexedRandom, seq::index};
 use shared::protocol::ShopItem;
 use std::collections::HashMap;
 use crate::simulation::eco::Gold;
@@ -24,16 +24,11 @@ impl PlayerShops {
         items
     }
 
-    pub fn buy(&mut self, player_id: u64, slot: usize, res: &mut Resources) -> Option<ShopItem> {
+    pub fn buy(&mut self, player_id: u64, slot: usize, gold_avaible: u32) -> Option<ShopItem> {
         let inventory = self.inventories.get_mut(&player_id)?;
-        let item = inventory.get_mut(slot)?.take();
-        if let Some(item) = item {
-            if let Some(mut gold) = res.get_mut::<Gold>() {
-                if gold.0 >= item.price {
-                    gold.0 -= item.price;
-                    return Some(item);
-                }
-            }
+        let item = inventory.get(slot)?.as_ref()?;
+        if item.price <= gold_avaible {
+            return inventory.get_mut(slot)?.take();
         }
         None
     }

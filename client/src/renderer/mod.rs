@@ -90,6 +90,10 @@ impl Renderer {
         let s = &self.screen_scale;
 
         let mut d = self.rl.begin_drawing(&self.thread);
+        
+        let dt = d.get_frame_time();
+        client_state.update_timers(dt);
+
         d.clear_background(Color::BLACK);
 
         {

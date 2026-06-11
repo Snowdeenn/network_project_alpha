@@ -49,6 +49,7 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn new(screen_w: i32, screen_h: i32) -> Self {
+        
         let (mut rl, thread) = raylib::init()
             .size(screen_w, screen_h)
             .title("Project Alpha")

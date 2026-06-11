@@ -27,6 +27,7 @@ pub fn read_input(rl: &RaylibHandle, tick_id: u64, screen_w: i32, screen_h: i32)
         tick_id,
         move_dir,
         dash:  rl.is_key_pressed(KeyboardKey::KEY_SPACE),
+        attack: rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT),
         spell: None,
         aim_dir,
     }

@@ -5,11 +5,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Encode, Decode)]
 pub struct InputPacket {
-    pub tick_id: u64,
     pub move_dir: [f32; 2],
-    pub dash: bool,
-    pub spell: Option<u8>,
-    pub aim_dir: [f32; 2],
+    pub aim_dir:  [f32; 2],
+    pub tick_id:  u64,
+    pub spell:    Option<u8>,
+    pub dash:     bool,
+    pub attack:   bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Decode, Encode)]
@@ -140,4 +141,3 @@ pub struct PlayerInfo {
     pub max_health: f32,
     pub gold: u32,
 }
-

@@ -7,8 +7,7 @@ mod config;
 
 use event::ClientState;
 use net::client::GameNetClient;
-use raylib::ffi::{MouseButton};
-use raylib::ffi::KeyboardKey;
+use raylib::ffi::{MouseButton, KeyboardKey};
 use renderer::Renderer;
 use shared::protocol::{StateSnapshot};
 use std::time::{Duration, Instant};
@@ -97,5 +96,8 @@ fn main() {
         );
     }
 
-    std::process::exit(0);
+    if renderer.rl.is_key_pressed(KeyboardKey::KEY_SPACE) {
+        std::process::exit(0);
+    }
+    
 }

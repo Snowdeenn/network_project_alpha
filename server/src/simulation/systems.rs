@@ -1,14 +1,15 @@
-use std::time::Duration;
 use std::collections::HashMap;
+use std::time::Duration;
 
 use crate::simulation::components::*;
-use crate::simulation::eco::{CoinPool, CoinSpawnQueue, PlayerGold, PickupQueue};
+use crate::simulation::eco::{CoinPool, CoinSpawnQueue, PickupQueue, PlayerGold};
 use crate::simulation::event::{
     CoinEvent, DamageEvent, DamageQueue, EnemyDied, EnemyDiedQueue, GameEventQueue,
 };
 use crate::simulation::helper::*;
 use crate::simulation::wave::{EnemyPool, WaveConfigs, WaveManager, WaveState};
-use legion::world::SubWorld;
+use legion::systems::CommandBuffer;
+use legion::world::{ComponentAccess, SubWorld};
 use legion::*;
 use shared::protocol::{GameEvent, GameEventKind};
 
@@ -103,8 +104,7 @@ pub fn collide_arena(pos: &mut Position, col: &Collider) {
 #[write_component(Velocity)]
 #[write_component(Position)]
 #[read_component(Active)]
-#[read_component(Coin)]
-pub fn collide(world: &mut SubWorld, #[resource] damage_queue: &mut DamageQueue) {
+pub fn collide(world: &mut SubWorld) {
     let mut query = <(Entity, &Position, &Collider, &Active)>::query();
     let entities: Vec<_> = query
         .iter(world)
@@ -138,47 +138,6 @@ pub fn collide(world: &mut SubWorld, #[resource] damage_queue: &mut DamageQueue)
                     dir_y: (center_a_y - center_b_y).signum(),
                     axis: overlap_x < overlap_y,
                 });
-                let a_is_player = {
-                    world
-                        .entry_ref(*ent_a)
-                        .map(|e| e.get_component::<Player>().is_ok())
-                        .unwrap_or(false)
-                };
-
-                let a_is_ia = {
-                    world
-                        .entry_ref(*ent_a)
-                        .map(|e| e.get_component::<IA>().is_ok())
-                        .unwrap_or(false)
-                };
-
-                let b_is_player = {
-                    world
-                        .entry_ref(*ent_b)
-                        .map(|e| e.get_component::<Player>().is_ok())
-                        .unwrap_or(false)
-                };
-
-                let b_is_ia = {
-                    world
-                        .entry_ref(*ent_b)
-                        .map(|e| e.get_component::<IA>().is_ok())
-                        .unwrap_or(false)
-                };
-
-                if a_is_player && b_is_ia {
-                    damage_queue.0.push(DamageEvent {
-                        target: *ent_b,
-                        amount: 10,
-                    });
-                }
-
-                if b_is_player && a_is_ia {
-                    damage_queue.0.push(DamageEvent {
-                        target: *ent_a,
-                        amount: 10,
-                    });
-                }
             }
         }
     }
@@ -438,10 +397,22 @@ pub fn coin_pickup(word: &mut SubWorld, #[resource] pick_up_queue: &mut PickupQu
             let (ent_b, pos_b, col_b) = entities[j];
 
             if let Some(_) = aabb_overlap(pos_a, col_a, pos_b, col_b) {
-                let a_is_player = word.entry_ref(*ent_a).map(|e| e.get_component::<Player>().is_ok()).unwrap_or(false);
-                let b_is_player = word.entry_ref(*ent_b).map(|e| e.get_component::<Player>().is_ok()).unwrap_or(false);
-                let a_is_coin   = word.entry_ref(*ent_a).map(|e| e.get_component::<Coin>().is_ok()).unwrap_or(false);
-                let b_is_coin   = word.entry_ref(*ent_b).map(|e| e.get_component::<Coin>().is_ok()).unwrap_or(false);
+                let a_is_player = word
+                    .entry_ref(*ent_a)
+                    .map(|e| e.get_component::<Player>().is_ok())
+                    .unwrap_or(false);
+                let b_is_player = word
+                    .entry_ref(*ent_b)
+                    .map(|e| e.get_component::<Player>().is_ok())
+                    .unwrap_or(false);
+                let a_is_coin = word
+                    .entry_ref(*ent_a)
+                    .map(|e| e.get_component::<Coin>().is_ok())
+                    .unwrap_or(false);
+                let b_is_coin = word
+                    .entry_ref(*ent_b)
+                    .map(|e| e.get_component::<Coin>().is_ok())
+                    .unwrap_or(false);
 
                 if a_is_player && b_is_coin {
                     pick_up_queue.0.push((*ent_a, *ent_b));
@@ -466,25 +437,77 @@ pub fn apply_pickup(
 ) {
     for (player_entity, coin) in pick_up_queue.0.iter() {
         if let Ok(mut entry) = world.entry_mut(*coin) {
-            
             if let Ok(active) = entry.get_component_mut::<Active>() {
                 *active = Active(false);
             }
-            
+
             if let Ok(value) = entry.get_component::<CoinValue>() {
-                
                 let player_id = players_entities
                     .iter()
                     .find(|&(_, &ent)| ent == *player_entity)
                     .map(|(&id, _)| id);
 
                 if let Some(id) = player_id {
-                    gold.add(id, value.0); 
-                    
+                    gold.add(id, value.0);
 
-                    println!("Le joueur {} a ramassé une pièce d'une valeur de {} !", id, value.0);
+                    println!(
+                        "Le joueur {} a ramassé une pièce d'une valeur de {} !",
+                        id, value.0
+                    );
                 }
             }
         }
     }
+}
+
+// =================================================================================
+// -------------------------------- ATTACK SYSTEMS ---------------------------------
+// =================================================================================
+
+#[system]
+#[read_component(Player)]
+#[read_component(InputState)]
+pub fn read_attack_state(world: &mut SubWorld, command: &mut CommandBuffer) {
+    let mut query = <(Entity, &InputState)>::query().filter(component::<Player>());
+
+    for (entity, state) in query.iter(world) {
+        if state.attack {
+            command.add_component(*entity, Attacking);
+        }
+    }
+}
+
+const OFFSET_ATTACKBOX: f32 = 10.0;
+const ATTACK_HALF_LEN: f32 = 25.0;
+const ATTACK_HALF_WIDTH: f32 = 30.0;
+const PLAYER_RADIUS: f32 = 20.0;
+
+#[system(for_each)]
+#[filter(component::<Attacking>())]
+pub fn create_attack_box(
+    entity: &Entity,
+    pos: &Position,
+    state: &InputState,
+    command: &mut CommandBuffer,
+) {
+    let dir = state.aim_dir;
+    let dist_to_center = (PLAYER_RADIUS + OFFSET_ATTACKBOX + ATTACK_HALF_LEN) as f64;
+
+    let center_x = pos.x + (dir[0] as f64 * dist_to_center);
+    let center_y = pos.y + (dir[1] as f64 * dist_to_center);
+
+    command.push((
+        Position {
+            x: center_x,
+            y: center_y,
+        },
+        Geometry {
+            half_lengh: ATTACK_HALF_LEN,
+            half_width: ATTACK_HALF_WIDTH,
+            dir,
+        },
+        Owner(*entity),
+    ));
+
+    command.remove_component::<Attacking>(*entity);
 }

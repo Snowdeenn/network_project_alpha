@@ -14,7 +14,7 @@ pub const SHOP_SLOTS_X: [f32; 3] = [
     1235.0 / 1920.0,  // 0.643
 ];
 
-pub const SHOP_TITLE_X: f32     = 700.0  / 1920.0; // 0.365
+pub const SHOP_TITLE_X: f32     = 800.0  / 1920.0; // 0.365
 pub const SHOP_TITLE_Y: f32     = 120.0  / 1080.0; // 0.111
 pub const SHOP_TITLE_FONT_SIZE: f32 = 64.0 / 1080.0; // 0.059
 
@@ -35,6 +35,10 @@ pub const SHOP_SOLD_TEXT_OFFSET_X: f32 = 120.0 / 1920.0;
 pub const SHOP_SOLD_TEXT_OFFSET_Y: f32 = 230.0 / 1080.0;
 pub const SHOP_SOLD_FONT_SIZE: f32     = 40.0  / 1080.0;
 
+pub const CLOSE_SHOP_X: f32 = 890.0 / 1920.0;
+pub const CLOSE_SHOP_Y: f32 = 820.0 / 1080.0;
+pub const CLOSE_SHOP_FONT: f32 = 25.0 / 1080.0;
+
 // --- HUD ---
 pub const HUD_PADDING_X: f32    = 20.0 / 1920.0;
 pub const HUD_WAVE_Y: f32       = 20.0 / 1080.0;
@@ -47,9 +51,14 @@ pub const HUD_BAR_H: f32        = 20.0  / 1080.0;
 pub const HUD_GOLD_Y: f32       = 90.0  / 1080.0;
 pub const HUD_GOLD_FONT: f32    = 24.0  / 1080.0;
 
-pub const HUD_SHOP_NOTIF_X: f32 = 750.0 / 1920.0;
+pub const HUD_SHOP_NOTIF_X: f32 = 775.0 / 1920.0;
 pub const HUD_SHOP_NOTIF_Y: f32 = 980.0 / 1080.0;
 pub const HUD_SHOP_NOTIF_FONT: f32 = 28.0 / 1080.0;
 pub const SHOP_TITLE_TEXT: &str = "BOUTIQUE";
 
 pub const SOLD_ANIM_DURATION: f32 = 1.5;
+
+// --- Timer Between Wave ---
+pub const WAVE_TIMER_X: f32 = 690.0 / 1920.0;
+pub const WAVE_TIMER_Y: f32 = 60.0 / 1080.0;
+pub const WAVE_TIMER_FONT: f32 = 30.0 / 1080.0;

@@ -265,9 +265,10 @@ fn apply_input(world: &mut World, entity: Entity, packet: &InputPacket) {
     if let Ok(mut entry) = world.entry_mut(entity) {
         if let Ok(state) = entry.get_component_mut::<InputState>() {
             state.move_dir = packet.move_dir;
-            state.aim_dir = packet.aim_dir;
-            state.dash = packet.dash;
-            state.spell = packet.spell;
+            state.aim_dir  = packet.aim_dir;
+            state.dash     = packet.dash;
+            state.spell    = packet.spell;
+            state.attack   = packet.attack;
         }
     }
 }

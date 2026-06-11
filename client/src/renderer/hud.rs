@@ -5,7 +5,11 @@ use crate::config::*;
 use crate::event::ClientState;
 use crate::renderer::ScreenScale;
 
-pub fn render(d: &mut RaylibDrawHandle, snap: &StateSnapshot, s: &ScreenScale) {
+pub fn render(
+    d: &mut RaylibDrawHandle,
+    snap: &StateSnapshot,
+    s: &ScreenScale,
+) {
     d.draw_text(
         &format!(
             "Vague {} | {} ennemis",
@@ -93,9 +97,9 @@ pub fn render_shop(d: &mut RaylibDrawHandle, state: &mut ClientState, s: &Screen
 
     d.draw_text(
         "G — Fermer",
-        s.x(0.448),
-        s.y(0.759),
-        s.font(0.022),
+        s.x(CLOSE_SHOP_X),
+        s.y(CLOSE_SHOP_Y),
+        s.font(CLOSE_SHOP_FONT),
         Color::GRAY,
     );
 }
@@ -107,9 +111,6 @@ fn render_shop_item(
     s: &ScreenScale,
     sold_ratio: Option<f32>,
 ) {
-    // sold_ratio : 1.0 = début animation, 0.0 = fin
-    // Phase 1 [1.0 → 0.66] : carte normale, overlay vert fade in
-    // Phase 2 [0.66 → 0.0] : carte + overlay fade out ensemble
     let card_alpha = match sold_ratio {
         None => 255,
         Some(r) if r > 0.66 => 255,
@@ -123,18 +124,12 @@ fn render_shop_item(
     }
 }
 
-fn render_card(
-    d: &mut RaylibDrawHandle,
-    x: i32,
-    item: &ShopItem,
-    s: &ScreenScale,
-    alpha: u8,
-) {
+fn render_card(d: &mut RaylibDrawHandle, x: i32, item: &ShopItem, s: &ScreenScale, alpha: u8) {
     let card_color = match item.effect_type {
         EffectType::Health => Color::DARKGREEN,
         EffectType::Damage => Color::MAROON,
-        EffectType::Speed  => Color::DARKBLUE,
-        EffectType::Gold   => Color::GOLD,
+        EffectType::Speed => Color::DARKBLUE,
+        EffectType::Gold => Color::GOLD,
     };
 
     let card_y = s.y(SHOP_CARD_Y);
@@ -202,7 +197,7 @@ fn render_sold(d: &mut RaylibDrawHandle, x: i32, s: &ScreenScale) {
 fn render_sold_overlay(
     d: &mut RaylibDrawHandle,
     x: i32,
-    ratio: f32,     // 1.0 → 0.0
+    ratio: f32, // 1.0 → 0.0
     card_alpha: u8,
     s: &ScreenScale,
 ) {
@@ -226,19 +221,36 @@ fn render_sold_overlay(
         card_alpha
     };
 
-    d.draw_rectangle(x, card_y, card_w, card_h, Color::new(20, 220, 60, overlay_alpha));
+    d.draw_rectangle(
+        x,
+        card_y,
+        card_w,
+        card_h,
+        Color::new(20, 220, 60, overlay_alpha),
+    );
 
     let text = "VENDU !";
     let font_size = s.font(0.020);
     let text_x = x + (card_w / 2) - (text.len() as i32 * (font_size / 3));
     let text_y = card_y + (card_h / 2) - (font_size / 2);
-    d.draw_text(text, text_x, text_y, font_size, Color::new(255, 255, 255, text_alpha));
+    d.draw_text(
+        text,
+        text_x,
+        text_y,
+        font_size,
+        Color::new(255, 255, 255, text_alpha),
+    );
 }
 
-fn render_error_overlay(d: &mut RaylibDrawHandle, x: i32, current_time: f32, max_time: f32, s: &ScreenScale) {
-    
+fn render_error_overlay(
+    d: &mut RaylibDrawHandle,
+    x: i32,
+    current_time: f32,
+    max_time: f32,
+    s: &ScreenScale,
+) {
     let ratio = current_time / max_time;
-    
+
     let alpha = (ratio * 255.0) as u8;
 
     let card_y = s.y(SHOP_CARD_Y);
@@ -246,15 +258,25 @@ fn render_error_overlay(d: &mut RaylibDrawHandle, x: i32, current_time: f32, max
     let card_h = s.h(SHOP_CARD_H);
 
     let overlay_alpha = (ratio * 180.0) as u8;
-    d.draw_rectangle(x, card_y, card_w, card_h, Color::new(220, 20, 60, overlay_alpha));
+    d.draw_rectangle(
+        x,
+        card_y,
+        card_w,
+        card_h,
+        Color::new(220, 20, 60, overlay_alpha),
+    );
 
-    
     let text = "OR INSUFFISANT !";
     let font_size = s.font(0.020);
-    
+
     let text_x = x + (card_w / 2) - (text.len() as i32 * (font_size / 3));
     let text_y = card_y + (card_h / 2) - (font_size / 2);
 
-    d.draw_text(text, text_x, text_y, font_size, Color::new(255, 255, 255, alpha));
+    d.draw_text(
+        text,
+        text_x,
+        text_y,
+        font_size,
+        Color::new(255, 255, 255, alpha),
+    );
 }
-

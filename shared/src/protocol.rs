@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use bincode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
@@ -67,7 +69,7 @@ pub enum GameEventKind {
         enemy_speed: f32,
     },
     WaveEnd {
-        coins_earned: u32,
+        time_between_wave: Duration,
     },
     BossSpawn {
         entity_id: u64,

@@ -324,10 +324,10 @@ pub fn wave_update(
             }
 
             if wave_manager.enemies_remaining == 0 && wave_manager.enemies_to_spawn == 0 {
-                wave_manager.wave_state = WaveState::BetweenWave(Duration::from_secs(5));
+                wave_manager.wave_state = WaveState::BetweenWave(Duration::from_secs(20));
                 game_event_queue.0.push(GameEvent {
                     kind: GameEventKind::WaveEnd {
-                        coins_earned: 0, // TODO : calculer les pieces gagnees
+                        time_between_wave: Duration::from_secs(20),
                     },
                 });
             }
@@ -351,8 +351,10 @@ pub fn wave_update(
                         },
                     });
                 } else {
-                    wave_manager.wave_state = WaveState::BetweenWave(remaining);
+                    wave_manager.wave_state = WaveState::BetweenWave(Duration::ZERO); // Fin du jeu pas d'autre wave pour l'instant
                 }
+            } else {
+                wave_manager.wave_state = WaveState::BetweenWave(remaining)
             }
         }
     }

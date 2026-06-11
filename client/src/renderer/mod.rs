@@ -98,7 +98,7 @@ impl Renderer {
         let s = &self.screen_scale;
 
         let mut d = self.rl.begin_drawing(&self.thread);
-        
+
         let dt = d.get_frame_time();
         client_state.update_timers(dt);
 
@@ -125,6 +125,20 @@ impl Renderer {
                 s.y(HUD_SHOP_NOTIF_Y),
                 s.font(HUD_SHOP_NOTIF_FONT),
                 Color::GOLD,
+            );
+        }
+
+        if client_state.between_wave {
+            let remaining = format!(
+                " Temps avant la prochaine vague {}s",
+                client_state.wave_timer.as_secs()
+            );
+            d.draw_text(
+                &remaining,
+                s.x(WAVE_TIMER_X),
+                s.y(WAVE_TIMER_Y),
+                s.font(WAVE_TIMER_FONT),
+                Color::RED,
             );
         }
 

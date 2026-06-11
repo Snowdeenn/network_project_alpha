@@ -94,15 +94,12 @@ fn build_entities(world: &World) -> Vec<EntityState> {
 }
 
 fn build_player_info(player_id: u64, world: &mut World, resources: &Resources) -> Option<PlayerInfo> {
-    // 1. On récupère la table de correspondance ID -> Entity
     let players_entities = resources.get::<HashMap<u64, Entity>>().unwrap();
     let entity = players_entities.get(&player_id)?;
 
-    // 2. On accède directement au composant Health via l'entry de Legion (Zéro boucle query !)
     let entry = world.entry(*entity)?;
     let health = entry.get_component::<Health>().ok()?;
 
-    // 3. On récupère l'or de CE joueur spécifique
     let player_gold_res = resources.get::<PlayerGold>().unwrap();
     let gold = player_gold_res.0.get(&player_id).cloned().unwrap_or(0);
 

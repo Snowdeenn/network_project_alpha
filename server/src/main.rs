@@ -32,11 +32,11 @@ pub fn next_id() -> u64 {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut net                 = GameNetServer::new();
-    let mut world                       = World::default();
-    let mut resources               = Resources::default();
+    let mut net = GameNetServer::new();
+    let mut world = World::default();
+    let mut resources = Resources::default();
     let players_entities: HashMap<u64, Entity> = HashMap::new();
-    let mut client_ids: Vec<u64>               = Vec::new();
+    let mut client_ids: Vec<u64> = Vec::new();
 
     // --- resources ---
     {
@@ -127,6 +127,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .add_system(ia_seek_system())
         .add_system(collide_system())
         .add_system(collide_arena_system())
+        .add_system(read_attack_state_system())
+        .add_system(create_attack_box_system())
+        .add_system(check_collide_attackbox_system())
         .add_system(apply_damage_system())
         .add_system(health_system())
         .add_system(coin_push_to_queue_system())
@@ -173,7 +176,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     if let Some(mut players_entity) = resources.get_mut::<HashMap<u64, Entity>>() {
                         players_entity.insert(client_id, entity);
                     }
-                
+
                     // Creation de la ressource gold individuel pour chaque joueur
                     if let Some(mut player_gold) = resources.get_mut::<PlayerGold>() {
                         player_gold.0.insert(client_id, 0);
@@ -181,10 +184,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 ServerEvent::ClientDisconnected { client_id, .. } => {
                     println!("Client déconnecté {}", client_id);
-                    if let Option::Some(entity) = resources.get_mut::<HashMap<u64, Entity>>().unwrap().remove(&client_id) {
+                    if let Option::Some(entity) = resources
+                        .get_mut::<HashMap<u64, Entity>>()
+                        .unwrap()
+                        .remove(&client_id)
+                    {
                         world.remove(entity);
                     }
-                    resources.get_mut::<PlayerGold>().unwrap().0.remove(&client_id);
+                    resources
+                        .get_mut::<PlayerGold>()
+                        .unwrap()
+                        .0
+                        .remove(&client_id);
                 }
             }
         }
@@ -192,7 +203,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Traite les inputs reçus du client et les stocke dans les ressources globales
         {
             for (client_id, packet) in net.drain_inputs() {
-                if let Some(&entity) = resources.get::<HashMap<u64, Entity>>().unwrap().get(&client_id) {
+                if let Some(&entity) = resources
+                    .get::<HashMap<u64, Entity>>()
+                    .unwrap()
+                    .get(&client_id)
+                {
                     apply_input(&mut world, entity, &packet);
                 }
             }
@@ -236,8 +251,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // On génère et on envoie un snapshot dédié à chaque client
             for client_id in active_clients {
                 let snapshot = build_snapshot(client_id, &mut world, &resources, tick_id);
-                
-                net.send_snapshot(client_id, &snapshot); 
+
+                net.send_snapshot(client_id, &snapshot);
             }
         }
 
@@ -265,10 +280,10 @@ fn apply_input(world: &mut World, entity: Entity, packet: &InputPacket) {
     if let Ok(mut entry) = world.entry_mut(entity) {
         if let Ok(state) = entry.get_component_mut::<InputState>() {
             state.move_dir = packet.move_dir;
-            state.aim_dir  = packet.aim_dir;
-            state.dash     = packet.dash;
-            state.spell    = packet.spell;
-            state.attack   = packet.attack;
+            state.aim_dir = packet.aim_dir;
+            state.dash = packet.dash;
+            state.spell = packet.spell;
+            state.attack = packet.attack;
         }
     }
 }
@@ -279,8 +294,6 @@ fn handle_shop_action(
     action: ShopAction,
     res: &mut Resources,
 ) {
-    
-
     match action.kind {
         ShopActionKind::Open => {
             println!("Client {} à ouvert le shop", client);
@@ -308,18 +321,38 @@ fn handle_shop_action(
                 player_shop.buy(client, action.slot as usize, gold_avaible.get(client))
             };
             drop(gold_avaible); // On libère le verrou sur res après utilisation de gold_avaible
-            
+
             match item {
                 Some(item) => {
-                    println!("Client {} as acheter l'item du slot {}", client, action.slot);
+                    println!(
+                        "Client {} as acheter l'item du slot {}",
+                        client, action.slot
+                    );
                     if let Some(mut gold) = res.get_mut::<PlayerGold>() {
                         gold.sub(client, item.price);
                     }
-                    server.send_event(client, &GameEvent { kind: GameEventKind::ItemBought { slot: action.slot as usize}});
-                },
+                    server.send_event(
+                        client,
+                        &GameEvent {
+                            kind: GameEventKind::ItemBought {
+                                slot: action.slot as usize,
+                            },
+                        },
+                    );
+                }
                 None => {
-                    println!("Client {} n'a pas pu acheter l'item du slot {}", client, action.slot);
-                    server.send_event(client, &GameEvent { kind: GameEventKind::PurchaseFailed { slot: action.slot as usize } });
+                    println!(
+                        "Client {} n'a pas pu acheter l'item du slot {}",
+                        client, action.slot
+                    );
+                    server.send_event(
+                        client,
+                        &GameEvent {
+                            kind: GameEventKind::PurchaseFailed {
+                                slot: action.slot as usize,
+                            },
+                        },
+                    );
                 }
             }
         }

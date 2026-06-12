@@ -63,7 +63,7 @@ pub struct InputState {
 #[derive(Debug)]
 pub struct Geometry {
     pub dir: [f32; 2],
-    pub half_lengh: f32,
+    pub half_length: f32,
     pub half_width: f32
 }
 

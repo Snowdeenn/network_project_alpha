@@ -15,9 +15,6 @@ pub struct EnemyDied(pub Entity);
 pub struct EnemyDiedQueue(pub Vec<EnemyDied>);
 
 #[derive(Debug)]
-pub struct PlayerDied(pub bool);
-
-#[derive(Debug)]
 pub struct CoinEvent {
     pub pos: [f32; 2],
 }

@@ -94,10 +94,10 @@ fn main() {
             last_snap_time,
             &mut client_state,
         );
+        
+        if renderer.rl.is_key_pressed(KeyboardKey::KEY_ESCAPE) {
+            std::process::exit(0);
+        }
     }
 
-    if renderer.rl.is_key_pressed(KeyboardKey::KEY_ESCAPE) {
-        std::process::exit(0);
-    }
-    
 }

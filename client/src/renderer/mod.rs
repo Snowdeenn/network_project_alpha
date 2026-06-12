@@ -49,7 +49,6 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn new(screen_w: i32, screen_h: i32) -> Self {
-        
         let (mut rl, thread) = raylib::init()
             .size(screen_w, screen_h)
             .title("Project Alpha")
@@ -118,6 +117,40 @@ impl Renderer {
         if let Some(snap) = current {
             hud::render(&mut d, snap, s);
         }
+
+        // // DEBUG: Dessin des attacks box
+        // for rect in &client_state.debug_rects {
+        //         // Calcul de l'angle en radians, puis conversion en DEGRÉS pour Raylib
+        //         let angle_rad = rect.dir[1].atan2(rect.dir[0]);
+        //         let angle_deg = angle_rad.to_degrees();
+
+        //         // Calcul des dimensions totales (Raylib veut la largeur/hauteur complète)
+        //         let width = rect.half_length * 2.0;
+        //         let height = rect.half_width * 2.0;
+
+        //         // Configuration du rectangle Raylib
+        //         // Ici, x et y représentent le point de pivot dans le monde (donc le centre)
+        //         let raylib_rect = Rectangle {
+        //             x: rect.x,
+        //             y: rect.y,
+        //             width,
+        //             height,
+        //         };
+
+        //         // L'origine de la rotation RELATIVE au coin supérieur gauche du rectangle.
+        //         // En mettant la moitié de la largeur et de la hauteur, le pivot se place pile au centre.
+        //         let origin = Vector2 {
+        //             x: rect.half_length,
+        //             y: rect.half_width,
+        //         };
+
+                
+        //         // On utilise une couleur rouge avec de l'alpha (100) pour qu'elle soit semi-transparente
+        //         let debug_color = Color::new(0, 255, 0, 100);
+
+        //         d.draw_rectangle_pro(raylib_rect, origin, angle_deg, debug_color);
+
+        // }
 
         if client_state.shop_available && !client_state.show_shop {
             d.draw_text(

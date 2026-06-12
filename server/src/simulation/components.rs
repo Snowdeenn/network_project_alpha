@@ -5,9 +5,8 @@ pub struct Player;
 pub struct IA;
 pub struct Coin;
 pub struct EntityId(pub u64);
-pub struct Attacking;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct Position {
     pub x: f64,
     pub y: f64,
@@ -28,7 +27,7 @@ pub enum DashState {
 #[derive(Debug, PartialEq)]
 pub struct Dash(pub DashState);
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Collider {
     pub w: f64,
     pub h: f64,
@@ -60,14 +59,24 @@ pub struct InputState {
     pub dash:     bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Geometry {
     pub dir: [f32; 2],
     pub half_length: f32,
     pub half_width: f32
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Owner(pub Entity);
 
+#[derive(Debug)]
+pub struct AttackTimer {
+    pub remaining: Duration,
+    pub interval: Duration,
+}
+
+pub struct Target(pub Option<Entity>);
+pub struct AttackIntent {
+    pub aim_dir: [f32; 2],
+}
 

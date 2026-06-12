@@ -89,7 +89,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     state: HealthState::Alive,
                 },
                 Active(false),
+                AttackTimer {
+                    remaining: Duration::ZERO,
+                    interval: Duration::from_secs_f32(0.5),
+                },
             ));
+
+            let mut entry = world.entry(e).expect("[Entry ennemi] Echec de la création de l'entry dans le main");
+            entry.add_component(Target(None));
             pool.pool.push(e);
         }
         resources.insert(pool)
@@ -120,14 +127,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let mut schedule = Schedule::builder()
+        .add_system(ia_targeting_system())
         .add_system(friction_system())
         .add_system(update_velocity_system())
+        .add_system(ia_classic_movement_system())
         .add_system(dash_system())
         .add_system(update_position_system())
-        .add_system(ia_seek_system())
         .add_system(collide_system())
         .add_system(collide_arena_system())
-        .add_system(read_attack_state_system())
+        .add_system(read_player_attack_intent_system())
+        .add_system(ia_classic_attack_system())
         .add_system(create_attack_box_system())
         .add_system(check_collide_attackbox_system())
         .add_system(apply_damage_system())
@@ -170,8 +179,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         },
                     ));
 
-                    let mut entry = world.entry(entity).unwrap();
+                    let mut entry = world.entry(entity).expect("[Entry player] Echec de la création de l'entry dans le main");
                     entry.add_component(Active(true));
+                    entry.add_component(AttackTimer {
+                        remaining: Duration::ZERO,
+                        interval: Duration::from_secs_f32(0.5),
+                    });
 
                     if let Some(mut players_entity) = resources.get_mut::<HashMap<u64, Entity>>() {
                         players_entity.insert(client_id, entity);

@@ -68,18 +68,14 @@ pub fn collide_arena(pos: &mut Position, col: &Collider) {
 #[write_component(Velocity)]
 #[write_component(Position)]
 #[read_component(Active)]
-#[read_component(Coin)]
 pub fn collide(world: &mut SubWorld) {
-    let mut query = <(Entity, &Position, &Collider, &Active)>::query();
+    
+    let mut query = <(Entity, &Position, &Collider, &Active)>::query().filter(!component::<Coin>());
+
     let entities: Vec<_> = query
         .iter(world)
         .filter(|(_, _, _, active)| active.0)
-        .filter(|(e, _, _, _)| {
-            world
-                .entry_ref(**e)
-                .map_or(false, |e| !e.get_component::<Coin>().is_ok())
-        })
-        .map(|(e, p, c, _)| (*e, p, c))
+        .map(|(e, p, c, _)| (*e, *p, *c))
         .collect();
 
     let mut to_resolve: Vec<Resolution> = Vec::new();
@@ -88,15 +84,15 @@ pub fn collide(world: &mut SubWorld) {
             let (ent_a, pos_a, col_a) = entities[i];
             let (ent_b, pos_b, col_b) = entities[j];
 
-            if let Some((overlap_x, overlap_y)) = aabb_overlap(pos_a, col_a, pos_b, col_b) {
+            if let Some((overlap_x, overlap_y)) = aabb_overlap(&pos_a, &col_a, &pos_b, &col_b) {
                 let center_a_x = pos_a.x + col_a.w / 2.0;
                 let center_b_x = pos_b.x + col_b.w / 2.0;
                 let center_a_y = pos_a.y + col_a.h / 2.0;
                 let center_b_y = pos_b.y + col_b.h / 2.0;
 
                 to_resolve.push(Resolution {
-                    ent_a: ent_a,
-                    ent_b: ent_b,
+                    ent_a,
+                    ent_b,
                     overlap_x,
                     overlap_y,
                     dir_x: (center_a_x - center_b_x).signum(),
@@ -116,35 +112,86 @@ pub fn collide(world: &mut SubWorld) {
 // ---------------------------------- IA SYSTEMS -----------------------------------
 // =================================================================================
 
-const IA_SPEED: f64 = 200.0;
-#[system(for_each)]
-#[filter(component::<IA>())]
-pub fn ia_seek(
-    velo: &mut Velocity,
-    pos: &Position,
-    active: &Active,
-    #[resource] pos_target: &PlayerPos,
-    #[resource] dt: &Duration,
-) {
-    if !active.0 {
-        return;
+#[system]
+#[read_component(Player)]
+#[read_component(Position)]
+#[write_component(Target)]
+#[read_component(Active)]
+#[read_component(IA)]
+pub fn ia_targeting(world: &mut SubWorld) {
+    let mut player_query = <(Entity, &Position)>::query().filter(component::<Player>());
+    let players: Vec<(Entity, Position)> =
+        player_query.iter(world).map(|(e, p)| (*e, *p)).collect();
+
+    let mut ia_query = <(&Position, &mut Target, &Active)>::query().filter(component::<IA>());
+
+    for (ia_pos, target, active) in ia_query.iter_mut(world) {
+        if !active.0 {
+            continue;
+        }
+
+        let mut closest_player = None;
+        let mut min_dist = f64::MAX;
+
+        for (p_entt, p_pos) in &players {
+            let dx = p_pos.x - ia_pos.x;
+            let dy = p_pos.y - ia_pos.y;
+            let dist = dx * dx + dy * dy;
+
+            if dist < min_dist {
+                min_dist = dist;
+                closest_player = Some(*p_entt);
+            }
+        }
+
+        target.0 = closest_player;
     }
-    let dx = pos_target.x - pos.x;
-    let dy = pos_target.y - pos.y;
-    let len = (dx * dx + dy * dy).sqrt();
-    let (nx, ny) = if len > 0.0 {
-        ((dx / len) * IA_SPEED, (dy / len) * IA_SPEED)
-    } else {
-        (0.0, 0.0)
-    };
-
-    let steering_x = nx - velo.dx;
-    let steering_y = ny - velo.dy;
-
-    velo.dx += steering_x * (*dt).as_secs_f64();
-    velo.dy += steering_y * (*dt).as_secs_f64();
 }
 
+#[system]
+#[read_component(IA)]
+#[read_component(Player)]
+#[read_component(Active)]
+#[read_component(Position)]
+#[read_component(Target)]
+#[write_component(Velocity)]
+pub fn ia_classic_movement(world: &mut SubWorld) {
+    let player_positions: std::collections::HashMap<Entity, Position> = {
+        let mut player_query = <(Entity, &Position)>::query().filter(component::<Player>());
+        player_query
+            .iter(&*world)
+            .map(|(entity, pos)| (*entity, *pos))
+            .collect()
+    };
+
+    let mut query =
+        <(&Position, &Active, &Target, &mut Velocity)>::query().filter(component::<IA>());
+
+    for (ia_pos, active, target, velo) in query.iter_mut(world) {
+        if !active.0 {
+            continue;
+        }
+
+        if let Some(target_entity) = target.0 {
+            if let Some(target_pos) = player_positions.get(&target_entity) {
+                let dx = target_pos.x - ia_pos.x;
+                let dy = target_pos.y - ia_pos.y;
+                let distance = (dx * dx + dy * dy).sqrt();
+
+                if distance > 45.0 {
+                    velo.dx = (dx / distance) * 140.0;
+                    velo.dy = (dy / distance) * 140.0;
+                } else {
+                    velo.dx = 0.0;
+                    velo.dy = 0.0;
+                }
+            }
+        } else {
+            velo.dx = 0.0;
+            velo.dy = 0.0;
+        }
+    }
+}
 // =================================================================================
 // -------------------------------- HEALTH SYSTEMS ---------------------------------
 // =================================================================================
@@ -237,6 +284,7 @@ use std::f64::consts::PI;
 #[write_component(Health)]
 #[write_component(Active)]
 #[write_component(Position)]
+#[write_component(EntityId)]
 pub fn wave_update(
     world: &mut SubWorld,
     #[resource] wave_manager: &mut WaveManager,
@@ -277,6 +325,10 @@ pub fn wave_update(
                                 if let Ok(health) = entry.get_component_mut::<Health>() {
                                     health.hp = wave_configs.0[wave_manager.current_wave].enemy_hp;
                                     health.state = HealthState::Alive;
+                                }
+
+                                if let Ok(target) = entry.get_component_mut::<Target>() {
+                                    target.0 = None;
                                 }
 
                                 wave_manager.spawn_timer = Duration::from_millis(
@@ -371,6 +423,7 @@ pub fn coin_push_to_queue(
 #[system]
 #[write_component(Active)]
 #[write_component(Position)]
+#[write_component(CoinValue)]
 pub fn coin_spawn(
     world: &mut SubWorld,
     #[resource] coin_spawn_queue: &mut CoinSpawnQueue,
@@ -388,9 +441,6 @@ pub fn coin_spawn(
                             pos.x = event.pos[0] as f64;
                             pos.y = event.pos[1] as f64;
                         }
-                        if let Ok(value) = entry.get_component_mut::<CoinValue>() {
-                            value.0 = 10;
-                        }
                     }
                 }
             }
@@ -405,11 +455,24 @@ pub fn coin_spawn(
 #[read_component(Player)]
 #[read_component(Coin)]
 pub fn coin_pickup(word: &mut SubWorld, #[resource] pick_up_queue: &mut PickupQueue) {
+
+    let players: std::collections::HashSet<Entity> = <Entity>::query()
+        .filter(component::<Player>())
+        .iter(word)
+        .copied()
+        .collect();
+
+    let coins: std::collections::HashSet<Entity> = <Entity>::query()
+        .filter(component::<Coin>())
+        .iter(word)
+        .copied()
+        .collect();
+
     let mut query = <(Entity, &Position, &Collider, &Active)>::query();
     let entities: Vec<_> = query
         .iter(word)
         .filter(|(_, _, _, active)| active.0)
-        .map(|(e, p, c, _)| (*e, p, c))
+        .map(|(e, p, c, _)| (*e, *p, *c))
         .collect();
 
     for i in 0..entities.len() {
@@ -417,23 +480,11 @@ pub fn coin_pickup(word: &mut SubWorld, #[resource] pick_up_queue: &mut PickupQu
             let (ent_a, pos_a, col_a) = entities[i];
             let (ent_b, pos_b, col_b) = entities[j];
 
-            if let Some(_) = aabb_overlap(pos_a, col_a, pos_b, col_b) {
-                let a_is_player = word
-                    .entry_ref(ent_a)
-                    .map(|e| e.get_component::<Player>().is_ok())
-                    .unwrap_or(false);
-                let b_is_player = word
-                    .entry_ref(ent_b)
-                    .map(|e| e.get_component::<Player>().is_ok())
-                    .unwrap_or(false);
-                let a_is_coin = word
-                    .entry_ref(ent_a)
-                    .map(|e| e.get_component::<Coin>().is_ok())
-                    .unwrap_or(false);
-                let b_is_coin = word
-                    .entry_ref(ent_b)
-                    .map(|e| e.get_component::<Coin>().is_ok())
-                    .unwrap_or(false);
+            if let Some(_) = aabb_overlap(&pos_a, &col_a, &pos_b, &col_b) {
+                let a_is_player = players.contains(&ent_a);
+                let b_is_player = players.contains(&ent_b);
+                let a_is_coin = coins.contains(&ent_a);
+                let b_is_coin = coins.contains(&ent_b);
 
                 if a_is_player && b_is_coin {
                     pick_up_queue.0.push((ent_a, ent_b));
@@ -446,7 +497,6 @@ pub fn coin_pickup(word: &mut SubWorld, #[resource] pick_up_queue: &mut PickupQu
         }
     }
 }
-
 #[system]
 #[read_component(CoinValue)]
 #[write_component(Active)]
@@ -488,12 +538,76 @@ pub fn apply_pickup(
 #[system]
 #[read_component(Player)]
 #[read_component(InputState)]
-pub fn read_attack_state(world: &mut SubWorld, command: &mut CommandBuffer) {
-    let mut query = <(Entity, &InputState)>::query().filter(component::<Player>());
+#[write_component(AttackTimer)]
+pub fn read_player_attack_intent(
+    world: &mut SubWorld,
+    command: &mut CommandBuffer,
+    #[resource] dt: &Duration,
+) {
+    let mut query =
+        <(Entity, &InputState, &mut AttackTimer)>::query().filter(component::<Player>());
 
-    for (entity, state) in query.iter(world) {
-        if state.attack {
-            command.add_component(*entity, Attacking);
+    for (entity, state, timer) in query.iter_mut(world) {
+        timer.remaining = timer.remaining.saturating_sub(*dt);
+
+        if state.attack && timer.remaining.is_zero() {
+            command.add_component(
+                *entity,
+                AttackIntent {
+                    aim_dir: state.aim_dir,
+                },
+            );
+            timer.remaining = timer.interval;
+        }
+    }
+}
+
+#[system]
+#[read_component(IA)]
+#[read_component(Player)]
+#[read_component(Active)]
+#[read_component(Position)]
+#[read_component(Target)]
+#[write_component(AttackTimer)]
+pub fn ia_classic_attack(
+    world: &mut SubWorld,
+    command: &mut CommandBuffer,
+    #[resource] dt: &Duration,
+) {
+    let player_positions: std::collections::HashMap<Entity, Position> = {
+        let mut player_query = <(Entity, &Position)>::query().filter(component::<Player>());
+        player_query
+            .iter(&*world) // <--- ICI AUSSI
+            .map(|(entity, pos)| (*entity, *pos))
+            .collect()
+    };
+
+    let mut query = <(Entity, &Position, &Active, &Target, &mut AttackTimer)>::query()
+        .filter(component::<IA>());
+
+    for (entity, ia_pos, active, target, timer) in query.iter_mut(world) {
+        if !active.0 {
+            continue;
+        }
+
+        timer.remaining = timer.remaining.saturating_sub(*dt);
+
+        if let Some(target_entity) = target.0 {
+            if let Some(target_pos) = player_positions.get(&target_entity) {
+                let dx = target_pos.x - ia_pos.x;
+                let dy = target_pos.y - ia_pos.y;
+                let distance = (dx * dx + dy * dy).sqrt();
+
+                if distance < 60.0 && timer.remaining.is_zero() {
+                    command.add_component(
+                        *entity,
+                        AttackIntent {
+                            aim_dir: [(dx / distance) as f32, (dy / distance) as f32],
+                        },
+                    );
+                    timer.remaining = timer.interval;
+                }
+            }
         }
     }
 }
@@ -504,14 +618,14 @@ const ATTACK_HALF_WIDTH: f32 = 30.0;
 const PLAYER_RADIUS: f32 = 20.0;
 
 #[system(for_each)]
-#[filter(component::<Attacking>())]
+#[filter(component::<AttackIntent>())]
 pub fn create_attack_box(
     entity: &Entity,
     pos: &Position,
-    state: &InputState,
+    intent: &AttackIntent,
     command: &mut CommandBuffer,
 ) {
-    let dir = state.aim_dir;
+    let dir = intent.aim_dir;
     let dist_to_center = (PLAYER_RADIUS + OFFSET_ATTACKBOX + ATTACK_HALF_LEN) as f64;
 
     let center_x = pos.x + (dir[0] as f64 * dist_to_center);
@@ -541,7 +655,7 @@ pub fn create_attack_box(
     //     },
     //});
 
-    command.remove_component::<Attacking>(*entity);
+    command.remove_component::<AttackIntent>(*entity);
 }
 
 #[system]
@@ -557,30 +671,39 @@ pub fn check_collide_attackbox(
     command: &mut CommandBuffer,
     #[resource] damage_queue: &mut DamageQueue,
 ) {
+
+    let players: std::collections::HashSet<Entity> = <Entity>::query()
+        .filter(component::<Player>())
+        .iter(world)
+        .copied()
+        .collect();
+
     let mut attackbox_query = <(Entity, &Geometry, &Owner, &Position)>::query();
+    let attackboxes: Vec<_> = attackbox_query
+        .iter(world)
+        .map(|(e, g, o, p)| (*e, *g, *o, *p))
+        .collect();
+
     let mut victim_query = <(Entity, &Collider, &Position)>::query().filter(component::<Health>());
+    let victims: Vec<_> = victim_query
+        .iter(world)
+        .map(|(e, c, p)| (*e, *c, *p))
+        .collect();
 
-    for (attackbox_entt, attackbox, owner, attackbox_pos) in attackbox_query.iter(world) {
-        let attacker_is_player = world
-            .entry_ref(owner.0)
-            .map(|e| e.get_component::<Player>().is_ok())
-            .unwrap_or(false);
+    for (attackbox_entt, attackbox, owner, attackbox_pos) in attackboxes {
+        let attacker_is_player = players.contains(&owner.0);
 
-        for (victim_entt, victim_col, victim_pos) in victim_query.iter(world) {
+        for (victim_entt, victim_col, victim_pos) in &victims {
             if *victim_entt == owner.0 {
                 continue;
             }
-            if obb_vs_aabb(attackbox_pos, attackbox, victim_pos, victim_col) {
+            if obb_vs_aabb(&attackbox_pos, &attackbox, victim_pos, victim_col) {
                 let mut should_damage = false;
 
                 if attacker_is_player {
                     should_damage = true;
                 } else {
-                    let victim_is_player = world
-                        .entry_ref(*victim_entt)
-                        .map(|e| e.get_component::<Player>().is_ok())
-                        .unwrap_or(false);
-
+                    let victim_is_player = players.contains(victim_entt);
                     if victim_is_player {
                         should_damage = true;
                     }
@@ -589,11 +712,11 @@ pub fn check_collide_attackbox(
                 if should_damage {
                     damage_queue.0.push(DamageEvent {
                         target: *victim_entt,
-                        amount: 10, //TODO: Remplacer par les dégâts de l'arme plus tard
+                        amount: 10,
                     });
                 }
             }
         }
-        command.remove(*attackbox_entt);
+        command.remove(attackbox_entt);
     }
 }

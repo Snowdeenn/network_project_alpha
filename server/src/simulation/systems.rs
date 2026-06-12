@@ -4,7 +4,7 @@ use std::time::Duration;
 use crate::simulation::components::*;
 use crate::simulation::eco::{CoinPool, CoinSpawnQueue, PickupQueue, PlayerGold};
 use crate::simulation::event::{
-    CoinEvent, DamageEvent, DamageQueue, EnemyDied, EnemyDiedQueue, GameEventQueue,
+    CoinEvent, DamageEvent, DamageQueue, EnemyDied, EnemyDiedQueue, GameEventQueue
 };
 use crate::simulation::helper::*;
 use crate::simulation::wave::{EnemyPool, WaveConfigs, WaveManager, WaveState};
@@ -69,7 +69,6 @@ pub fn collide_arena(pos: &mut Position, col: &Collider) {
 #[write_component(Position)]
 #[read_component(Active)]
 pub fn collide(world: &mut SubWorld) {
-    
     let mut query = <(Entity, &Position, &Collider, &Active)>::query().filter(!component::<Coin>());
 
     let entities: Vec<_> = query
@@ -200,7 +199,12 @@ pub fn ia_classic_movement(world: &mut SubWorld) {
 #[write_component(Health)]
 #[read_component(IA)]
 #[read_component(Player)]
-pub fn health(world: &mut SubWorld, #[resource] enemy_die_queue: &mut EnemyDiedQueue) {
+#[read_component(EntityId)]
+pub fn health(
+    world: &mut SubWorld,
+    #[resource] enemy_die_queue: &mut EnemyDiedQueue,
+    #[resource] game_event_queue: &mut GameEventQueue
+) {
     let dead: Vec<Entity> = <(Entity, &mut Health)>::query()
         .iter_mut(world)
         .filter(|(_, h)| h.hp == 0 && h.state != HealthState::Dead)
@@ -211,12 +215,13 @@ pub fn health(world: &mut SubWorld, #[resource] enemy_die_queue: &mut EnemyDiedQ
         .collect();
 
     for entity in dead {
-        if let Ok(entry) = world.entry_ref(entity) {
+        if let Ok(entry) = world.entry_mut(entity) {
             if entry.get_component::<IA>().is_ok() {
                 enemy_die_queue.0.push(EnemyDied(entity));
             }
             if entry.get_component::<Player>().is_ok() {
-                // todo: Handle player death
+                let id = entry.get_component::<EntityId>().expect("[Heatlh System] Le joueur n'as pas le composant EntityId");
+                game_event_queue.0.push( GameEvent { kind: GameEventKind::PlayerDied { entity_id: id.0 }});
             }
         }
     }
@@ -455,7 +460,6 @@ pub fn coin_spawn(
 #[read_component(Player)]
 #[read_component(Coin)]
 pub fn coin_pickup(word: &mut SubWorld, #[resource] pick_up_queue: &mut PickupQueue) {
-
     let players: std::collections::HashSet<Entity> = <Entity>::query()
         .filter(component::<Player>())
         .iter(word)
@@ -671,7 +675,6 @@ pub fn check_collide_attackbox(
     command: &mut CommandBuffer,
     #[resource] damage_queue: &mut DamageQueue,
 ) {
-
     let players: std::collections::HashSet<Entity> = <Entity>::query()
         .filter(component::<Player>())
         .iter(world)

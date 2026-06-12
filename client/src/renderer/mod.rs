@@ -110,7 +110,20 @@ impl Renderer {
                 None => {
                     d2.draw_text("Connexion...", -80, -10, 20, Color::WHITE);
                 }
-                Some(curr) => render_world(&mut d2, prev, curr, t),
+                Some(curr) => {
+                    if client_state.alive {
+                        render_world(&mut d2, prev, curr, t);
+                    } else {
+                        let text = " YOU'RE DEAD";
+                        d2.draw_text(
+                            text,
+                            s.x(750.0 / 1920.0),
+                            s.y(500.0 / 1080.0),
+                            s.font(120.0 / 1920.0),
+                            Color::RED,
+                        );
+                    }
+                }
             }
         }
 
@@ -144,7 +157,6 @@ impl Renderer {
         //             y: rect.half_width,
         //         };
 
-                
         //         // On utilise une couleur rouge avec de l'alpha (100) pour qu'elle soit semi-transparente
         //         let debug_color = Color::new(0, 255, 0, 100);
 

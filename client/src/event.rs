@@ -3,6 +3,7 @@ use std::time::Duration;
 use crate::config::SOLD_ANIM_DURATION;
 use shared::protocol::{GameEvent, GameEventKind, ShopItem};
 
+#[allow(dead_code)]
 pub struct DebugRectState {
     pub x: f32,
     pub y: f32,
@@ -13,14 +14,15 @@ pub struct DebugRectState {
 }
 
 pub struct ClientState {
-    pub shop_available: bool,
-    pub show_shop: bool,
+    pub debug_rects: Vec<DebugRectState>,
     pub curr_inventory: Option<Vec<Option<ShopItem>>>,
     pub error_timers: Vec<f32>,
     pub sold_timers: Vec<f32>,
     pub wave_timer: Duration,
-    pub between_wave: bool,
-    pub debug_rects: Vec<DebugRectState>,
+    pub shop_available: bool,
+    pub show_shop: bool,
+    pub between_wave: bool,   
+    pub alive: bool,
 }
 
 impl ClientState {
@@ -34,6 +36,7 @@ impl ClientState {
             wave_timer: Duration::ZERO,
             between_wave: false,
             debug_rects: Vec::new(),
+            alive: true,
         }
     }
 
@@ -56,7 +59,9 @@ impl ClientState {
                 self.sold_timers = vec![0.0; 3];
             }
             GameEventKind::BossSpawn { .. } => {}
-            GameEventKind::PlayerDied { .. } => {}
+            GameEventKind::PlayerDied { .. } => {
+                self.alive = false;
+            }
             GameEventKind::ItemBought { slot } => {
                 let slot = slot as usize;
                 // On démarre l'animation SANS vider l'item :

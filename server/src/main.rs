@@ -24,6 +24,8 @@ pub enum GameState {
     Playing,
     Shop,
 }
+// Une simple table : Key = EntityId (jeu), Value = client_id (réseau)
+pub struct EntityToClient(pub HashMap<u64, u64>);
 
 pub fn next_id() -> u64 {
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -57,6 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         resources.insert(PlayerShops::new());
         resources.insert(PlayerGold::new());
         resources.insert(players_entities);
+        resources.insert(EntityToClient(HashMap::new()));
     }
 
     // --- wave config ---
@@ -95,7 +98,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 },
             ));
 
-            let mut entry = world.entry(e).expect("[Entry ennemi] Echec de la création de l'entry dans le main");
+            let mut entry = world
+                .entry(e)
+                .expect("[Entry ennemi] Echec de la création de l'entry dans le main");
             entry.add_component(Target(None));
             pool.pool.push(e);
         }
@@ -165,8 +170,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("Client connecté : {}", client_id);
                     client_ids.push(client_id);
 
+                    let player_game_id = next_id();
+
                     let entity = world.push((
-                        EntityId(next_id()),
+                        EntityId(player_game_id),
                         Player,
                         InputState::default(),
                         Position { x: 960.0, y: 540.0 },
@@ -179,7 +186,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         },
                     ));
 
-                    let mut entry = world.entry(entity).expect("[Entry player] Echec de la création de l'entry dans le main");
+                    let mut entry = world
+                        .entry(entity)
+                        .expect("[Entry player] Echec de la création de l'entry dans le main");
+
                     entry.add_component(Active(true));
                     entry.add_component(AttackTimer {
                         remaining: Duration::ZERO,
@@ -194,6 +204,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     if let Some(mut player_gold) = resources.get_mut::<PlayerGold>() {
                         player_gold.0.insert(client_id, 0);
                     }
+
+                    if let Some(mut mapping) = resources.get_mut::<EntityToClient>() {
+                        mapping.0.insert(player_game_id, client_id);
+                    }
                 }
                 ServerEvent::ClientDisconnected { client_id, .. } => {
                     println!("Client déconnecté {}", client_id);
@@ -202,8 +216,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .unwrap()
                         .remove(&client_id)
                     {
+                        if let Ok(entry) = world.entry_ref(entity) {
+                            if let Ok(id) = entry.get_component::<EntityId>() {
+                                if let Some(mut mapping) = resources.get_mut::<EntityToClient>() {
+                                    mapping.0.remove(&id.0);
+                                }
+                            }
+                        }
                         world.remove(entity);
                     }
+
                     resources
                         .get_mut::<PlayerGold>()
                         .unwrap()
@@ -270,9 +292,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         {
-            let mut game_events = resources.get_mut::<GameEventQueue>().unwrap();
+            let mut game_events = resources
+                .get_mut::<GameEventQueue>()
+                .expect("GameEventQueue pas dans les ressources");
+            let mapping = resources
+                .get::<EntityToClient>()
+                .expect("EntityToClient pas dans les ressources");
+
             for event in game_events.0.drain(..) {
-                net.broadcast_event(&event);
+                match event.kind {
+                    GameEventKind::PlayerDied { entity_id } => {
+                        if let Some(&client_id) = mapping.0.get(&entity_id) {
+                            println!("Envoi de la mort au client concerné : {}", client_id);
+                            net.send_event(client_id, &event);
+
+                            if let Some(&entity) = resources.get::<HashMap<u64, Entity>>().unwrap().get(&client_id) {
+                            if let Ok(mut entry) = world.entry_mut(entity) {
+                                if let Ok(active) = entry.get_component_mut::<Active>() {
+                                    active.0 = false; // Sort de la query des systèmes de mouvement
+                                }
+                                if let Ok(vel) = entry.get_component_mut::<Velocity>() {
+                                    vel.dx = 0.0; // Stoppe net toute glissade
+                                    vel.dy = 0.0;
+                                }
+                            }
+                        }
+                        }
+                    }
+                    _ => {
+                        net.broadcast_event(&event);
+                    }
+                }
             }
         }
 
@@ -291,6 +341,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn apply_input(world: &mut World, entity: Entity, packet: &InputPacket) {
     if let Ok(mut entry) = world.entry_mut(entity) {
+        if let Ok(active) = entry.get_component::<Active>() {
+            if !active.0 {
+                return;
+            }
+        }
         if let Ok(state) = entry.get_component_mut::<InputState>() {
             state.move_dir = packet.move_dir;
             state.aim_dir = packet.aim_dir;

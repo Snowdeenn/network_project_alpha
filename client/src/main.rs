@@ -96,7 +96,7 @@ fn main() {
         );
     }
 
-    if renderer.rl.is_key_pressed(KeyboardKey::KEY_SPACE) {
+    if renderer.rl.is_key_pressed(KeyboardKey::KEY_ESCAPE) {
         std::process::exit(0);
     }
     

@@ -58,7 +58,7 @@ Architecture client-serveur autoritaire opérationnelle.
 
 ---
 
-## Phase 2 — Modes de jeu & transport 🔄
+## Phase 2 — Modes de jeu & transport ⏳
 
 Le serveur home lab est le point d'entrée unique. Au lancement le client s'y connecte automatiquement puis choisit son mode.
 

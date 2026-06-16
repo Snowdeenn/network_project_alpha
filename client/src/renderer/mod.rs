@@ -3,6 +3,7 @@ pub mod hud;
 use crate::TICK_DURATION;
 use crate::config::*;
 use crate::event::ClientState;
+use crate::particle::{Particle, ParticleSystem};
 use raylib::prelude::*;
 use shared::protocol::{EntityKind, StateSnapshot};
 use std::time::Instant;
@@ -92,6 +93,7 @@ impl Renderer {
         current: Option<&StateSnapshot>,
         last_snap_time: Instant,
         client_state: &mut ClientState,
+        particle_system: &mut ParticleSystem,
     ) {
         let t =
             (last_snap_time.elapsed().as_secs_f32() / TICK_DURATION.as_secs_f32()).clamp(0.0, 1.0);
@@ -101,6 +103,7 @@ impl Renderer {
 
         let dt = d.get_frame_time();
         client_state.update_timers(dt);
+        particle_system.update(dt);
 
         d.clear_background(Color::BLACK);
 
@@ -112,7 +115,7 @@ impl Renderer {
                 }
                 Some(curr) => {
                     if client_state.alive {
-                        render_world(&mut d2, prev, curr, t);
+                        render_world(&mut d2, particle_system, prev, curr, t);
                     } else {
                         let text = " YOU'RE DEAD";
                         d2.draw_text(
@@ -196,6 +199,7 @@ impl Renderer {
 
 fn render_world(
     d: &mut RaylibMode2D<RaylibDrawHandle>,
+    particle_system: &mut ParticleSystem,
     prev: Option<&StateSnapshot>,
     curr: &StateSnapshot,
     t: f32,
@@ -214,6 +218,35 @@ fn render_world(
         match &entity.entity_kind {
             EntityKind::Player => {
                 d.draw_rectangle(x as i32 - 20, y as i32 - 20, 40, 40, Color::SKYBLUE);
+
+                if let Some(prev) = prev_entity {
+                    let dx = entity.position[0] - prev.position[0];
+                    let dy = entity.position[1] - prev.position[1];
+
+                    if dx.abs() > 0.05 || dy.abs() > 0.05 {
+                        let lifetime = rand::random_range(0.18..0.32f32);
+
+                        let velocity_x = (-dx * 4.0) + rand::random_range(-20.0..20.0);
+                        let velocity_y = rand::random_range(-50.0..-20.0);
+
+                        particle_system.spawn(Particle {
+                            pos: Vector2 {
+                                x: x + rand::random_range(-20.0..20.0),
+                                y: y + 20.0 + rand::random_range(-2.0..2.0),
+                            },
+                            velocity: Vector2 {
+                                x: velocity_x,
+                                y: velocity_y,
+                            },
+                            friction: 4.5,
+                            lifetime,
+                            lt_max: lifetime,
+                            scale: 0.1,
+                            growth: 6.5,
+                            color: Color::LIGHTGRAY,
+                        });
+                    }
+                }
             }
             EntityKind::Enemy => {
                 d.draw_rectangle(x as i32 - 20, y as i32 - 20, 40, 40, Color::RED);
@@ -232,6 +265,8 @@ fn render_world(
             }
         }
     }
+
+    particle_system.draw(d);
 }
 
 fn lerp(a: f32, b: f32, t: f32) -> f32 {

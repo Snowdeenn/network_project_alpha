@@ -4,6 +4,7 @@ mod input;
 mod net;
 mod renderer;
 mod config;
+mod particle;
 
 use event::ClientState;
 use net::client::GameNetClient;
@@ -12,6 +13,8 @@ use renderer::Renderer;
 use shared::protocol::{StateSnapshot};
 use std::time::{Duration, Instant};
 use shared::protocol::{ShopAction, ShopActionKind};
+
+use crate::particle::ParticleSystem;
 
 
 const TICK_DURATION: Duration = Duration::from_millis(50);
@@ -27,6 +30,7 @@ fn main() {
     let mut last_snapshot: Option<StateSnapshot> = None;
     let mut last_snap_time: Instant = Instant::now();
     let mut client_state = ClientState::new();
+    let mut particle_system = ParticleSystem::new();
 
     // tick réseau 20 Hz
     while !renderer.rl.window_should_close() {
@@ -93,6 +97,7 @@ fn main() {
             last_snapshot.as_ref(),
             last_snap_time,
             &mut client_state,
+            &mut particle_system,
         );
         
         if renderer.rl.is_key_pressed(KeyboardKey::KEY_ESCAPE) {

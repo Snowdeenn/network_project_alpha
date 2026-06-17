@@ -82,24 +82,19 @@ Rendre le jeu jouable et fun dans sa forme la plus simple.
 
 ### 3a — Mouvement & combat
 - [ ] Bug dash corrigé (#26)
-- [ ] Dash avec cooldown validé côté serveur
-- [ ] Attaque de mêlée (arc hitbox côté serveur)
+- [x] Dash avec cooldown validé côté serveur
+- [x] Attaque de mêlée (arc hitbox côté serveur)
 - [ ] Knockback sur les ennemis touchés (#31)
 - [ ] Gestion des sorts (actifs / passifs — à définir)
-- [ ] Mort du joueur
+- [x] Mort du joueur (à polish)
 
 ### 3b — Ennemis & vagues
 - [ ] 3 types d'ennemis distincts (comportements différents)
 - [ ] Nombre de vagues configurable
-- [ ] Spawner côté serveur avec timing précis
+- [x] Spawner côté serveur avec timing précis
 - [ ] Boss de fin de vague avec FSM (Phase 6 — Synchronisation FSM Boss)
 
-### 3c — Progression in-run
-- [ ] XP et level-up en cours de partie
-- [ ] Shop fonctionnel avec au moins 6 items
-- [ ] Items passifs qui modifient les stats (vitesse, dégâts, regen)
-
-### 3d — Debug & outillage
+### 3c — Debug & outillage
 - [ ] ImGUI intégré (#30) pour debug in-game (stats réseau, état ECS, positions)
 
 ---
@@ -108,7 +103,7 @@ Rendre le jeu jouable et fun dans sa forme la plus simple.
 
 ### 4a — Contenu joueur
 - [ ] 6 types d'ennemis total
-- [ ] 15 items de shop minimum
+- [ ] 15 carte de sort minimum
 - [ ] 10 vagues avec difficulté croissante
 - [ ] Map plus grande avec zones distinctes
 
@@ -135,8 +130,8 @@ Style hand-painted minimaliste : formes simples, brosses texturées, palette pas
 - [ ] Éléments de décor (buissons ronds, monolithes)
 
 ### 5b — Système de particules (client uniquement)
-- [ ] Pool de particules (`Vec<Particle>` avec position, vélocité, lifetime, color, size)
-- [ ] Particules poussière sous les pieds (run + changement de direction)
+- [x] Pool de particules (`Vec<Particle>` avec position, vélocité, lifetime, color, size)
+- [x] Particules poussière sous les pieds (run + changement de direction)(à polish)
 - [ ] Particule de buée/respiration (timer quand le joueur s'arrête)
 - [ ] Particules d'impact (ennemi touché) — déclenché par événement réseau `EventHit`
 - [ ] Particules de mort ennemi (burst de cercles) — déclenché par `EventKill`

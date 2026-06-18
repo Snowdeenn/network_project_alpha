@@ -99,10 +99,18 @@ impl ShopUiState {
     }
 }
 
+#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+pub enum DebugMode {
+    #[default]
+    Off,
+    Overlay,
+    Interactive,
+}
 #[derive(Debug, Default)]
 pub struct DebugState {
     pub attack_box: Vec<DebugRectState>,
     pub hit_pos_anim: [f32; 2],
+    pub mode: DebugMode,
 }
 
 impl DebugState {
@@ -119,6 +127,14 @@ impl DebugState {
 
     pub fn set_hit_anim(&mut self, pos: [f32; 2]) {
         self.hit_pos_anim = pos;
+    }
+
+    pub fn cycle(&mut self) {
+        self.mode = match self.mode {
+            DebugMode::Off => DebugMode::Overlay,
+            DebugMode::Overlay => DebugMode::Interactive,
+            DebugMode::Interactive => DebugMode::Off,
+        }
     }
 
     pub fn update(&mut self, dt: f32) {

@@ -634,6 +634,7 @@ pub fn create_attack_box(
     pos: &Position,
     intent: &AttackIntent,
     command: &mut CommandBuffer,
+    #[resource] game_event_queue: &mut GameEventQueue,
 ) {
     let dir = intent.aim_dir;
     let dist_to_center = (PLAYER_RADIUS + OFFSET_ATTACKBOX + ATTACK_HALF_LEN) as f64;
@@ -654,16 +655,16 @@ pub fn create_attack_box(
         Owner(*entity),
     ));
 
-    // // DEBUG: Envoi des données de la attackbox pour l'afficher
-    // game_event_queue.0.push(GameEvent {
-    //     kind: GameEventKind::DebugRect {
-    //         x: center_x as f32,
-    //         y: center_y as f32,    #[resource] game_event_queue: &mut GameEventQueue,
-    //         half_length: ATTACK_HALF_LEN,
-    //         half_width: ATTACK_HALF_WIDTH,
-    //         dir,
-    //     },
-    //});
+    // DEBUG: Envoi des données de la attackbox pour l'afficher
+    game_event_queue.0.push(GameEvent {
+        kind: GameEventKind::DebugRect {
+            x: center_x as f32,
+            y: center_y as f32,
+            half_length: ATTACK_HALF_LEN,
+            half_width: ATTACK_HALF_WIDTH,
+            dir,
+        },
+    });
 
     command.remove_component::<AttackIntent>(*entity);
 }
@@ -769,6 +770,7 @@ pub fn check_collide_attackbox(
 #[system(for_each)]
 #[filter(component::<Knockback>())]
 pub fn knockback(
+    // --- ÉTAPE A : RENDU DES HITBOXES (Inchangé) ---
     entt: &Entity,
     kb: &mut Knockback,
     velo: &mut Velocity,

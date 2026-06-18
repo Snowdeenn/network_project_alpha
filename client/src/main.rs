@@ -14,7 +14,7 @@ use shared::protocol::{StateSnapshot};
 use std::time::{Duration, Instant};
 use shared::protocol::{ShopAction, ShopActionKind};
 
-use crate::particle::ParticleSystem;
+use crate::{particle::ParticleSystem};
 
 
 const TICK_DURATION: Duration = Duration::from_millis(50);
@@ -37,6 +37,17 @@ fn main() {
         let frame_delta = last_frame.elapsed();
         last_frame = Instant::now();
         client.update(frame_delta);
+
+        if renderer.rl.is_key_pressed(KeyboardKey::KEY_F2) {
+            client_state.debug.cycle();
+
+            // TODO: A ajouter quand il y aura un réticule
+            // if client_state.debug.mode == DebugMode::Interactive {
+            //     renderer.rl.show_cursor();
+            // } else {
+            //     renderer.rl.hide_cursor();
+            // }
+        }
 
         // réception à chaque frame, pas seulement au tick
         while let Some(snap) = client.recv_snapshot() {
@@ -99,7 +110,7 @@ fn main() {
             &mut client_state,
             &mut particle_system,
         );
-        
+
         if renderer.rl.is_key_pressed(KeyboardKey::KEY_ESCAPE) {
             std::process::exit(0);
         }

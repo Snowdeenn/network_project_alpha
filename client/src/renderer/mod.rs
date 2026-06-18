@@ -1,3 +1,4 @@
+pub mod debug_ui;
 pub mod hud;
 
 use crate::TICK_DURATION;
@@ -6,6 +7,7 @@ use crate::event::ClientState;
 use crate::event::GamePhase;
 use crate::particle::{Particle, ParticleSystem};
 use raylib::prelude::*;
+use raylib_imgui::RaylibGui;
 use shared::protocol::{EntityKind, StateSnapshot};
 use std::time::Instant;
 
@@ -47,6 +49,7 @@ pub struct Renderer {
     pub screen_w: i32,
     pub screen_h: i32,
     screen_scale: ScreenScale,
+    pub imgui: RaylibGui,
 }
 
 impl Renderer {
@@ -78,6 +81,7 @@ impl Renderer {
             zoom,
         };
 
+        let imgui = RaylibGui::new(&mut rl, &thread);
         Self {
             rl,
             thread,
@@ -85,9 +89,10 @@ impl Renderer {
             screen_w: real_w,
             screen_h: real_h,
             screen_scale: ScreenScale::new(real_w, real_h),
+            imgui,
         }
     }
-
+    // --- ÉTAPE B : INTERFACE IMGUI INTERACTIVE ---
     pub fn render_frame(
         &mut self,
         prev: Option<&StateSnapshot>,
@@ -100,7 +105,8 @@ impl Renderer {
             (last_snap_time.elapsed().as_secs_f32() / TICK_DURATION.as_secs_f32()).clamp(0.0, 1.0);
         let s = &self.screen_scale;
 
-        let mut d = self.rl.begin_drawing(&self.thread);
+        let ui = { self.imgui.begin(&mut self.rl) };
+        let mut d = { self.rl.begin_drawing(&self.thread) };
 
         let dt = d.get_frame_time();
         client_state.update_timers(dt);
@@ -134,50 +140,8 @@ impl Renderer {
             hud::render(&mut d, snap, s);
         }
 
-        // // DEBUG: Dessin des attacks box
-        // for rect in &client_state.debug_rects {
-        //         // Calcul de l'angle en radians, puis conversion en DEGRÉS pour Raylib
-        //         let angle_rad = rect.dir[1].atan2(rect.dir[0]);
-        //         let angle_deg = angle_rad.to_degrees();
-
-        //         // Calcul des dimensions totales (Raylib veut la largeur/hauteur complète)
-        //         let width = rect.half_length * 2.0;
-        //         let height = rect.half_width * 2.0;
-
-        //         // Configuration du rectangle Raylib
-        //         // Ici, x et y représentent le point de pivot dans le monde (donc le centre)
-        //         let raylib_rect = Rectangle {
-        //             x: rect.x,
-        //             y: rect.y,
-        //             width,
-        //             height,
-        //         };
-
-        //         // L'origine de la rotation RELATIVE au coin supérieur gauche du rectangle.
-        //         // En mettant la moitié de la largeur et de la hauteur, le pivot se place pile au centre.
-        //         let origin = Vector2 {
-        //             x: rect.half_length,
-        //             y: rect.half_width,
-        //         };
-
-        //         // On utilise une couleur rouge avec de l'alpha (100) pour qu'elle soit semi-transparente
-        //         let debug_color = Color::new(0, 255, 0, 100);
-
-        //         d.draw_rectangle_pro(raylib_rect, origin, angle_deg, debug_color);
-
-        // }
-
         {
             match client_state.phase {
-                GamePhase::BetweenWave { .. } if client_state.phase.can_show_shop() => {
-                    d.draw_text(
-                        "Shop disponible — appuie sur G",
-                        s.x(HUD_SHOP_NOTIF_X),
-                        s.y(HUD_SHOP_NOTIF_Y),
-                        s.font(HUD_SHOP_NOTIF_FONT),
-                        Color::GOLD,
-                    );
-                }
                 GamePhase::BetweenWave { time_remaining, .. } => {
                     let remaining = format!(
                         " Temps avant la prochaine vague {}s",
@@ -190,12 +154,24 @@ impl Renderer {
                         s.font(WAVE_TIMER_FONT),
                         Color::RED,
                     );
+
+                    if client_state.phase.can_show_shop() {
+                        d.draw_text(
+                            "Shop disponible — appuie sur G",
+                            s.x(HUD_SHOP_NOTIF_X),
+                            s.y(HUD_SHOP_NOTIF_Y),
+                            s.font(HUD_SHOP_NOTIF_FONT),
+                            Color::GOLD,
+                        );
+                    }
                 }
                 _ => (),
             }
         }
 
         hud::render_shop(&mut d, client_state, s);
+        debug_ui::process_debug(ui, &mut d, &self.cam, client_state);
+        self.imgui.end();
 
         d.draw_fps(self.screen_w - 100, 20);
     }

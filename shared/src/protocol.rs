@@ -94,6 +94,9 @@ pub enum GameEventKind {
         half_length: f32,
         half_width: f32,
         dir: [f32; 2], 
+    },
+    EntityHit {
+        pos: [f32; 2]
     }
 }
 

@@ -4,6 +4,7 @@ use crate::config::SOLD_ANIM_DURATION;
 use shared::protocol::{GameEvent, GameEventKind, ShopItem};
 
 #[allow(dead_code)]
+#[derive(Debug, Default)]
 pub struct DebugRectState {
     pub x: f32,
     pub y: f32,
@@ -13,69 +14,160 @@ pub struct DebugRectState {
     pub lifetime: f32,
 }
 
-pub struct ClientState {
-    pub debug_rects: Vec<DebugRectState>,
-    pub curr_inventory: Option<Vec<Option<ShopItem>>>,
-    pub error_timers: Vec<f32>,
-    pub sold_timers: Vec<f32>,
+pub enum GamePhase {
+    Wave,
+    BetweenWave {
+        time_remaining: Duration,
+        shop_available: bool,
+    },
+    Dead,
+}
+
+impl GamePhase {
+    pub fn can_show_shop(&self) -> bool {
+        matches!(
+            self,
+            GamePhase::BetweenWave {
+                shop_available: true,
+                ..
+            }
+        )
+    }
+
+    pub fn update(&mut self, dt: f32) {
+        if let GamePhase::BetweenWave { time_remaining, .. } = self {
+            if time_remaining.as_secs_f32() > 0.0 {
+                *time_remaining = time_remaining.saturating_sub(Duration::from_secs_f32(dt));
+            }
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct ShopUiState {
+    pub inventory: Option<Vec<Option<ShopItem>>>,
+    pub error_timer: Vec<f32>,
+    pub sold_timer: Vec<f32>,
+}
+
+impl ShopUiState {
+    pub fn open(&mut self, inventory: Vec<Option<ShopItem>>) {
+        self.error_timer = vec![0.0; inventory.len()];
+        self.sold_timer = vec![0.0; inventory.len()];
+        self.inventory = Some(inventory);
+    }
+
+    pub fn close(&mut self) {
+        self.inventory = None;
+    }
+
+    pub fn item_bought(&mut self, slot: usize) {
+        if slot < self.sold_timer.len() {
+            self.sold_timer[slot] = SOLD_ANIM_DURATION;
+        }
+    }
+
+    pub fn purchase_failed(&mut self, slot: usize) {
+        if slot < self.error_timer.len() {
+            self.error_timer[slot] = 1.5;
+        }
+    }
+
+    pub fn is_open(&self) -> bool {
+        self.inventory.is_some()
+    }
+
+    pub fn update(&mut self, dt: f32) {
+        for timer in self.error_timer.iter_mut() {
+            if *timer > 0.0 {
+                *timer = (*timer - dt).max(0.0);
+            }
+        }
+        for (slot, timer) in self.sold_timer.iter_mut().enumerate() {
+            if *timer > 0.0 {
+                *timer = (*timer - dt).max(0.0);
+
+                if *timer == 0.0 {
+                    if let Some(inv) = &mut self.inventory {
+                        if let Some(item_slot) = inv.get_mut(slot) {
+                            item_slot.take();
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct DebugState {
+    pub attack_box: Vec<DebugRectState>,
     pub hit_pos_anim: [f32; 2],
-    pub wave_timer: Duration,
-    pub shop_available: bool,
-    pub show_shop: bool,
-    pub between_wave: bool,   
-    pub alive: bool,
+}
+
+impl DebugState {
+    pub fn add_rect(&mut self, x: f32, y: f32, half_length: f32, half_width: f32, dir: [f32; 2]) {
+        self.attack_box.push(DebugRectState {
+            x,
+            y,
+            half_length,
+            half_width,
+            dir,
+            lifetime: 0.15,
+        });
+    }
+
+    pub fn set_hit_anim(&mut self, pos: [f32; 2]) {
+        self.hit_pos_anim = pos;
+    }
+
+    pub fn update(&mut self, dt: f32) {
+        self.attack_box.retain_mut(|rect| {
+            rect.lifetime -= dt;
+            rect.lifetime > 0.0
+        });
+    }
+}
+
+pub struct ClientState {
+    pub phase: GamePhase,
+    pub shop_ui: ShopUiState,
+    pub debug: DebugState,
 }
 
 impl ClientState {
     pub fn new() -> Self {
         Self {
-            shop_available: false,
-            show_shop: false,
-            curr_inventory: None,
-            error_timers: vec![0.0; 3],
-            sold_timers: vec![0.0; 3],
-            wave_timer: Duration::ZERO,
-            between_wave: false,
-            debug_rects: Vec::new(),
-            alive: true,
-            hit_pos_anim: [0.0; 2],
+            phase: GamePhase::Wave,
+            shop_ui: ShopUiState::default(),
+            debug: DebugState::default(),
         }
     }
 
     pub fn handle_event(&mut self, event: GameEvent) {
         match event.kind {
             GameEventKind::ShopOpened { inventory } => {
-                self.show_shop = true;
-                self.curr_inventory = Some(inventory);
+                self.shop_ui.open(inventory);
             }
             GameEventKind::WaveEnd { time_between_wave } => {
-                self.shop_available = true;
-                self.between_wave = true;
-                self.wave_timer = time_between_wave;
+                self.phase = GamePhase::BetweenWave {
+                    time_remaining: time_between_wave,
+                    shop_available: true,
+                };
             }
             GameEventKind::WaveStart { .. } => {
-                self.shop_available = false;
-                self.show_shop = false;
-                self.between_wave = false;
-                self.curr_inventory = None;
-                self.sold_timers = vec![0.0; 3];
+                self.phase = GamePhase::Wave;
+                self.shop_ui.close();
             }
             GameEventKind::BossSpawn { .. } => {}
             GameEventKind::PlayerDied { .. } => {
-                self.alive = false;
+                self.phase = GamePhase::Dead;
             }
             GameEventKind::ItemBought { slot } => {
-                let slot = slot as usize;
-                // On démarre l'animation SANS vider l'item :
-                // l'item reste visible pendant le fade out
-                if slot < self.sold_timers.len() {
-                    self.sold_timers[slot] = SOLD_ANIM_DURATION;
-                }
+                self.shop_ui.item_bought(slot as usize);
             }
             GameEventKind::PurchaseFailed { slot } => {
-                if slot < self.error_timers.len() {
-                    self.error_timers[slot] = 1.5;
-                }
+                self.shop_ui.purchase_failed(slot as usize);
             }
             GameEventKind::DebugRect {
                 x,
@@ -84,47 +176,21 @@ impl ClientState {
                 half_width,
                 dir,
             } => {
-                self.debug_rects.push(DebugRectState {
-                    x,
-                    y,
-                    half_length,
-                    half_width,
-                    dir,
-                    lifetime: 0.15, // Durée d'affichage (0.15s = ~9 frames, idéal pour un flash de coup)
-                });
-            },
+                self.debug.add_rect(x, y, half_length, half_width, dir);
+            }
             GameEventKind::EntityHit { pos } => {
-                self.hit_pos_anim = pos;
+                self.debug.set_hit_anim(pos);
             }
         }
     }
 
     pub fn update_timers(&mut self, dt: f32) {
-        for timer in self.error_timers.iter_mut() {
-            if *timer > 0.0 {
-                *timer = (*timer - dt).max(0.0);
-            }
-        }
-        for (slot, timer) in self.sold_timers.iter_mut().enumerate() {
-            if *timer > 0.0 {
-                *timer = (*timer - dt).max(0.0);
-
-                // Animation terminée → on vide l'item maintenant
-                if *timer == 0.0 {
-                    if let Some(inv) = &mut self.curr_inventory {
-                        if let Some(item_slot) = inv.get_mut(slot) {
-                            item_slot.take();
-                        }
-                    }
-                }
-            }
-        }
-        if self.wave_timer.as_secs_f32() > 0.0 {
-            self.wave_timer = self.wave_timer.saturating_sub(Duration::from_secs_f32(dt));
-        }
+        self.shop_ui.update(dt);
+        self.phase.update(dt);
+        self.debug.update(dt);
     }
 
     pub fn close_shop(&mut self) {
-        self.show_shop = false;
+        self.shop_ui.close();
     }
 }

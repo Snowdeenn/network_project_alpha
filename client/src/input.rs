@@ -57,12 +57,14 @@ pub fn handle_shop_input(rl: &RaylibHandle, client: &mut GameNetClient, state: &
         return;
     }
 
-    if state.shop_available && !state.show_shop {
+
+
+    if state.phase.can_show_shop() && !state.shop_ui.is_open() {
         client.send_shop_action(&ShopAction {
             kind: ShopActionKind::Open,
             slot: 0,
         });
-    } else if state.show_shop {
+    } else if state.shop_ui.is_open() {
         client.send_shop_action(&ShopAction {
             kind: ShopActionKind::Close,
             slot: 0,

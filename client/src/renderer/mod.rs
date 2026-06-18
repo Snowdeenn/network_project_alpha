@@ -3,6 +3,7 @@ pub mod hud;
 use crate::TICK_DURATION;
 use crate::config::*;
 use crate::event::ClientState;
+use crate::event::GamePhase;
 use crate::particle::{Particle, ParticleSystem};
 use raylib::prelude::*;
 use shared::protocol::{EntityKind, StateSnapshot};
@@ -113,10 +114,8 @@ impl Renderer {
                 None => {
                     d2.draw_text("Connexion...", -80, -10, 20, Color::WHITE);
                 }
-                Some(curr) => {
-                    if client_state.alive {
-                        render_world(&mut d2, particle_system, prev, curr, t);
-                    } else {
+                Some(curr) => match client_state.phase {
+                    GamePhase::Dead => {
                         let text = " YOU'RE DEAD";
                         d2.draw_text(
                             text,
@@ -126,7 +125,8 @@ impl Renderer {
                             Color::RED,
                         );
                     }
-                }
+                    _ => render_world(&mut d2, particle_system, prev, curr, t),
+                },
             }
         }
 
@@ -167,28 +167,32 @@ impl Renderer {
 
         // }
 
-        if client_state.shop_available && !client_state.show_shop {
-            d.draw_text(
-                "Shop disponible — appuie sur G",
-                s.x(HUD_SHOP_NOTIF_X),
-                s.y(HUD_SHOP_NOTIF_Y),
-                s.font(HUD_SHOP_NOTIF_FONT),
-                Color::GOLD,
-            );
-        }
-
-        if client_state.between_wave {
-            let remaining = format!(
-                " Temps avant la prochaine vague {}s",
-                client_state.wave_timer.as_secs()
-            );
-            d.draw_text(
-                &remaining,
-                s.x(WAVE_TIMER_X),
-                s.y(WAVE_TIMER_Y),
-                s.font(WAVE_TIMER_FONT),
-                Color::RED,
-            );
+        {
+            match client_state.phase {
+                GamePhase::BetweenWave { .. } if client_state.phase.can_show_shop() => {
+                    d.draw_text(
+                        "Shop disponible — appuie sur G",
+                        s.x(HUD_SHOP_NOTIF_X),
+                        s.y(HUD_SHOP_NOTIF_Y),
+                        s.font(HUD_SHOP_NOTIF_FONT),
+                        Color::GOLD,
+                    );
+                }
+                GamePhase::BetweenWave { time_remaining, .. } => {
+                    let remaining = format!(
+                        " Temps avant la prochaine vague {}s",
+                        time_remaining.as_secs()
+                    );
+                    d.draw_text(
+                        &remaining,
+                        s.x(WAVE_TIMER_X),
+                        s.y(WAVE_TIMER_Y),
+                        s.font(WAVE_TIMER_FONT),
+                        Color::RED,
+                    );
+                }
+                _ => (),
+            }
         }
 
         hud::render_shop(&mut d, client_state, s);

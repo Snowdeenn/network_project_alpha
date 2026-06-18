@@ -51,7 +51,7 @@ fn main() {
 
         input::handle_shop_input(&renderer.rl, &mut client, &mut client_state);
 
-        if client_state.show_shop && renderer.rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT) {
+        if client_state.phase.can_show_shop() && renderer.rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT) {
             let mouse = renderer.rl.get_mouse_position();
             let slots_x = [335, 785, 1235];
 

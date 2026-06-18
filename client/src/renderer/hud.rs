@@ -55,10 +55,10 @@ fn with_alpha(c: Color, alpha: u8) -> Color {
 }
 
 pub fn render_shop(d: &mut RaylibDrawHandle, state: &mut ClientState, s: &ScreenScale) {
-    if !state.show_shop {
+    if !state.phase.can_show_shop() {
         return;
     }
-    let Some(inventory) = &state.curr_inventory else {
+    let Some(inventory) = &state.shop_ui.inventory else {
         return;
     };
 
@@ -74,9 +74,9 @@ pub fn render_shop(d: &mut RaylibDrawHandle, state: &mut ClientState, s: &Screen
     for (slot, item_opt) in inventory.iter().enumerate() {
         let x = s.x(SHOP_SLOTS_X[slot]);
 
-        let sold_ratio = if state.sold_timers[slot] > 0.0 {
+        let sold_ratio = if state.shop_ui.sold_timer[slot] > 0.0 {
             // ratio va de 1.0 → 0.0 car le timer décroit
-            Some(state.sold_timers[slot] / SOLD_ANIM_DURATION)
+            Some(state.shop_ui.sold_timer[slot] / SOLD_ANIM_DURATION)
         } else {
             None
         };
@@ -85,8 +85,8 @@ pub fn render_shop(d: &mut RaylibDrawHandle, state: &mut ClientState, s: &Screen
             Some(item) => {
                 render_shop_item(d, x, item, s, sold_ratio);
 
-                if state.error_timers[slot] > 0.0 {
-                    render_error_overlay(d, x, state.error_timers[slot], 1.5, s);
+                if state.shop_ui.error_timer[slot] > 0.0 {
+                    render_error_overlay(d, x, state.shop_ui.error_timer[slot], 1.5, s);
                 }
             }
             None => {

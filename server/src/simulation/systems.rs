@@ -1,10 +1,10 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 use crate::simulation::components::*;
 use crate::simulation::eco::{CoinPool, CoinSpawnQueue, PickupQueue, PlayerGold};
 use crate::simulation::event::{
-    CoinEvent, DamageEvent, DamageQueue, EnemyDied, EnemyDiedQueue, GameEventQueue
+    CoinEvent, DamageEvent, DamageQueue, EnemyDied, EnemyDiedQueue, GameEventQueue,
 };
 use crate::simulation::helper::*;
 use crate::simulation::wave::{EnemyPool, WaveConfigs, WaveManager, WaveState};
@@ -40,6 +40,7 @@ pub fn update_player_pos(pos: &Position, #[resource] player_pos: &mut PlayerPos)
 
 #[system(for_each)]
 #[filter(component::<Player>())]
+#[filter(!component::<Knockback>())]
 pub fn update_velocity(velo: &mut Velocity, state: &InputState, #[resource] dt: &Duration) {
     let input_x = state.move_dir[0] as f64 * ACCEL * (*dt).as_secs_f64();
     let input_y = state.move_dir[1] as f64 * ACCEL * (*dt).as_secs_f64();
@@ -49,7 +50,6 @@ pub fn update_velocity(velo: &mut Velocity, state: &InputState, #[resource] dt: 
 }
 
 #[system(for_each)]
-#[filter(component::<Player>())]
 pub fn friction(velo: &mut Velocity) {
     velo.dx *= FRICTION;
     velo.dy *= FRICTION;
@@ -156,7 +156,9 @@ pub fn ia_targeting(world: &mut SubWorld) {
 #[write_component(Velocity)]
 pub fn ia_classic_movement(world: &mut SubWorld) {
     let player_positions: std::collections::HashMap<Entity, Position> = {
-        let mut player_query = <(Entity, &Position)>::query().filter(component::<Player>());
+        let mut player_query = <(Entity, &Position)>::query()
+            .filter(component::<Player>())
+            .filter(!component::<Knockback>());
         player_query
             .iter(&*world)
             .map(|(entity, pos)| (*entity, *pos))
@@ -203,7 +205,7 @@ pub fn ia_classic_movement(world: &mut SubWorld) {
 pub fn health(
     world: &mut SubWorld,
     #[resource] enemy_die_queue: &mut EnemyDiedQueue,
-    #[resource] game_event_queue: &mut GameEventQueue
+    #[resource] game_event_queue: &mut GameEventQueue,
 ) {
     let dead: Vec<Entity> = <(Entity, &mut Health)>::query()
         .iter_mut(world)
@@ -220,8 +222,12 @@ pub fn health(
                 enemy_die_queue.0.push(EnemyDied(entity));
             }
             if entry.get_component::<Player>().is_ok() {
-                let id = entry.get_component::<EntityId>().expect("[Heatlh System] Le joueur n'as pas le composant EntityId");
-                game_event_queue.0.push( GameEvent { kind: GameEventKind::PlayerDied { entity_id: id.0 }});
+                let id = entry
+                    .get_component::<EntityId>()
+                    .expect("[Heatlh System] Le joueur n'as pas le composant EntityId");
+                game_event_queue.0.push(GameEvent {
+                    kind: GameEventKind::PlayerDied { entity_id: id.0 },
+                });
             }
         }
     }
@@ -254,8 +260,8 @@ pub fn dash(
     let new_state = match dash.0 {
         DashState::Idle => {
             if state.dash {
-                velo.dx *= 7.0;
-                velo.dy *= 7.0;
+                velo.dx *= 5.0;
+                velo.dy *= 5.0;
                 DashState::Dashing(Duration::from_millis(20))
             } else {
                 DashState::Idle
@@ -674,6 +680,7 @@ pub fn check_collide_attackbox(
     world: &mut SubWorld,
     command: &mut CommandBuffer,
     #[resource] damage_queue: &mut DamageQueue,
+    #[resource] game_event_queue: &mut GameEventQueue,
 ) {
     let players: std::collections::HashSet<Entity> = <Entity>::query()
         .filter(component::<Player>())
@@ -717,9 +724,69 @@ pub fn check_collide_attackbox(
                         target: *victim_entt,
                         amount: 10,
                     });
+                    game_event_queue.0.push(GameEvent {
+                        kind: GameEventKind::EntityHit {
+                            pos: [victim_pos.x as f32, victim_pos.y as f32],
+                        },
+                    });
+
+                    {
+                        let mut dx = victim_pos.x - attackbox_pos.x;
+                        let mut dy = victim_pos.y - attackbox_pos.y;
+                        let distance = (dx * dx + dy * dy).sqrt();
+
+                        if distance > 0.0 {
+                            dx /= distance;
+                            dy /= distance;
+                        } else {
+                            dx = 1.0;
+                            dy = 0.0;
+                        }
+
+                        let knockback_force = 600.0f32;
+                        let knockback_duration = 0.12;
+
+                        command.add_component(
+                            *victim_entt,
+                            Knockback {
+                                dx: dx as f32 * knockback_force,
+                                dy: dy as f32 * knockback_force,
+                                duration: knockback_duration,
+                            },
+                        );
+                    }
                 }
             }
         }
         command.remove(attackbox_entt);
+    }
+}
+
+// =================================================================================
+// --------------------------------                ---------------------------------
+// =================================================================================
+
+#[system(for_each)]
+#[filter(component::<Knockback>())]
+pub fn knockback(
+    entt: &Entity,
+    kb: &mut Knockback,
+    velo: &mut Velocity,
+    #[resource] dt: &Duration,
+    command: &mut CommandBuffer,
+) {
+    velo.dx += kb.dx as f64;
+    velo.dy += kb.dy as f64;
+
+    const MAX_VELO: f64 = 600.0;
+    velo.dx = velo.dx.clamp(-MAX_VELO, MAX_VELO);
+    velo.dy = velo.dy.clamp(-MAX_VELO, MAX_VELO);
+
+    kb.dx = 0.0;
+    kb.dy = 0.0;
+    kb.duration -= dt.as_secs_f32();
+
+    if kb.duration <= 0.0 {
+        command.remove_component::<Knockback>(*entt);
     }
 }

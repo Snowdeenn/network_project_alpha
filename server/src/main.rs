@@ -136,6 +136,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .add_system(friction_system())
         .add_system(update_velocity_system())
         .add_system(ia_classic_movement_system())
+        .add_system(knockback_system())
         .add_system(dash_system())
         .add_system(update_position_system())
         .add_system(collide_system())

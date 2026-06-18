@@ -80,3 +80,10 @@ pub struct AttackIntent {
     pub aim_dir: [f32; 2],
 }
 
+#[derive(Debug, PartialEq)]
+pub struct Knockback {
+    pub dx: f32,
+    pub dy: f32,
+    pub duration: f32
+}
+

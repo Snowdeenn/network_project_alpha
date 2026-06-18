@@ -18,6 +18,7 @@ pub struct ClientState {
     pub curr_inventory: Option<Vec<Option<ShopItem>>>,
     pub error_timers: Vec<f32>,
     pub sold_timers: Vec<f32>,
+    pub hit_pos_anim: [f32; 2],
     pub wave_timer: Duration,
     pub shop_available: bool,
     pub show_shop: bool,
@@ -37,6 +38,7 @@ impl ClientState {
             between_wave: false,
             debug_rects: Vec::new(),
             alive: true,
+            hit_pos_anim: [0.0; 2],
         }
     }
 
@@ -90,6 +92,9 @@ impl ClientState {
                     dir,
                     lifetime: 0.15, // Durée d'affichage (0.15s = ~9 frames, idéal pour un flash de coup)
                 });
+            },
+            GameEventKind::EntityHit { pos } => {
+                self.hit_pos_anim = pos;
             }
         }
     }

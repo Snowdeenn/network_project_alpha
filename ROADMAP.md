@@ -84,7 +84,7 @@ Rendre le jeu jouable et fun dans sa forme la plus simple.
 - [ ] Bug dash corrigé (#26)
 - [x] Dash avec cooldown validé côté serveur
 - [x] Attaque de mêlée (arc hitbox côté serveur)
-- [ ] Knockback sur les ennemis touchés (#31)
+- [x] Knockback sur les ennemis touchés (#31)
 - [ ] Gestion des sorts (actifs / passifs — à définir)
 - [x] Mort du joueur (à polish)
 
@@ -109,7 +109,7 @@ Rendre le jeu jouable et fun dans sa forme la plus simple.
 
 ### 4b — Multijoueur complet
 - [ ] Affichage de tous les joueurs dans le HUD
-- [ ] Mort individuelle sans bloquer la partie des autres
+- [x] Mort individuelle sans bloquer la partie des autres
 - [ ] Score partagé en fin de partie
 
 ### 4c — Audio
@@ -124,7 +124,7 @@ Rendre le jeu jouable et fun dans sa forme la plus simple.
 Style hand-painted minimaliste : formes simples, brosses texturées, palette pastel désaturée avec accents saturés réservés aux éléments actifs.
 
 ### 5a — Assets de base
-- [ ] Personnage joueur (silhouette cape, œil) — dessiné dans Krita
+- [x] Personnage joueur (silhouette cape, œil) — dessiné dans Krita
 - [ ] 3 types d'ennemis — formes minimalistes
 - [ ] Tileset sol (brosses chalk, grain léger)
 - [ ] Éléments de décor (buissons ronds, monolithes)

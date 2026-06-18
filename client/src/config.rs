@@ -1,6 +1,6 @@
 // config.rs
 
-pub const REFERENCE_W: f32 = 1920.0;
+pub const _REFERENCE_W: f32 = 1920.0;
 pub const REFERENCE_H: f32 = 1080.0;
 
 // --- SHOP ---

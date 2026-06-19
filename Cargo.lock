@@ -205,6 +205,8 @@ dependencies = [
  "raylib_imgui",
  "renet",
  "renet_netcode",
+ "serde",
+ "serde_json",
  "shared",
 ]
 

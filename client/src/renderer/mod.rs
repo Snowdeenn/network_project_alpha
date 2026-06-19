@@ -92,7 +92,7 @@ impl Renderer {
             imgui,
         }
     }
-    // --- ÉTAPE B : INTERFACE IMGUI INTERACTIVE ---
+
     pub fn render_frame(
         &mut self,
         prev: Option<&StateSnapshot>,

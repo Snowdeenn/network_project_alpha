@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
 use std::time::Duration;
 
 use crate::simulation::components::*;
@@ -770,7 +770,6 @@ pub fn check_collide_attackbox(
 #[system(for_each)]
 #[filter(component::<Knockback>())]
 pub fn knockback(
-    // --- ÉTAPE A : RENDU DES HITBOXES (Inchangé) ---
     entt: &Entity,
     kb: &mut Knockback,
     velo: &mut Velocity,

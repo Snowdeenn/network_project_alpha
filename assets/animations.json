@@ -1,0 +1,16 @@
+{
+    "player_idle" : {
+        "frames" : [
+            "assets/sprite/player/idle/player_idle0000.png",
+            "assets/sprite/player/idle/player_idle0001.png",
+            "assets/sprite/player/idle/player_idle0002.png",
+            "assets/sprite/player/idle/player_idle0003.png",
+            "assets/sprite/player/idle/player_idle0004.png",
+            "assets/sprite/player/idle/player_idle0005.png",
+            "assets/sprite/player/idle/player_idle0006.png",
+            "assets/sprite/player/idle/player_idle0007.png"
+        ],
+        "frame_time": 0.15,
+        "looping": true
+    }
+}

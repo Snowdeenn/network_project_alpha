@@ -95,7 +95,7 @@ Rendre le jeu jouable et fun dans sa forme la plus simple.
 - [ ] Boss de fin de vague avec FSM (Phase 6 — Synchronisation FSM Boss)
 
 ### 3c — Debug & outillage
-- [ ] ImGUI intégré (#30) pour debug in-game (stats réseau, état ECS, positions)
+- [x] ImGUI intégré (#30) pour debug in-game (stats réseau, état ECS, positions)
 
 ---
 

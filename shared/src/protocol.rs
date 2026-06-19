@@ -6,11 +6,11 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, Encode, Decode)]
 pub struct InputPacket {
     pub move_dir: [f32; 2],
-    pub aim_dir:  [f32; 2],
-    pub tick_id:  u64,
-    pub spell:    Option<u8>,
-    pub dash:     bool,
-    pub attack:   bool,
+    pub aim_dir: [f32; 2],
+    pub tick_id: u64,
+    pub spell: Option<u8>,
+    pub dash: bool,
+    pub attack: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Decode, Encode)]
@@ -53,7 +53,7 @@ pub enum EffectType {
     Gold,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Decode, Encode)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Decode, Encode, Hash)]
 pub enum BossKind {
     Big,
     Fast,
@@ -93,10 +93,14 @@ pub enum GameEventKind {
         y: f32,
         half_length: f32,
         half_width: f32,
-        dir: [f32; 2], 
+        dir: [f32; 2],
     },
     EntityHit {
-        pos: [f32; 2]
+        pos: [f32; 2],
+    },
+    DebugCollider {
+        x: f32,
+        y: f32,
     }
 }
 

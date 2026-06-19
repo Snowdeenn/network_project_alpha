@@ -56,6 +56,7 @@ fn main() {
             last_snap_time = Instant::now();
         }
 
+        client_state.debug.cleared = false;
         while let Some(event) = client.recv_event() {
             client_state.handle_event(event);
         }
@@ -111,6 +112,7 @@ fn main() {
             &mut particle_system,
         );
 
+        //client_state.debug.collider.clear();
         if renderer.rl.is_key_pressed(KeyboardKey::KEY_ESCAPE) {
             std::process::exit(0);
         }

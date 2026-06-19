@@ -152,6 +152,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .add_system(coin_pickup_system())
         .add_system(apply_pickup_system())
         .add_system(wave_update_system())
+        .add_system(send_collider_system())
         .build();
 
     let mut tick_id = 0u64;
@@ -307,17 +308,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             println!("Envoi de la mort au client concerné : {}", client_id);
                             net.send_event(client_id, &event);
 
-                            if let Some(&entity) = resources.get::<HashMap<u64, Entity>>().unwrap().get(&client_id) {
-                            if let Ok(mut entry) = world.entry_mut(entity) {
-                                if let Ok(active) = entry.get_component_mut::<Active>() {
-                                    active.0 = false; // Sort de la query des systèmes de mouvement
-                                }
-                                if let Ok(vel) = entry.get_component_mut::<Velocity>() {
-                                    vel.dx = 0.0; // Stoppe net toute glissade
-                                    vel.dy = 0.0;
+                            if let Some(&entity) = resources
+                                .get::<HashMap<u64, Entity>>()
+                                .unwrap()
+                                .get(&client_id)
+                            {
+                                if let Ok(mut entry) = world.entry_mut(entity) {
+                                    if let Ok(active) = entry.get_component_mut::<Active>() {
+                                        active.0 = false;
+                                    }
+                                    if let Ok(vel) = entry.get_component_mut::<Velocity>() {
+                                        vel.dx = 0.0;
+                                        vel.dy = 0.0;
+                                    }
                                 }
                             }
-                        }
                         }
                     }
                     _ => {

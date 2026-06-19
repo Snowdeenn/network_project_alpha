@@ -1,4 +1,4 @@
-use std::collections::{HashMap};
+use std::collections::HashMap;
 use std::time::Duration;
 
 use crate::simulation::components::*;
@@ -587,7 +587,7 @@ pub fn ia_classic_attack(
     let player_positions: std::collections::HashMap<Entity, Position> = {
         let mut player_query = <(Entity, &Position)>::query().filter(component::<Player>());
         player_query
-            .iter(&*world) // <--- ICI AUSSI
+            .iter(&*world)
             .map(|(entity, pos)| (*entity, *pos))
             .collect()
     };
@@ -634,7 +634,7 @@ pub fn create_attack_box(
     pos: &Position,
     intent: &AttackIntent,
     command: &mut CommandBuffer,
-    #[resource] game_event_queue: &mut GameEventQueue,
+    #[resource] game_event_queue: &mut GameEventQueue, // Debug
 ) {
     let dir = intent.aim_dir;
     let dist_to_center = (PLAYER_RADIUS + OFFSET_ATTACKBOX + ATTACK_HALF_LEN) as f64;
@@ -790,4 +790,22 @@ pub fn knockback(
     if kb.duration <= 0.0 {
         command.remove_component::<Knockback>(*entt);
     }
+}
+
+// =================================================================================
+// -------------------------------- Debug Systems ----------------------------------
+// =================================================================================
+
+#[system(for_each)]
+#[filter(component::<Player>())]
+pub fn send_collider(
+    pos: &Position,
+    #[resource] game_event_queue: &mut GameEventQueue,
+) {
+    game_event_queue.0.push(GameEvent {
+        kind: GameEventKind::DebugCollider {
+            x: pos.x as f32,
+            y: pos.y as f32,
+        },
+    });
 }

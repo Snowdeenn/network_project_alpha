@@ -3,17 +3,6 @@ use std::time::Duration;
 use crate::config::SOLD_ANIM_DURATION;
 use shared::protocol::{GameEvent, GameEventKind, ShopItem};
 
-#[allow(dead_code)]
-#[derive(Debug, Default)]
-pub struct DebugRectState {
-    pub x: f32,
-    pub y: f32,
-    pub half_length: f32,
-    pub half_width: f32,
-    pub dir: [f32; 2],
-    pub lifetime: f32,
-}
-
 pub enum GamePhase {
     Wave,
     BetweenWave {
@@ -106,11 +95,29 @@ pub enum DebugMode {
     Overlay,
     Interactive,
 }
+
+#[derive(Debug, Default)]
+pub struct DebugRectState {
+    pub x: f32,
+    pub y: f32,
+    pub half_length: f32,
+    pub half_width: f32,
+    pub dir: [f32; 2],
+    pub lifetime: f32,
+}
+
+#[derive(Debug, Default)]
+pub struct DebugCollider {
+    pub x: f32,
+    pub y: f32,
+}
 #[derive(Debug, Default)]
 pub struct DebugState {
     pub attack_box: Vec<DebugRectState>,
+    pub collider: Vec<DebugCollider>,
     pub hit_pos_anim: [f32; 2],
     pub mode: DebugMode,
+    pub cleared: bool,
 }
 
 impl DebugState {
@@ -123,6 +130,10 @@ impl DebugState {
             dir,
             lifetime: 0.15,
         });
+    }
+
+    pub fn add_collider(&mut self, x: f32, y: f32) {
+        self.collider.push(DebugCollider { x, y});
     }
 
     pub fn set_hit_anim(&mut self, pos: [f32; 2]) {
@@ -196,6 +207,13 @@ impl ClientState {
             }
             GameEventKind::EntityHit { pos } => {
                 self.debug.set_hit_anim(pos);
+            },
+            GameEventKind::DebugCollider { x, y} => {
+                if !self.debug.cleared {
+                    self.debug.collider.clear();
+                    self.debug.cleared = true;
+                }
+                self.debug.add_collider(x, y);
             }
         }
     }

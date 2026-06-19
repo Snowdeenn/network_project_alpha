@@ -32,6 +32,18 @@ pub fn process_debug(
             };
             d2.draw_rectangle_pro(raylib_rect, origin, angle_deg, Color::new(230, 41, 55, 130));
         }
+
+        {
+            for collider in &mut client_state.debug.collider.drain(..) {
+                d2.draw_rectangle(
+                    collider.x as i32 - 20,
+                    collider.y as i32 - 20,
+                    40,
+                    40,
+                    Color::GREEN.alpha(50.0),
+                );
+            }
+        }
     }
 
     if mode == DebugMode::Interactive {
@@ -50,6 +62,10 @@ pub fn process_debug(
                     client_state.debug.attack_box.len()
                 ));
                 ui.separator();
+                ui.text(format!(
+                    "Collider en mémoires: {}",
+                    client_state.debug.collider.len()
+                ));
                 ui.spacing();
 
                 if ui.button("Fermer le Debug (F3)") {

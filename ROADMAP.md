@@ -11,7 +11,7 @@
 |---|---|---|
 | 1 | Fondations réseau | ✅ Terminé |
 | 2 | Modes de jeu & transport | 🔄 En cours |
-| 3 | Gameplay de base | 🔄 En cours |
+| 3 | Gameplay de base & Architecture ECS | 🔄 En cours |
 | 4 | Contenu & progression | ⏳ À venir |
 | 5 | Style visuel & VFX | ⏳ À venir |
 | 6 | Boss & équilibrage | ⏳ À venir |
@@ -24,7 +24,7 @@
 ```
 [Home lab server] ← toujours allumé, IP fixe / DDNS
         ↑
-  [Client] → connexion au démarrage → choix du mode
+  [Client] → connexion au démarrage → choix de la classe & du mode
         ↓
   Solo   : serveur spawne instance locale via MemoryTransport (in-process)
   Multi  : serveur garde la session via NetcodeTransport (UDP)
@@ -32,9 +32,9 @@
 
 ```
 project-alpha/
-├── shared/   # Types réseau, protocole, composants ECS communs
-├── server/   # Simulation autoritaire headless (Legion ECS + renet)
-└── client/   # Rendu raylib depuis snapshots + VFX locaux
+├── shared/   # Types réseau, protocole, composants ECS communs (AttackStats, MeleeBrain...)
+├── server/   # Simulation autoritaire headless (Systèmes de combat unifiés, Spawner découpé)
+└── client/   # Rendu raylib depuis snapshots + VFX locaux (Slash, impacts, UI)
 ```
 
 **Règle VFX** : tout effet visuel (particules, slash, glow) est géré **uniquement côté client**. Le serveur envoie des événements (`EventKill`, `EventHit`...), le client en déduit les VFX à spawner. Jamais de VFX dans l'ECS serveur.
@@ -60,38 +60,47 @@ Architecture client-serveur autoritaire opérationnelle.
 
 ## Phase 2 — Modes de jeu & transport ⏳
 
-Le serveur home lab est le point d'entrée unique. Au lancement le client s'y connecte automatiquement puis choisit son mode.
+Le serveur home lab est le point d'entrée unique. Au lancement le client s'y connecte automatiquement puis choisit son mode et son personnage.
 
 ### 2a — Infrastructure serveur
 - [ ] Adresse serveur configurable (fichier de config ou variable d'environnement, pas hardcodé)
 - [ ] DDNS setup sur le home lab (ex: DuckDNS) pour IP publique stable
 - [ ] Serveur en écoute permanente, gestion des reconnexions clients
 
-### 2b — Sélection du mode de jeu
+### 2b — Sélection du mode de jeu & Lobby de classe
 - [ ] Écran de sélection Solo / Multijoueur au lancement
+- [ ] **Lobby de sélection des personnages** (Max 4 joueurs) : Choix parmi les classes (`Warrior`, `Assassin`, `Mage`, `Tank`)
 - [ ] Mode **Solo** : serveur spawne une instance via `MemoryTransport` (in-process, zéro réseau)
 - [ ] Mode **Multijoueur** : session normale via `NetcodeTransport` (UDP), jusqu'à 4 joueurs
 - [ ] Lancement d'une partie (lobby minimal : ready → start)
+- [ ] Spawner de joueur Data-Driven (injection des composants spécifiques à la classe choisie au moment du `spawn`)
 - [ ] Respawn des joueurs en cours de partie
 
 ---
 
-## Phase 3 — Gameplay de base 🔄
+## Phase 3 — Gameplay de base & Architecture ECS 🔄
 
-Rendre le jeu jouable et fun dans sa forme la plus simple.
+Assainir l'architecture pour rendre le combat et les vagues 100% extensibles (Open/Closed Principle).
 
-### 3a — Mouvement & combat
+### 3a — Mouvement & Pipeline de combat unifié
 - [ ] Bug dash corrigé (#26)
 - [x] Dash avec cooldown validé côté serveur
-- [x] Attaque de mêlée (arc hitbox côté serveur)
+- [x] **Système de combat générique unifié** : Utilisation du composant `AttackStats` (range, damage, dimensions) et du composant de transition `AttackIntent` partagés entre Joueurs et Ennemis.
+- [x] **Boîtes d'attaques dynamiques** : `create_melee_attackbox` génère des hitbox sur-mesure (plus de constantes d'allonge globales).
+- [x] **Collisions unifiées et optimisées** : `check_collide_attackbox` lit le composant `Damage` de la hitbox et utilise des buffers `thread_local!` pour éliminer les allocations par frame (`.collect()`).
 - [x] Knockback sur les ennemis touchés (#31)
+- [ ] **Mouvement dynamique** : Remplacer la constante `ACCEL` par un composant `MovementStats` pour que l'Assassin coure plus vite que le Tank.
 - [ ] Gestion des sorts (actifs / passifs — à définir)
 - [x] Mort du joueur (à polish)
 
-### 3b — Ennemis & vagues
-- [ ] 3 types d'ennemis distincts (comportements différents)
-- [ ] Nombre de vagues configurable
-- [x] Spawner côté serveur avec timing précis
+### 3b — Ennemis & Vagues (Architecture découplée)
+- [x] **Éclatement du God System `wave_update`** en 3 sous-systèmes spécialisés à responsabilité unique :
+  * `wave_death_reaper` : récolte des morts et mise à jour des compteurs.
+  * `enemy_spawner` : logique physique d'apparition en cercle autour des joueurs.
+  * `wave_flow_manager` : cerveau de haut niveau / machine à états des vagues (`InProgress`, `BetweenWave`).
+- [x] **IA par Tags Comportementaux** : Utilisation de filtres positifs (`MeleeBrain`, `RangedBrain`) à la place des filtres d'exclusion négatifs (`!RangedIA`) pour permettre l'ajout de nouveaux monstres sans toucher au code existant.
+- [ ] Intégration des 3 types d'ennemis distincts via la nouvelle architecture de Tags et de statistiques dynamiques.
+- [ ] Nombre de vagues configurable depuis `wave.json`
 - [ ] Boss de fin de vague avec FSM (Phase 6 — Synchronisation FSM Boss)
 
 ### 3c — Debug & outillage
@@ -101,13 +110,15 @@ Rendre le jeu jouable et fun dans sa forme la plus simple.
 
 ## Phase 4 — Contenu & progression ⏳
 
-### 4a — Contenu joueur
-- [ ] 6 types d'ennemis total
-- [ ] 15 carte de sort minimum
+### 4a — Contenu joueur & Équilibrage des classes
+- [ ] Validation physique des 4 profils de jeu (Warrior équilibré, Assassin ultra-rapide/fragile, Tank lent/robuste, Mage à distance)
+- [ ] 6 types d'ennemis total (configurés uniquement via `AttackStats` et composants Brain)
+- [ ] 15 cartes de sort minimum
 - [ ] 10 vagues avec difficulté croissante
 - [ ] Map plus grande avec zones distinctes
 
 ### 4b — Multijoueur complet
+- [ ] Réseau : Réplication et synchronisation des composants dynamiques (`AttackStats`, `MovementStats`) des 4 joueurs.
 - [ ] Affichage de tous les joueurs dans le HUD
 - [x] Mort individuelle sans bloquer la partie des autres
 - [ ] Score partagé en fin de partie
@@ -131,14 +142,14 @@ Style hand-painted minimaliste : formes simples, brosses texturées, palette pas
 
 ### 5b — Système de particules (client uniquement)
 - [x] Pool de particules (`Vec<Particle>` avec position, vélocité, lifetime, color, size)
-- [x] Particules poussière sous les pieds (run + changement de direction)(à polish)
+- [x] Particules poussière sous les pieds (run + changement de direction) (à polish)
 - [ ] Particule de buée/respiration (timer quand le joueur s'arrête)
 - [ ] Particules d'impact (ennemi touché) — déclenché par événement réseau `EventHit`
 - [ ] Particules de mort ennemi (burst de cercles) — déclenché par `EventKill`
 - [ ] Effet de shake sur la carte du joueur quand il ne peut pas acheter (#4 backlog)
 
 ### 5c — VFX de combat
-- [ ] Slash effect : arc `DrawRing` blanc, 2-3 frames, pur raylib
+- [ ] Slash effect : arc `DrawRing` adapté graphiquement aux dimensions réelles de l'`AttackBox` reçues du serveur.
 - [ ] Flash d'impact sur l'ennemi (inversion couleur 1 frame)
 - [ ] Trail de l'épée (lerp de position, positions historisées)
 - [ ] VFX de dash (traînée semi-transparente)
@@ -164,7 +175,7 @@ Style hand-painted minimaliste : formes simples, brosses texturées, palette pas
 - [ ] Phases de boss (transitions d'état selon HP)
 
 ### 6b — Équilibrage
-- [ ] Équilibrage dynamique selon le nombre de joueurs (difficulté adaptative)
+- [ ] Équilibrage dynamique selon le nombre de joueurs (difficulté adaptative des vagues)
 - [ ] Tuning des stats ennemis par vague
 
 ---
@@ -183,5 +194,5 @@ Style hand-painted minimaliste : formes simples, brosses texturées, palette pas
 
 ## Priorité immédiate
 
-> **Objectif** : rendre le jeu jouable de bout en bout (solo + multi) avant de polisher.  
-> Ordre recommandé : `Bug dash (#26) → 2b → 3a → 3b → 3c → 5b → 5c → reste`
+> **Objectif** : Exploiter la nouvelle architecture de combat/vagues pour finaliser le Lobby multijoueur et connecter les statistiques dynamiques.  
+> Ordre recommandé : `Bug dash (#26) → 2b (Lobby + Menu de classes) → Intégration MovementStats (3a) → Intégration des variants d'ennemis (3b) → Phase 5`

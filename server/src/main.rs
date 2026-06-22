@@ -151,7 +151,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .add_system(coin_spawn_system())
         .add_system(coin_pickup_system())
         .add_system(apply_pickup_system())
-        .add_system(wave_update_system())
+        .add_system(wave_death_reaper_system())
+        .add_system(wave_spawner_system())
+        .add_system(wave_flow_manager_system())
         .add_system(send_collider_system())
         .build();
 

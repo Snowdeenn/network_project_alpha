@@ -89,6 +89,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Collider { w: 40.0, h: 40.0 },
                 Health {
                     hp: 100,
+                    max_hp: 100,
                     state: HealthState::Alive,
                 },
                 Active(false),
@@ -102,6 +103,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .entry(e)
                 .expect("[Entry ennemi] Echec de la création de l'entry dans le main");
             entry.add_component(Target(None));
+            entry.add_component(AttackStats {
+                range: 0.0,
+                damage: 10,
+                box_half_length: 30.0,
+                box_half_width: 25.5,
+                projectile_speed: None,
+            });
             pool.pool.push(e);
         }
         resources.insert(pool)
@@ -141,6 +149,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .add_system(update_position_system())
         .add_system(collide_system())
         .add_system(collide_arena_system())
+        .add_system(projectile_arena_culling_system())
         .add_system(read_player_attack_intent_system())
         .add_system(ia_classic_attack_system())
         .add_system(create_attack_box_system())
@@ -155,6 +164,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .add_system(wave_spawner_system())
         .add_system(wave_flow_manager_system())
         .add_system(send_collider_system())
+        .add_system(debug_projectile_positions_system())
         .build();
 
     let mut tick_id = 0u64;
@@ -176,29 +186,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     let player_game_id = next_id();
 
-                    let entity = world.push((
-                        EntityId(player_game_id),
-                        Player,
-                        InputState::default(),
+                    let entity = spawn_player(
+                        &mut world,
+                        player_game_id,
+                        PlayerClass::Mage,
                         Position { x: 960.0, y: 540.0 },
-                        Velocity { dx: 0.0, dy: 0.0 },
-                        Dash(DashState::Idle),
-                        Collider { w: 40.0, h: 40.0 },
-                        Health {
-                            hp: 100,
-                            state: HealthState::Alive,
-                        },
-                    ));
-
-                    let mut entry = world
-                        .entry(entity)
-                        .expect("[Entry player] Echec de la création de l'entry dans le main");
-
-                    entry.add_component(Active(true));
-                    entry.add_component(AttackTimer {
-                        remaining: Duration::ZERO,
-                        interval: Duration::from_secs_f32(0.5),
-                    });
+                    );
 
                     if let Some(mut players_entity) = resources.get_mut::<HashMap<u64, Entity>>() {
                         players_entity.insert(client_id, entity);

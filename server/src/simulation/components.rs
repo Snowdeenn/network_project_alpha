@@ -4,6 +4,7 @@ use legion::Entity;
 pub struct Player;
 pub struct IA;
 pub struct Coin;
+pub struct Projectile;
 pub struct EntityId(pub u64);
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -42,6 +43,7 @@ pub enum HealthState {
 #[derive(Debug)]
 pub struct Health {
    pub hp: u32,
+   pub max_hp: u32,
    pub state: HealthState,
 }
 
@@ -78,12 +80,47 @@ pub struct AttackTimer {
 pub struct Target(pub Option<Entity>);
 pub struct AttackIntent {
     pub aim_dir: [f32; 2],
+    pub box_half_length: f64,
+    pub box_half_width: f64,
+    pub projectile_speed: Option<f64>,
+    pub damage: u32,
 }
+
+#[derive(Debug)]
+pub struct AttackStats {
+    pub range: f64,
+    pub damage: u32,
+    pub box_half_length: f64,
+    pub box_half_width: f64,
+    pub projectile_speed: Option<f64>,
+}
+
+#[derive(Debug)]
+pub struct TeamFilter {
+    pub is_player: bool,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Damage(pub u32);
 
 #[derive(Debug, PartialEq)]
 pub struct Knockback {
     pub dx: f32,
     pub dy: f32,
     pub duration: f32
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerClass {
+    Warrior,
+    Assassin,
+    Mage,
+    Tank,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct MovementStats {
+    pub accel: f64,
+    pub max_speed: f64,
 }
 

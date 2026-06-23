@@ -305,7 +305,7 @@ fn draw_fallback(
             d.draw_rectangle(x as i32 - 40, y as i32 - 40, 80, 80, Color::PURPLE);
         }
         EntityKind::Projectile => {
-            d.draw_circle(x as i32, y as i32, 8.0, Color::YELLOW);
+            d.draw_circle(x as i32, y as i32, 8.0, Color::WHITE);
         }
         EntityKind::Coin => {
             d.draw_circle(x as i32, y as i32, 10.0, Color::GOLD);

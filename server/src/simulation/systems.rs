@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
+use crate::next_id;
 use crate::simulation::components::*;
 use crate::simulation::eco::{CoinPool, CoinSpawnQueue, PickupQueue, PlayerGold};
 use crate::simulation::event::{
@@ -13,13 +14,115 @@ use legion::world::SubWorld;
 use legion::*;
 use shared::protocol::{GameEvent, GameEventKind};
 
-const ACCEL: f64 = 1500.0;
 // todo: Ajouter plusieurs friction en fonction
 // du milieu dans lequel le joueur ce déplace.
 
 const FRICTION: f64 = 0.85;
 const ARENA_W: f64 = 1920.0;
 const ARENA_H: f64 = 1080.0;
+
+pub fn spawn_player(
+    world: &mut World,
+    player_game_id: u64,
+    class: PlayerClass,
+    spawn_pos: Position,
+) -> Entity {
+    let (max_hp, collider, move_stats, attack_stats, attack_interval) = match class {
+        PlayerClass::Warrior => (
+            100,
+            Collider { w: 40.0, h: 40.0 },
+            MovementStats {
+                accel: 1500.0,
+                max_speed: 300.0,
+            },
+            AttackStats {
+                range: 60.0,
+                damage: 15,
+                box_half_length: 25.0,
+                box_half_width: 30.0,
+                projectile_speed: None,
+            },
+            Duration::from_secs_f32(0.5),
+        ),
+        PlayerClass::Assassin => (
+            75,
+            Collider { w: 32.0, h: 32.0 },
+            MovementStats {
+                accel: 2200.0,
+                max_speed: 400.0,
+            },
+            AttackStats {
+                range: 50.0,
+                damage: 25,
+                box_half_length: 20.0,
+                box_half_width: 20.0,
+                projectile_speed: None,
+            },
+            Duration::from_secs_f32(0.3),
+        ),
+        PlayerClass::Mage => (
+            80,
+            Collider { w: 36.0, h: 36.0 },
+            MovementStats {
+                accel: 1200.0,
+                max_speed: 250.0,
+            },
+            AttackStats {
+                range: 300.0,
+                damage: 18,
+                box_half_length: 15.0,
+                box_half_width: 15.0,
+                projectile_speed: Some(400.0),
+            },
+            Duration::from_secs_f32(0.6),
+        ),
+        PlayerClass::Tank => (
+            180,
+            Collider { w: 48.0, h: 48.0 },
+            MovementStats {
+                accel: 900.0,
+                max_speed: 200.0,
+            },
+            AttackStats {
+                range: 55.0,
+                damage: 10,
+                box_half_length: 30.0,
+                box_half_width: 45.0,
+                projectile_speed: None,
+            },
+            Duration::from_secs_f32(0.7),
+        ),
+    };
+
+    let entity = world.push((
+        EntityId(player_game_id),
+        Player,
+        class,
+        InputState::default(),
+        spawn_pos,
+        Velocity { dx: 0.0, dy: 0.0 },
+        Dash(DashState::Idle),
+        collider,
+    ));
+
+    let mut entry = world
+        .entry(entity)
+        .expect("[Spawner] Impossible de créer l'entry");
+    entry.add_component(Active(true));
+    entry.add_component(AttackTimer {
+        remaining: Duration::ZERO,
+        interval: attack_interval,
+    });
+    entry.add_component(move_stats);
+    entry.add_component(attack_stats);
+    entry.add_component(Health {
+        hp: max_hp,
+        max_hp,
+        state: HealthState::Alive,
+    });
+
+    entity
+}
 
 // =================================================================================
 // -------------------------------- PHYSIC SYSTEMS ---------------------------------
@@ -41,15 +144,21 @@ pub fn update_player_pos(pos: &Position, #[resource] player_pos: &mut PlayerPos)
 #[system(for_each)]
 #[filter(component::<Player>())]
 #[filter(!component::<Knockback>())]
-pub fn update_velocity(velo: &mut Velocity, state: &InputState, #[resource] dt: &Duration) {
-    let input_x = state.move_dir[0] as f64 * ACCEL * (*dt).as_secs_f64();
-    let input_y = state.move_dir[1] as f64 * ACCEL * (*dt).as_secs_f64();
+pub fn update_velocity(
+    velo: &mut Velocity,
+    state: &InputState,
+    mov_stats: &MovementStats,
+    #[resource] dt: &Duration,
+) {
+    let input_x = state.move_dir[0] as f64 * mov_stats.accel * (*dt).as_secs_f64();
+    let input_y = state.move_dir[1] as f64 * mov_stats.accel * (*dt).as_secs_f64();
 
     velo.dx += input_x;
     velo.dy += input_y;
 }
 
 #[system(for_each)]
+#[filter(!component::<Projectile>())]
 pub fn friction(velo: &mut Velocity) {
     velo.dx *= FRICTION;
     velo.dy *= FRICTION;
@@ -59,6 +168,15 @@ pub fn friction(velo: &mut Velocity) {
 pub fn collide_arena(pos: &mut Position, col: &Collider) {
     pos.x = pos.x.clamp(0.0, ARENA_W - col.w);
     pos.y = pos.y.clamp(0.0, ARENA_H - col.h);
+}
+
+#[system(for_each)]
+#[filter(component::<Projectile>())]
+pub fn projectile_arena_culling(entity: &Entity, pos: &Position, command: &mut CommandBuffer) {
+    const MARGIN: f64 = 100.0;
+    if pos.x < -MARGIN || pos.x > ARENA_W + MARGIN || pos.y < -MARGIN || pos.y > ARENA_H + MARGIN {
+        command.remove(*entity);
+    }
 }
 
 #[system]
@@ -293,7 +411,6 @@ pub fn dash(
 // --------------------------------- WAVE SYSTEMS ----------------------------------
 // =================================================================================
 
-
 #[system]
 #[write_component(Active)]
 pub fn wave_death_reaper(
@@ -335,7 +452,9 @@ pub fn wave_spawner(
             for entity in enemy_pool.pool.iter() {
                 if let Ok(mut entry) = world.entry_mut(*entity) {
                     if let Ok(active) = entry.get_component_mut::<Active>() {
-                        if active.0 { continue; } // Déjà actif, on passe au suivant
+                        if active.0 {
+                            continue;
+                        } // Déjà actif, on passe au suivant
 
                         *active = Active(true);
 
@@ -380,7 +499,6 @@ pub fn wave_flow_manager(
 ) {
     match wave_manager.wave_state {
         WaveState::InProgress => {
-            
             if wave_manager.enemies_remaining == 0 && wave_manager.enemies_to_spawn == 0 {
                 wave_manager.wave_state = WaveState::BetweenWave(Duration::from_secs(20));
                 game_event_queue.0.push(GameEvent {
@@ -400,7 +518,7 @@ pub fn wave_flow_manager(
                     wave_manager.enemies_remaining = config.enemy_count;
                     wave_manager.spawn_timer = Duration::from_millis(config.spawn_interval);
                     wave_manager.wave_state = WaveState::InProgress;
-                    
+
                     game_event_queue.0.push(GameEvent {
                         kind: GameEventKind::WaveStart {
                             wave_number: wave_manager.current_wave as u32,
@@ -419,7 +537,6 @@ pub fn wave_flow_manager(
         }
     }
 }
-
 
 // =================================================================================
 // --------------------------------- COIN SYSTEMS ----------------------------------
@@ -570,16 +687,17 @@ pub fn apply_pickup(
 #[system]
 #[read_component(Player)]
 #[read_component(InputState)]
+#[read_component(AttackStats)]
 #[write_component(AttackTimer)]
 pub fn read_player_attack_intent(
     world: &mut SubWorld,
     command: &mut CommandBuffer,
     #[resource] dt: &Duration,
 ) {
-    let mut query =
-        <(Entity, &InputState, &mut AttackTimer)>::query().filter(component::<Player>());
+    let mut query = <(Entity, &InputState, &AttackStats, &mut AttackTimer)>::query()
+        .filter(component::<Player>());
 
-    for (entity, state, timer) in query.iter_mut(world) {
+    for (entity, state, stats, timer) in query.iter_mut(world) {
         timer.remaining = timer.remaining.saturating_sub(*dt);
 
         if state.attack && timer.remaining.is_zero() {
@@ -587,6 +705,10 @@ pub fn read_player_attack_intent(
                 *entity,
                 AttackIntent {
                     aim_dir: state.aim_dir,
+                    box_half_length: stats.box_half_length,
+                    box_half_width: stats.box_half_width,
+                    projectile_speed: stats.projectile_speed,
+                    damage: stats.damage,
                 },
             );
             timer.remaining = timer.interval;
@@ -600,6 +722,7 @@ pub fn read_player_attack_intent(
 #[read_component(Active)]
 #[read_component(Position)]
 #[read_component(Target)]
+#[read_component(AttackStats)]
 #[write_component(AttackTimer)]
 pub fn ia_classic_attack(
     world: &mut SubWorld,
@@ -614,10 +737,17 @@ pub fn ia_classic_attack(
             .collect()
     };
 
-    let mut query = <(Entity, &Position, &Active, &Target, &mut AttackTimer)>::query()
-        .filter(component::<IA>());
+    let mut query = <(
+        Entity,
+        &Position,
+        &Active,
+        &AttackStats,
+        &Target,
+        &mut AttackTimer,
+    )>::query()
+    .filter(component::<IA>());
 
-    for (entity, ia_pos, active, target, timer) in query.iter_mut(world) {
+    for (entity, ia_pos, active, stats, target, timer) in query.iter_mut(world) {
         if !active.0 {
             continue;
         }
@@ -635,6 +765,10 @@ pub fn ia_classic_attack(
                         *entity,
                         AttackIntent {
                             aim_dir: [(dx / distance) as f32, (dy / distance) as f32],
+                            box_half_length: stats.box_half_length,
+                            box_half_width: stats.box_half_width,
+                            projectile_speed: stats.projectile_speed,
+                            damage: stats.damage,
                         },
                     );
                     timer.remaining = timer.interval;
@@ -645,8 +779,6 @@ pub fn ia_classic_attack(
 }
 
 const OFFSET_ATTACKBOX: f32 = 10.0;
-const ATTACK_HALF_LEN: f32 = 25.0;
-const ATTACK_HALF_WIDTH: f32 = 30.0;
 const PLAYER_RADIUS: f32 = 20.0;
 
 #[system(for_each)]
@@ -656,37 +788,62 @@ pub fn create_attack_box(
     pos: &Position,
     intent: &AttackIntent,
     command: &mut CommandBuffer,
-    #[resource] game_event_queue: &mut GameEventQueue, // Debug
+    #[resource] game_event_queue: &mut GameEventQueue,
 ) {
     let dir = intent.aim_dir;
-    let dist_to_center = (PLAYER_RADIUS + OFFSET_ATTACKBOX + ATTACK_HALF_LEN) as f64;
 
-    let center_x = pos.x + (dir[0] as f64 * dist_to_center);
-    let center_y = pos.y + (dir[1] as f64 * dist_to_center);
+    if let Some(speed) = intent.projectile_speed {
+        let entity = command.push((
+            EntityId(next_id()),
+            Position { x: pos.x, y: pos.y },
+            Velocity {
+                dx: dir[0] as f64 * speed,
+                dy: dir[1] as f64 * speed,
+            },
+            Geometry {
+                half_length: intent.box_half_length as f32,
+                half_width: intent.box_half_width as f32,
+                dir,
+            },
+            Damage(intent.damage),
+            TeamFilter { is_player: true }, // Pour que tes IA prennent les dégâts
+            Owner(*entity),
+            Projectile,
+        ));
+        command.add_component(entity, Active(true));
+    } else {
+        let dist_to_center =
+            (PLAYER_RADIUS + OFFSET_ATTACKBOX + intent.box_half_length as f32) as f64;
+        let center_x = pos.x + (dir[0] as f64 * dist_to_center);
+        let center_y = pos.y + (dir[1] as f64 * dist_to_center);
 
-    command.push((
-        Position {
-            x: center_x,
-            y: center_y,
-        },
-        Geometry {
-            half_length: ATTACK_HALF_LEN,
-            half_width: ATTACK_HALF_WIDTH,
-            dir,
-        },
-        Owner(*entity),
-    ));
+        command.push((
+            Position {
+                x: center_x,
+                y: center_y,
+            },
+            Geometry {
+                half_length: intent.box_half_length as f32,
+                half_width: intent.box_half_width as f32,
+                dir,
+            },
+            Damage(intent.damage),
+            TeamFilter { is_player: true },
+            Owner(*entity), // On garde l'owner pour ton système actuel
+            Active(true),
+        ));
 
-    // DEBUG: Envoi des données de la attackbox pour l'afficher
-    game_event_queue.0.push(GameEvent {
-        kind: GameEventKind::DebugRect {
-            x: center_x as f32,
-            y: center_y as f32,
-            half_length: ATTACK_HALF_LEN,
-            half_width: ATTACK_HALF_WIDTH,
-            dir,
-        },
-    });
+        // Rendu Debug via ton événement réseau existant !
+        game_event_queue.0.push(GameEvent {
+            kind: GameEventKind::DebugRect {
+                x: center_x as f32,
+                y: center_y as f32,
+                half_length: intent.box_half_length as f32,
+                half_width: intent.box_half_width as f32,
+                dir,
+            },
+        });
+    }
 
     command.remove_component::<AttackIntent>(*entity);
 }
@@ -694,11 +851,13 @@ pub fn create_attack_box(
 #[system]
 #[read_component(Player)]
 #[read_component(IA)]
+#[read_component(Projectile)]
 #[read_component(Collider)]
 #[read_component(Geometry)]
 #[read_component(Position)]
 #[read_component(Owner)]
 #[read_component(Health)]
+#[read_component(Damage)]
 pub fn check_collide_attackbox(
     world: &mut SubWorld,
     command: &mut CommandBuffer,
@@ -711,10 +870,10 @@ pub fn check_collide_attackbox(
         .copied()
         .collect();
 
-    let mut attackbox_query = <(Entity, &Geometry, &Owner, &Position)>::query();
+    let mut attackbox_query = <(Entity, &Geometry, &Owner, &Damage, &Position)>::query();
     let attackboxes: Vec<_> = attackbox_query
         .iter(world)
-        .map(|(e, g, o, p)| (*e, *g, *o, *p))
+        .map(|(e, g, o, d, p)| (*e, *g, *o, *d, *p))
         .collect();
 
     let mut victim_query = <(Entity, &Collider, &Position)>::query().filter(component::<Health>());
@@ -723,8 +882,13 @@ pub fn check_collide_attackbox(
         .map(|(e, c, p)| (*e, *c, *p))
         .collect();
 
-    for (attackbox_entt, attackbox, owner, attackbox_pos) in attackboxes {
+    for (attackbox_entt, attackbox, owner, damage, attackbox_pos) in attackboxes {
         let attacker_is_player = players.contains(&owner.0);
+        let is_projectile = world
+            .entry_ref(attackbox_entt)
+            .map(|e| e.get_component::<Projectile>().is_ok())
+            .unwrap_or(false);
+        let mut hit = false;
 
         for (victim_entt, victim_col, victim_pos) in &victims {
             if *victim_entt == owner.0 {
@@ -745,7 +909,7 @@ pub fn check_collide_attackbox(
                 if should_damage {
                     damage_queue.0.push(DamageEvent {
                         target: *victim_entt,
-                        amount: 10,
+                        amount: damage.0,
                     });
                     game_event_queue.0.push(GameEvent {
                         kind: GameEventKind::EntityHit {
@@ -777,11 +941,14 @@ pub fn check_collide_attackbox(
                                 duration: knockback_duration,
                             },
                         );
+                        hit = true;
                     }
                 }
             }
         }
-        command.remove(attackbox_entt);
+        if !is_projectile || hit {
+            command.remove(attackbox_entt);
+        }
     }
 }
 
@@ -820,14 +987,30 @@ pub fn knockback(
 
 #[system(for_each)]
 #[filter(component::<Player>())]
-pub fn send_collider(
-    pos: &Position,
-    #[resource] game_event_queue: &mut GameEventQueue,
-) {
+pub fn send_collider(pos: &Position, #[resource] game_event_queue: &mut GameEventQueue) {
     game_event_queue.0.push(GameEvent {
         kind: GameEventKind::DebugCollider {
             x: pos.x as f32,
             y: pos.y as f32,
+        },
+    });
+}
+
+#[system(for_each)]
+#[filter(component::<Projectile>())] // S'applique uniquement aux projectiles
+pub fn debug_projectile_positions(
+    pos: &Position,
+    geo: &Geometry,
+    #[resource] game_event_queue: &mut GameEventQueue,
+) {
+    // On envoie un point de débug à la position du projectile
+    game_event_queue.0.push(GameEvent {
+        kind: GameEventKind::DebugRect {
+            x: pos.x as f32,
+            y: pos.y as f32,
+            half_length: geo.half_length,
+            half_width: geo.half_width,
+            dir: geo.dir,
         },
     });
 }

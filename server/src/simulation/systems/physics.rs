@@ -1,6 +1,5 @@
 use crate::simulation::components::*;
 use crate::simulation::helper::{PlayerPos, Resolution, aabb_overlap, apply_resolution};
-use legion::systems::CommandBuffer;
 use legion::world::SubWorld;
 use legion::*;
 use std::time::Duration;
@@ -49,15 +48,6 @@ pub fn friction(velo: &mut Velocity) {
 pub fn collide_arena(pos: &mut Position, col: &Collider) {
     pos.x = pos.x.clamp(0.0, ARENA_W - col.w);
     pos.y = pos.y.clamp(0.0, ARENA_H - col.h);
-}
-
-#[system(for_each)]
-#[filter(component::<Projectile>())]
-pub fn projectile_arena_culling(entity: &Entity, pos: &Position, command: &mut CommandBuffer) {
-    const MARGIN: f64 = 100.0;
-    if pos.x < -MARGIN || pos.x > ARENA_W + MARGIN || pos.y < -MARGIN || pos.y > ARENA_H + MARGIN {
-        command.remove(*entity);
-    }
 }
 
 #[system]

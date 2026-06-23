@@ -1,13 +1,12 @@
-use legion::*;
-use std::time::Duration;
-use crate::simulation::components::*;
-use legion::world::SubWorld;
-use legion::systems::CommandBuffer;
-use crate::simulation::event::*;
 use crate::next_id;
-use shared::protocol::{GameEvent, GameEventKind};
+use crate::simulation::components::*;
+use crate::simulation::event::*;
 use crate::simulation::helper::obb_vs_aabb;
-
+use legion::systems::CommandBuffer;
+use legion::world::SubWorld;
+use legion::*;
+use shared::protocol::{GameEvent, GameEventKind};
+use std::time::Duration;
 
 #[system]
 #[read_component(Player)]
@@ -34,6 +33,7 @@ pub fn read_player_attack_intent(
                     box_half_width: stats.box_half_width,
                     projectile_speed: stats.projectile_speed,
                     damage: stats.damage,
+                    range: stats.range,
                 },
             );
             timer.remaining = timer.interval;
@@ -94,6 +94,7 @@ pub fn ia_classic_attack(
                             box_half_width: stats.box_half_width,
                             projectile_speed: stats.projectile_speed,
                             damage: stats.damage,
+                            range: stats.range,
                         },
                     );
                     timer.remaining = timer.interval;
@@ -136,6 +137,8 @@ pub fn create_attack_box(
             Projectile,
         ));
         command.add_component(entity, Active(true));
+        let life_time = intent.range / speed;
+        command.add_component(entity, LifeTime(Duration::from_secs_f64(life_time)));
     } else {
         let dist_to_center =
             (PLAYER_RADIUS + OFFSET_ATTACKBOX + intent.box_half_length as f32) as f64;
@@ -271,6 +274,7 @@ pub fn check_collide_attackbox(
                 }
             }
         }
+
         if !is_projectile || hit {
             command.remove(attackbox_entt);
         }
@@ -300,4 +304,29 @@ pub fn knockback(
     if kb.duration <= 0.0 {
         command.remove_component::<Knockback>(*entt);
     }
+}
+
+const ARENA_W: f64 = 1920.0;
+const ARENA_H: f64 = 1080.0;
+#[system(for_each)]
+#[filter(component::<Projectile>())]
+pub fn projectile_life_time(
+    entity: &Entity,
+    pos: &Position,
+    life: &mut LifeTime,
+    command: &mut CommandBuffer,
+    #[resource] dt: &Duration,
+) {
+    const MARGIN: f64 = 100.0;
+    if pos.x < -MARGIN || pos.x > ARENA_W + MARGIN || pos.y < -MARGIN || pos.y > ARENA_H + MARGIN {
+        command.remove(*entity);
+    }
+    let lt = life;
+    let remaining = lt.0.saturating_sub(*dt);
+    if remaining.is_zero() {
+        command.remove(*entity);
+    } else {
+        lt.0 = remaining;
+    }
+
 }

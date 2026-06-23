@@ -84,6 +84,7 @@ pub struct AttackIntent {
     pub box_half_width: f64,
     pub projectile_speed: Option<f64>,
     pub damage: u32,
+    pub range: f64,
 }
 
 #[derive(Debug)]
@@ -124,3 +125,5 @@ pub struct MovementStats {
     pub max_speed: f64,
 }
 
+#[derive(Clone, Copy)]
+pub struct LifeTime(pub Duration);

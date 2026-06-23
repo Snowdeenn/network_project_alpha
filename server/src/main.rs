@@ -160,7 +160,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .add_system(update_position_system())
         .add_system(collide_system())
         .add_system(collide_arena_system())
-        .add_system(projectile_arena_culling_system())
+        .add_system(projectile_life_time_system())
         .add_system(read_player_attack_intent_system())
         .add_system(ia_classic_attack_system())
         .add_system(create_attack_box_system())

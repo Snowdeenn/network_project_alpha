@@ -1,0 +1,22 @@
+{
+    "melee": {
+        "hp_modifier": 1.2,
+        "speed_modifier": 0.9,
+        "max_speed": 300,
+        "range": 55.0,
+        "damage": 15,
+        "projectile_speed": null,
+        "box_half_length": 20.0,
+        "box_half_width": 20.0
+    },
+    "ranged": {
+        "hp_modifier": 0.8,
+        "speed_modifier": 1.1,
+        "max_speed": 250,
+        "range": 300.0,
+        "damage": 10,
+        "projectile_speed": 400.0,
+        "box_half_length": 5.0,
+        "box_half_width": 5.0
+    }
+}

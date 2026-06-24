@@ -1,13 +1,13 @@
-use legion::systems::CommandBuffer;
-use legion::*;
-use legion::world::SubWorld;
-use std::time::Duration;
-use crate::simulation::wave::*;
 use crate::simulation::components::*;
 use crate::simulation::event::*;
 use crate::simulation::helper::PlayerPos;
+use crate::simulation::wave::*;
+use legion::systems::CommandBuffer;
+use legion::world::SubWorld;
+use legion::*;
 use shared::protocol::{GameEvent, GameEventKind};
-
+use std::str::FromStr;
+use std::time::Duration;
 
 #[system]
 #[write_component(Active)]
@@ -39,6 +39,7 @@ use std::f64::consts::PI;
 #[write_component(EntityId)]
 #[write_component(Target)]
 #[write_component(AttackStats)]
+#[write_component(MovementStats)]
 pub fn wave_spawner(
     world: &mut SubWorld,
     command: &mut CommandBuffer,
@@ -47,6 +48,7 @@ pub fn wave_spawner(
     #[resource] wave_configs: &WaveConfigs,
     #[resource] player_pos: &PlayerPos,
     #[resource] enemy_pool: &EnemyPool,
+    #[resource] enemy_config: &EnemyConfigs,
 ) {
     if let WaveState::InProgress = wave_manager.wave_state {
         wave_manager.spawn_timer = wave_manager.spawn_timer.saturating_sub(*dt);
@@ -71,53 +73,58 @@ pub fn wave_spawner(
                             pos.y = player_pos.y + angle.sin() * SPAWN_RADIUS;
                         }
 
-                        if let Ok(health) = entry.get_component_mut::<Health>() {
-                            health.hp = wave_configs.0[wave_manager.current_wave].enemy_hp;
-                            health.state = HealthState::Alive;
-                        }
-
                         if let Ok(target) = entry.get_component_mut::<Target>() {
                             target.0 = None;
                         }
-                        
 
-                        // Ranged IA*
-                        // TODO: Ajuster le spawn rate
-                        if rand::random::<f64>() > 0.30 {
-                            println!("Un rangedbrain a spawn");
-                            command.add_component(*entity, RangedBrain);
+                        let current_wave_config = &wave_configs.0[wave_manager.current_wave];
+                        let base_hp = current_wave_config.enemy_hp;
+                        let base_speed = current_wave_config.enemy_speed;
+
+                        let mut enemy_type = EnemyType::Melee;
+                        let total_weight: f64 = current_wave_config.enemy_weights.values().sum();
+
+                        if total_weight > 0.0 {
+                            let mut rng_weight = rand::random::<f64>() * total_weight;
+
+                            for (etype, weight) in &current_wave_config.enemy_weights {
+                                if rng_weight <= *weight {
+                                    enemy_type = EnemyType::from_str(etype).unwrap();
+                                    break;
+                                }
+                                rng_weight -= *weight;
+                            }
+                        }
+
+                        if let Some(config) = enemy_config.0.get(enemy_type.to_str()) {
+                            if let Ok(health) = entry.get_component_mut::<Health>() {
+                                health.hp = (base_hp as f64 * config.hp_modifier) as u32;
+                                health.max_hp = (base_hp as f64 * config.hp_modifier) as u32;
+                                health.state = HealthState::Alive;
+                            }
+
+                            if let Ok(speed) = entry.get_component_mut::<MovementStats>() {
+                                speed.accel = base_speed * config.speed_modifier;
+                                speed.max_speed = config.max_speed;
+                            }
+
                             if let Ok(attack_stats) = entry.get_component_mut::<AttackStats>() {
-                                attack_stats.range = 300.0;
-                                attack_stats.damage = 20;
-                                attack_stats.projectile_speed = Some(400.0);
-                                attack_stats.box_half_length = 5.0;
-                                attack_stats.box_half_width = 5.0;
+                                attack_stats.range = config.range;
+                                attack_stats.damage = config.damage;
+                                attack_stats.projectile_speed = config.projectile_speed;
+                                attack_stats.box_half_length = config.box_half_length;
+                                attack_stats.box_half_width = config.box_half_width;
                             }
-                            if let Ok(mov_stats) = entry.get_component_mut::<MovementStats>() {
-                                mov_stats.accel = 1800.0;
-                                mov_stats.max_speed = 250.0;
-                            }
-                        } else {
-                            println!("Un meleebrain a spawn");
-                            command.add_component(*entity, MeleeBrain);
-                            
-                            if let Ok(attack_stats) = entry.get_component_mut::<AttackStats>() {
-                                attack_stats.range = 55.0;
-                                attack_stats.damage = 15;
-                                attack_stats.projectile_speed = None;
-                                attack_stats.box_half_length = 20.0;
-                                attack_stats.box_half_width = 20.0;
-                            }
-                            if let Ok(mov_stats) = entry.get_component_mut::<MovementStats>() {
-                                mov_stats.accel = 1900.0;
-                                mov_stats.max_speed = 300.0;
+
+                            match enemy_type {
+                                EnemyType::Melee => command.add_component(*entity, MeleeBrain),
+                                EnemyType::Ranged => command.add_component(*entity, RangedBrain),
                             }
                         }
 
                         // Relancer le chrono de spawn
-                        wave_manager.spawn_timer = Duration::from_millis(
-                            wave_configs.0[wave_manager.current_wave].spawn_interval,
-                        );
+                        wave_manager.spawn_timer =
+                            Duration::from_millis(current_wave_config.spawn_interval_ms);
                         wave_manager.enemies_to_spawn -= 1;
                         break; // On en spawn un seul par frame maximum
                     }
@@ -153,7 +160,7 @@ pub fn wave_flow_manager(
                 if let Some(config) = wave_configs.0.get(wave_manager.current_wave) {
                     wave_manager.enemies_to_spawn = config.enemy_count;
                     wave_manager.enemies_remaining = config.enemy_count;
-                    wave_manager.spawn_timer = Duration::from_millis(config.spawn_interval);
+                    wave_manager.spawn_timer = Duration::from_millis(config.spawn_interval_ms);
                     wave_manager.wave_state = WaveState::InProgress;
 
                     game_event_queue.0.push(GameEvent {

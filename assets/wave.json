@@ -3,12 +3,20 @@
         "enemy_count": 5,
         "enemy_hp": 50,
         "enemy_speed": 100.0,
-        "spawn_interval_ms": 1000
+        "spawn_interval_ms": 1000,
+        "enemy_weights": {
+            "melee": 1.0,
+            "ranged": 0.0
+        }
     },
     {
         "enemy_count": 10,
         "enemy_hp": 100,
         "enemy_speed": 120.0,
-        "spawn_interval_ms": 800
+        "spawn_interval_ms": 800,
+        "enemy_weights": {
+            "melee": 0.6,
+            "ranged": 0.4
+        }
     }
 ]

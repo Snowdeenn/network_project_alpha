@@ -3,6 +3,10 @@ mod simulation;
 mod snapshot;
 
 use crate::simulation::helper::{PlayerHp, PlayerPos};
+use crate::simulation::systems::{
+    attack::*, coin::*, debug::*, health::*, ia::*, physics::*, spawn::spawn_player,
+    state::dash_system, wave::*,
+};
 use legion::{Entity, EntityStore, IntoQuery, Resources, Schedule, component, world::World};
 use net::server::GameNetServer;
 use renet::ServerEvent;
@@ -11,19 +15,7 @@ use shared::protocol::{
 };
 use simulation::shop::PlayerShops;
 use simulation::{
-    components::*, eco::*, event::*, helper::clear_resource_queues, input::InputQueue,
-    wave::*,
-};
-use crate::simulation::systems::{
-    physics::*,
-    attack::*,
-    coin::*,
-    debug::*,
-    ia::*,
-    spawn::spawn_player,
-    wave::*,
-    state::dash_system,
-    health::*,
+    components::*, eco::*, event::*, helper::clear_resource_queues, input::InputQueue, wave::*,
 };
 use snapshot::build_snapshot;
 use std::collections::HashMap;
@@ -82,10 +74,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             current_wave: 0,
             enemies_remaining: wave_configs[0].enemy_count,
             enemies_to_spawn: wave_configs[0].enemy_count,
-            spawn_timer: Duration::from_millis(wave_configs[0].spawn_interval),
+            spawn_timer: Duration::from_millis(wave_configs[0].spawn_interval_ms),
             wave_state: WaveState::InProgress,
         });
         resources.insert(WaveConfigs(wave_configs));
+    }
+
+    // --- Enemy Config ---
+    {
+        let json = std::fs::read_to_string("assets/enemy_config.json")
+            .expect("enemy_config.json introuvable");
+        let enemy_config: HashMap<String, EnemyStatsConfig> =
+            serde_json::from_str(&json).expect("impossible de parser enemy_config.json");
+
+        resources.insert(EnemyConfigs(enemy_config));        
     }
 
     // --- Enemy Pool ---
@@ -99,8 +101,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Velocity { dx: 0.0, dy: 0.0 },
                 Collider { w: 40.0, h: 40.0 },
                 Health {
-                    hp: 100,
-                    max_hp: 100,
+                    hp: 0,
+                    max_hp: 0,
                     state: HealthState::Alive,
                 },
                 Active(false),
@@ -115,15 +117,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .expect("[Entry ennemi] Echec de la création de l'entry dans le main");
             entry.add_component(Target(None));
             entry.add_component(AttackStats {
-                range: 10.0,    //TODO: Melee a change temp
-                damage: 10,
-                box_half_length: 30.0,
-                box_half_width: 25.5,
+                range: 0.0, //TODO: Melee a change temp
+                damage: 0,
+                box_half_length: 0.0,
+                box_half_width: 0.0,
                 projectile_speed: None,
             });
             entry.add_component(MovementStats {
-                accel: 140.0,
-                max_speed: 140.0,
+                accel: 0.0,
+                max_speed: 0.0,
             });
             pool.pool.push(e);
         }

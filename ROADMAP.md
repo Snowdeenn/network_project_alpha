@@ -89,7 +89,7 @@ Assainir l'architecture pour rendre le combat et les vagues 100% extensibles (Op
 - [x] **Boîtes d'attaques dynamiques** : `create_melee_attackbox` génère des hitbox sur-mesure (plus de constantes d'allonge globales).
 - [x] **Collisions unifiées et optimisées** : `check_collide_attackbox` lit le composant `Damage` de la hitbox et utilise des buffers `thread_local!` pour éliminer les allocations par frame (`.collect()`).
 - [x] Knockback sur les ennemis touchés (#31)
-- [ ] **Mouvement dynamique** : Remplacer la constante `ACCEL` par un composant `MovementStats` pour que l'Assassin coure plus vite que le Tank.
+- [x] **Mouvement dynamique** : Remplacer la constante `ACCEL` par un composant `MovementStats` pour que l'Assassin coure plus vite que le Tank.
 - [ ] Gestion des sorts (actifs / passifs — à définir)
 - [x] Mort du joueur (à polish)
 
@@ -99,8 +99,8 @@ Assainir l'architecture pour rendre le combat et les vagues 100% extensibles (Op
   * `enemy_spawner` : logique physique d'apparition en cercle autour des joueurs.
   * `wave_flow_manager` : cerveau de haut niveau / machine à états des vagues (`InProgress`, `BetweenWave`).
 - [x] **IA par Tags Comportementaux** : Utilisation de filtres positifs (`MeleeBrain`, `RangedBrain`) à la place des filtres d'exclusion négatifs (`!RangedIA`) pour permettre l'ajout de nouveaux monstres sans toucher au code existant.
-- [ ] Intégration des 3 types d'ennemis distincts via la nouvelle architecture de Tags et de statistiques dynamiques.
-- [ ] Nombre de vagues configurable depuis `wave.json`
+- [x] Intégration des 3 types d'ennemis distincts (minimum) via la nouvelle architecture de Tags et de statistiques dynamiques.
+- [x] Nombre de vagues configurable depuis `wave.json`
 - [ ] Boss de fin de vague avec FSM (Phase 6 — Synchronisation FSM Boss)
 
 ### 3c — Debug & outillage

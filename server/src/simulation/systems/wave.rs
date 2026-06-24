@@ -1,3 +1,4 @@
+use legion::systems::CommandBuffer;
 use legion::*;
 use legion::world::SubWorld;
 use std::time::Duration;
@@ -12,6 +13,7 @@ use shared::protocol::{GameEvent, GameEventKind};
 #[write_component(Active)]
 pub fn wave_death_reaper(
     world: &mut SubWorld,
+    command: &mut CommandBuffer,
     #[resource] wave_manager: &mut WaveManager,
     #[resource] enemy_die_queue: &mut EnemyDiedQueue,
 ) {
@@ -22,6 +24,8 @@ pub fn wave_death_reaper(
                 active.0 = false;
             }
         }
+        command.remove_component::<RangedBrain>(event.0);
+        command.remove_component::<MeleeBrain>(event.0);
     }
 }
 
@@ -34,8 +38,10 @@ use std::f64::consts::PI;
 #[write_component(Position)]
 #[write_component(EntityId)]
 #[write_component(Target)]
+#[write_component(AttackStats)]
 pub fn wave_spawner(
     world: &mut SubWorld,
+    command: &mut CommandBuffer,
     #[resource] wave_manager: &mut WaveManager,
     #[resource] dt: &Duration,
     #[resource] wave_configs: &WaveConfigs,
@@ -72,6 +78,32 @@ pub fn wave_spawner(
 
                         if let Ok(target) = entry.get_component_mut::<Target>() {
                             target.0 = None;
+                        }
+                        
+
+                        // Ranged IA*
+                        // TODO: Ajuster le spawn rate
+                        if rand::random::<f64>() > 0.30 {
+                            println!("Un rangedbrain a spawn");
+                            command.add_component(*entity, RangedBrain);
+                            if let Ok(attack_stats) = entry.get_component_mut::<AttackStats>() {
+                                attack_stats.range = 300.0;
+                                attack_stats.damage = 10;
+                                attack_stats.projectile_speed = Some(400.0);
+                                attack_stats.box_half_length = 5.0;
+                                attack_stats.box_half_width = 5.0;
+                            }
+                        } else {
+                            println!("Un meleebrain a spawn");
+                            command.add_component(*entity, MeleeBrain);
+                            
+                            if let Ok(attack_stats) = entry.get_component_mut::<AttackStats>() {
+                                attack_stats.range = 55.0;
+                                attack_stats.damage = 15;
+                                attack_stats.projectile_speed = None;
+                                attack_stats.box_half_length = 20.0;
+                                attack_stats.box_half_width = 20.0;
+                            }
                         }
 
                         // Relancer le chrono de spawn

@@ -115,15 +115,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .expect("[Entry ennemi] Echec de la création de l'entry dans le main");
             entry.add_component(Target(None));
             entry.add_component(AttackStats {
-                range: 0.0,
+                range: 10.0,    //TODO: Melee a change temp
                 damage: 10,
                 box_half_length: 30.0,
                 box_half_width: 25.5,
                 projectile_speed: None,
             });
+            entry.add_component(MovementStats {
+                accel: 140.0,
+                max_speed: 140.0,
+            });
             pool.pool.push(e);
         }
-        resources.insert(pool)
+        resources.insert(pool);
     };
 
     // --- Coin Pool ---
@@ -154,7 +158,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .add_system(ia_targeting_system())
         .add_system(friction_system())
         .add_system(update_velocity_system())
-        .add_system(ia_classic_movement_system())
+        .add_system(melee_ia_movement_system())
+        .add_system(ranged_ia_movement_system())
         .add_system(knockback_system())
         .add_system(dash_system())
         .add_system(update_position_system())
@@ -162,7 +167,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .add_system(collide_arena_system())
         .add_system(projectile_life_time_system())
         .add_system(read_player_attack_intent_system())
-        .add_system(ia_classic_attack_system())
+        .add_system(ia_attack_system())
         .add_system(create_attack_box_system())
         .add_system(check_collide_attackbox_system())
         .add_system(apply_damage_system())

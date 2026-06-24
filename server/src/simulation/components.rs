@@ -6,6 +6,8 @@ pub struct IA;
 pub struct Coin;
 pub struct Projectile;
 pub struct EntityId(pub u64);
+pub struct RangedBrain;
+pub struct MeleeBrain;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Position {

@@ -49,7 +49,7 @@ pub fn read_player_attack_intent(
 #[read_component(Target)]
 #[read_component(AttackStats)]
 #[write_component(AttackTimer)]
-pub fn ia_classic_attack(
+pub fn ia_attack(
     world: &mut SubWorld,
     command: &mut CommandBuffer,
     #[resource] dt: &Duration,
@@ -85,7 +85,7 @@ pub fn ia_classic_attack(
                 let dy = target_pos.y - ia_pos.y;
                 let distance = (dx * dx + dy * dy).sqrt();
 
-                if distance < 60.0 && timer.remaining.is_zero() {
+                if distance < stats.range && timer.remaining.is_zero() {
                     command.add_component(
                         *entity,
                         AttackIntent {

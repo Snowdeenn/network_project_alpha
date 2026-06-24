@@ -1,6 +1,7 @@
-use legion::*;
-use legion::world::SubWorld;
 use crate::simulation::components::*;
+use arrayvec::ArrayVec;
+use legion::world::SubWorld;
+use legion::*;
 
 #[system]
 #[read_component(Player)]
@@ -45,7 +46,9 @@ pub fn ia_targeting(world: &mut SubWorld) {
 #[read_component(Position)]
 #[read_component(Target)]
 #[write_component(Velocity)]
-pub fn ia_classic_movement(world: &mut SubWorld) {
+#[read_component(MeleeBrain)]
+#[read_component(AttackStats)]
+pub fn melee_ia_movement(world: &mut SubWorld) {
     let player_positions: std::collections::HashMap<Entity, Position> = {
         let mut player_query = <(Entity, &Position)>::query()
             .filter(component::<Player>())
@@ -56,10 +59,10 @@ pub fn ia_classic_movement(world: &mut SubWorld) {
             .collect()
     };
 
-    let mut query =
-        <(&Position, &Active, &Target, &mut Velocity)>::query().filter(component::<IA>());
+    let mut query = <(&Position, &Active, &Target, &mut Velocity, &AttackStats)>::query()
+        .filter(component::<IA>() & component::<MeleeBrain>());
 
-    for (ia_pos, active, target, velo) in query.iter_mut(world) {
+    for (ia_pos, active, target, velo, stats) in query.iter_mut(world) {
         if !active.0 {
             continue;
         }
@@ -70,7 +73,9 @@ pub fn ia_classic_movement(world: &mut SubWorld) {
                 let dy = target_pos.y - ia_pos.y;
                 let distance = (dx * dx + dy * dy).sqrt();
 
-                if distance > 45.0 {
+                // TODO: Changer les valeurs hardcodé par la range de attackstat
+                // et la vitesse par mouvement speed
+                if distance > (stats.range - 5.0) {
                     velo.dx = (dx / distance) * 140.0;
                     velo.dy = (dy / distance) * 140.0;
                 } else {
@@ -81,6 +86,64 @@ pub fn ia_classic_movement(world: &mut SubWorld) {
         } else {
             velo.dx = 0.0;
             velo.dy = 0.0;
+        }
+    }
+}
+
+#[system]
+#[read_component(IA)]
+#[read_component(RangedBrain)]
+#[read_component(Position)]
+#[read_component(Active)]
+#[read_component(Target)]
+#[read_component(Knockback)]
+#[read_component(AttackStats)]
+#[write_component(Velocity)]
+pub fn ranged_ia_movement(world: &mut SubWorld) {
+    let player_position: ArrayVec<(Entity, Position), 4> = {
+        let mut query = <(Entity, &Position)>::query()
+            .filter(component::<Player>())
+            .filter(!component::<Knockback>());
+        query.iter(world).map(|(entt, pos)| (*entt, *pos)).collect()
+    };
+
+    let mut query = <(&mut Velocity, &Position, &Active, &Target, &AttackStats)>::query()
+        .filter(component::<IA>() & component::<RangedBrain>());
+
+    for (velo, pos, active, target, stats) in query.iter_mut(world) {
+        let target_pos = target.0.and_then(|target_entt| {
+            player_position
+                .iter()
+                .find(|player| player.0 == target_entt)
+                .map(|player| player.1)
+        });
+
+        if !active.0 {
+            continue;
+        }
+
+        if let Some(p_pos) = target_pos {
+            let dx = p_pos.x - pos.x;
+            let dy = p_pos.y - pos.y;
+
+            let distance = (dx * dx + dy * dy).sqrt();
+            let dir_x = dx / distance;
+            let dir_y = dy / distance;
+
+            let tolerance_zone = 50.0;
+            let retreat_distance = stats.range - tolerance_zone;
+
+            // TODO: Changer les valeurs hardcodé par mouvement speed
+            if distance > stats.range {
+                velo.dx = dir_x * 140.0;
+                velo.dy = dir_y * 140.0;
+            } else if distance < retreat_distance {
+                velo.dx = -dir_x * 100.0;
+                velo.dy = -dir_y * 100.0;
+            } else {
+                velo.dx = 0.0;
+                velo.dy = 0.0;
+            }
         }
     }
 }

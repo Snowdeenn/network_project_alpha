@@ -9,15 +9,16 @@ use shared::protocol::{GameEvent, GameEventKind};
 #[read_component(IA)]
 #[read_component(Player)]
 #[read_component(EntityId)]
+#[read_component(Active)]
 pub fn health(
     world: &mut SubWorld,
     #[resource] enemy_die_queue: &mut EnemyDiedQueue,
     #[resource] game_event_queue: &mut GameEventQueue,
 ) {
-    let dead: Vec<Entity> = <(Entity, &mut Health)>::query()
+    let dead: Vec<Entity> = <(Entity, &mut Health, &Active)>::query()
         .iter_mut(world)
-        .filter(|(_, h)| h.hp == 0 && h.state != HealthState::Dead)
-        .map(|(e, h)| {
+        .filter(|(_, h, active)| h.hp == 0 && h.state != HealthState::Dead && active.0)
+        .map(|(e, h, _)| {
             h.state = HealthState::Dead;
             *e
         })

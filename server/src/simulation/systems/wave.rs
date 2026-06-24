@@ -26,6 +26,7 @@ pub fn wave_death_reaper(
         }
         command.remove_component::<RangedBrain>(event.0);
         command.remove_component::<MeleeBrain>(event.0);
+        command.remove_component::<KamikazeBrain>(event.0);
     }
 }
 
@@ -119,6 +120,7 @@ pub fn wave_spawner(
                             match enemy_type {
                                 EnemyType::Melee => command.add_component(*entity, MeleeBrain),
                                 EnemyType::Ranged => command.add_component(*entity, RangedBrain),
+                                EnemyType::Kamikaze => command.add_component(*entity, KamikazeBrain),
                             }
                         }
 

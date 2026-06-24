@@ -52,8 +52,8 @@ pub fn spawn_player(
             AttackStats {
                 range: 300.0,
                 damage: 18,
-                box_half_length: 15.0,
-                box_half_width: 15.0,
+                box_half_length: 5.0,
+                box_half_width: 5.0,
                 projectile_speed: Some(400.0),
             },
             Duration::from_secs_f32(0.6),

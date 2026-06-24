@@ -8,6 +8,7 @@ pub struct Projectile;
 pub struct EntityId(pub u64);
 pub struct RangedBrain;
 pub struct MeleeBrain;
+pub struct KamikazeBrain;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Position {

@@ -8,7 +8,7 @@ use std::collections::HashMap;
 pub struct WaveManager {
     pub current_wave: usize, // usize pour indexer directement dans wave_configs
     pub enemies_remaining: u32,
-    pub enemies_to_spawn: u32, // ennemis pas encore spawnés cette vague
+    pub enemies_to_spawn: u32,
     pub spawn_timer: Duration,
     pub wave_state: WaveState,
 }
@@ -53,6 +53,7 @@ pub struct EnemyConfigs(pub HashMap<String, EnemyStatsConfig>);
 pub enum EnemyType {
     Melee,
     Ranged,
+    Kamikaze
 }
 
 impl EnemyType {
@@ -60,6 +61,7 @@ impl EnemyType {
         match self {
             EnemyType::Melee => "melee",
             EnemyType::Ranged => "ranged",
+            EnemyType::Kamikaze => "kamikaze",
         }
     }
 }
@@ -71,6 +73,7 @@ impl FromStr for EnemyType {
         match s {
             "melee" => Ok(EnemyType::Melee),
             "ranged" => Ok(EnemyType::Ranged),
+            "kamikaze" => Ok(EnemyType::Kamikaze),
             _ => Err(format!("'{}' n'est pas un type d'ennemi valide (attendu: 'melee' ou 'ranged')", s)),
         }
     }

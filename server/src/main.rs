@@ -67,8 +67,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // --- wave config ---
     {
-        let wave_json = std::fs::read_to_string("assets/wave.json")?;
-        let wave_configs: Vec<WaveConfig> = serde_json::from_str(&wave_json)?;
+        let wave_json =
+            std::fs::read_to_string("assets/wave.json").expect("assets/wave.json introuvable");
+        let wave_configs: Vec<WaveConfig> =
+            serde_json::from_str(&wave_json).expect("impossible de parser wave.json");
 
         resources.insert(WaveManager {
             current_wave: 0,
@@ -87,7 +89,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let enemy_config: HashMap<String, EnemyStatsConfig> =
             serde_json::from_str(&json).expect("impossible de parser enemy_config.json");
 
-        resources.insert(EnemyConfigs(enemy_config));        
+        resources.insert(EnemyConfigs(enemy_config));
     }
 
     // --- Enemy Pool ---
@@ -117,7 +119,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .expect("[Entry ennemi] Echec de la création de l'entry dans le main");
             entry.add_component(Target(None));
             entry.add_component(AttackStats {
-                range: 0.0, //TODO: Melee a change temp
+                range: 0.0,
                 damage: 0,
                 box_half_length: 0.0,
                 box_half_width: 0.0,
@@ -172,6 +174,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .add_system(ia_attack_system())
         .add_system(create_attack_box_system())
         .add_system(check_collide_attackbox_system())
+        .add_system(kamikaze_suicide_system())
         .add_system(apply_damage_system())
         .add_system(health_system())
         .add_system(coin_push_to_queue_system())

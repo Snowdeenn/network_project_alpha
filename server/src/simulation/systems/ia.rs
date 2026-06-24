@@ -1,4 +1,5 @@
 use crate::simulation::components::*;
+use crate::simulation::event::{DamageEvent, DamageQueue};
 use arrayvec::ArrayVec;
 use legion::world::SubWorld;
 use legion::*;
@@ -68,7 +69,7 @@ pub fn melee_ia_movement(world: &mut SubWorld) {
         &AttackStats,
         &MovementStats,
     )>::query()
-    .filter(component::<IA>() & component::<MeleeBrain>());
+    .filter(component::<IA>() & component::<MeleeBrain>() | component::<KamikazeBrain>());
 
     for (ia_pos, active, target, velo, stats, mov_stats) in query.iter_mut(world) {
         if !active.0 {
@@ -81,8 +82,6 @@ pub fn melee_ia_movement(world: &mut SubWorld) {
                 let dy = target_pos.y - ia_pos.y;
                 let distance = (dx * dx + dy * dy).sqrt();
 
-                // TODO: Changer les valeurs hardcodé par la range de attackstat
-                // et la vitesse par mouvement speed
                 if distance > (stats.range - 5.0) {
                     velo.dx = (dx / distance)
                         * mov_stats
@@ -180,4 +179,13 @@ pub fn ranged_ia_movement(world: &mut SubWorld) {
             }
         }
     }
+}
+
+#[system(for_each)]
+#[filter(component::<KamikazeBrain>() & component::<AttackIntent>())]
+pub fn kamikaze_suicide(entt: &Entity, #[resource] damage_queue: &mut DamageQueue) {
+    damage_queue.0.push(DamageEvent {
+        target: *entt,
+        amount: 999999 // Montant arbitraire pour OS le kamikaze
+    });
 }

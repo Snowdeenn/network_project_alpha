@@ -85,7 +85,7 @@ pub fn ia_attack(
                 let dy = target_pos.y - ia_pos.y;
                 let distance = (dx * dx + dy * dy).sqrt();
 
-                if distance < stats.range && timer.remaining.is_zero() {
+                if distance < (PLAYER_RADIUS as f64 + stats.range) && timer.remaining.is_zero() {
                     command.add_component(
                         *entity,
                         AttackIntent {
@@ -157,7 +157,7 @@ pub fn create_attack_box(
             },
             Damage(intent.damage),
             TeamFilter { is_player: true },
-            Owner(*entity), // On garde l'owner pour ton système actuel
+            Owner(*entity),
             Active(true),
         ));
 

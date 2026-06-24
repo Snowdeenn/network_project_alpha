@@ -18,5 +18,16 @@
             "melee": 0.6,
             "ranged": 0.4
         }
+    },
+    {
+        "enemy_count": 20,
+        "enemy_hp": 100,
+        "enemy_speed": 120.0,
+        "spawn_interval_ms": 600,
+        "enemy_weights": {
+            "melee": 0.5,
+            "ranged": 0.3,
+            "kamikaze": 0.2
+        }
     }
 ]

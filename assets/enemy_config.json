@@ -3,7 +3,7 @@
         "hp_modifier": 1.2,
         "speed_modifier": 0.9,
         "max_speed": 300,
-        "range": 55.0,
+        "range": 35.0,
         "damage": 15,
         "projectile_speed": null,
         "box_half_length": 20.0,
@@ -18,5 +18,15 @@
         "projectile_speed": 400.0,
         "box_half_length": 5.0,
         "box_half_width": 5.0
+    },
+    "kamikaze": {
+        "hp_modifier": 0.5,
+        "speed_modifier": 1.5,
+        "max_speed": 400.0,
+        "range": 20.0,
+        "damage": 70,
+        "projectile_speed": null,
+        "box_half_length": 3.0,
+        "box_half_width": 20.0
     }
 }

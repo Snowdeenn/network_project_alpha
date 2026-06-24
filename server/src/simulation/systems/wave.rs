@@ -88,10 +88,14 @@ pub fn wave_spawner(
                             command.add_component(*entity, RangedBrain);
                             if let Ok(attack_stats) = entry.get_component_mut::<AttackStats>() {
                                 attack_stats.range = 300.0;
-                                attack_stats.damage = 10;
+                                attack_stats.damage = 20;
                                 attack_stats.projectile_speed = Some(400.0);
                                 attack_stats.box_half_length = 5.0;
                                 attack_stats.box_half_width = 5.0;
+                            }
+                            if let Ok(mov_stats) = entry.get_component_mut::<MovementStats>() {
+                                mov_stats.accel = 1800.0;
+                                mov_stats.max_speed = 250.0;
                             }
                         } else {
                             println!("Un meleebrain a spawn");
@@ -103,6 +107,10 @@ pub fn wave_spawner(
                                 attack_stats.projectile_speed = None;
                                 attack_stats.box_half_length = 20.0;
                                 attack_stats.box_half_width = 20.0;
+                            }
+                            if let Ok(mov_stats) = entry.get_component_mut::<MovementStats>() {
+                                mov_stats.accel = 1900.0;
+                                mov_stats.max_speed = 300.0;
                             }
                         }
 

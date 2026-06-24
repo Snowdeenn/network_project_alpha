@@ -48,6 +48,7 @@ pub fn ia_targeting(world: &mut SubWorld) {
 #[write_component(Velocity)]
 #[read_component(MeleeBrain)]
 #[read_component(AttackStats)]
+#[read_component(MovementStats)]
 pub fn melee_ia_movement(world: &mut SubWorld) {
     let player_positions: std::collections::HashMap<Entity, Position> = {
         let mut player_query = <(Entity, &Position)>::query()
@@ -59,10 +60,17 @@ pub fn melee_ia_movement(world: &mut SubWorld) {
             .collect()
     };
 
-    let mut query = <(&Position, &Active, &Target, &mut Velocity, &AttackStats)>::query()
-        .filter(component::<IA>() & component::<MeleeBrain>());
+    let mut query = <(
+        &Position,
+        &Active,
+        &Target,
+        &mut Velocity,
+        &AttackStats,
+        &MovementStats,
+    )>::query()
+    .filter(component::<IA>() & component::<MeleeBrain>());
 
-    for (ia_pos, active, target, velo, stats) in query.iter_mut(world) {
+    for (ia_pos, active, target, velo, stats, mov_stats) in query.iter_mut(world) {
         if !active.0 {
             continue;
         }
@@ -76,8 +84,14 @@ pub fn melee_ia_movement(world: &mut SubWorld) {
                 // TODO: Changer les valeurs hardcodé par la range de attackstat
                 // et la vitesse par mouvement speed
                 if distance > (stats.range - 5.0) {
-                    velo.dx = (dx / distance) * 140.0;
-                    velo.dy = (dy / distance) * 140.0;
+                    velo.dx = (dx / distance)
+                        * mov_stats
+                            .accel
+                            .clamp(-mov_stats.max_speed, mov_stats.max_speed);
+                    velo.dy = (dy / distance)
+                        * mov_stats
+                            .accel
+                            .clamp(-mov_stats.max_speed, mov_stats.max_speed);
                 } else {
                     velo.dx = 0.0;
                     velo.dy = 0.0;
@@ -98,6 +112,7 @@ pub fn melee_ia_movement(world: &mut SubWorld) {
 #[read_component(Target)]
 #[read_component(Knockback)]
 #[read_component(AttackStats)]
+#[read_component(MovementStats)]
 #[write_component(Velocity)]
 pub fn ranged_ia_movement(world: &mut SubWorld) {
     let player_position: ArrayVec<(Entity, Position), 4> = {
@@ -107,10 +122,17 @@ pub fn ranged_ia_movement(world: &mut SubWorld) {
         query.iter(world).map(|(entt, pos)| (*entt, *pos)).collect()
     };
 
-    let mut query = <(&mut Velocity, &Position, &Active, &Target, &AttackStats)>::query()
-        .filter(component::<IA>() & component::<RangedBrain>());
+    let mut query = <(
+        &mut Velocity,
+        &Position,
+        &Active,
+        &Target,
+        &AttackStats,
+        &MovementStats,
+    )>::query()
+    .filter(component::<IA>() & component::<RangedBrain>());
 
-    for (velo, pos, active, target, stats) in query.iter_mut(world) {
+    for (velo, pos, active, target, stats, mov_stats) in query.iter_mut(world) {
         let target_pos = target.0.and_then(|target_entt| {
             player_position
                 .iter()
@@ -135,11 +157,23 @@ pub fn ranged_ia_movement(world: &mut SubWorld) {
 
             // TODO: Changer les valeurs hardcodé par mouvement speed
             if distance > stats.range {
-                velo.dx = dir_x * 140.0;
-                velo.dy = dir_y * 140.0;
+                velo.dx = dir_x
+                    * mov_stats
+                        .accel
+                        .clamp(-mov_stats.max_speed, mov_stats.max_speed);
+                velo.dy = dir_y
+                    * mov_stats
+                        .accel
+                        .clamp(-mov_stats.max_speed, mov_stats.max_speed);
             } else if distance < retreat_distance {
-                velo.dx = -dir_x * 100.0;
-                velo.dy = -dir_y * 100.0;
+                velo.dx = -dir_x
+                    * mov_stats
+                        .accel
+                        .clamp(-mov_stats.max_speed, mov_stats.max_speed);
+                velo.dy = -dir_y
+                    * mov_stats
+                        .accel
+                        .clamp(-mov_stats.max_speed, mov_stats.max_speed);
             } else {
                 velo.dx = 0.0;
                 velo.dy = 0.0;

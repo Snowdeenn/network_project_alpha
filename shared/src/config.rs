@@ -22,7 +22,7 @@ pub enum SpecialKind {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct SpecialAbilityConfig {
     pub kind: SpecialKind,
-    pub params: serde_json::Value,  // flexible, parsé à l'init
+    pub params: serde_json::Value, // flexible, parsé à l'init
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -64,14 +64,17 @@ pub struct ClassRegistery {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GameConfig {
-    pub max_players: u32, 
-    pub shared_lives: u32, 
+    pub max_players: u32,
+    pub shared_lives: u32,
     pub respawn_delay_secs: f64,
-    pub arena_w: u32, 
-    pub arena_h: u32, 
+    pub arena_w: f64,
+    pub arena_h: f64,
     pub spectator_toggle_key: String,
-    pub spawn_points: Vec<SpawnPoint>
+    pub spawn_points: Vec<SpawnPoint>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct SpawnPoint { x: f32, y: f32 }
+pub struct SpawnPoint {
+    pub x: f32,
+    pub y: f32,
+}

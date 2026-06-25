@@ -15,6 +15,7 @@ pub struct WaveManager {
 
 #[derive(Debug)]
 pub enum WaveState {
+    Waiting,
     InProgress,
     BetweenWave(Duration),
 }

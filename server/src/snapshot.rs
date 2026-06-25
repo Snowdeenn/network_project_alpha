@@ -35,6 +35,7 @@ fn build_wave_info(resources: &Resources) -> WaveInfo {
                 SimWaveState::BetweenWave(d) => WaveState::BetweenWave {
                     remaining_ms: d.as_millis() as u32,
                 },
+                SimWaveState::Waiting => WaveState::Waiting,
             },
         })
         .unwrap_or(WaveInfo {

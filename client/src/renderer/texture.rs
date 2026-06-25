@@ -58,7 +58,7 @@ pub struct TextureManager {
 
 impl TextureManager {
     pub fn load_texture(rl: &mut RaylibHandle, thread: &RaylibThread) -> Self {
-        let json = std::fs::read_to_string("assets/animations.json")
+        let json = std::fs::read_to_string("assets/config/animations.json")
             .expect("[TextureManager] animations.json introuvable");
         let configs: HashMap<String, AnimConfig> = serde_json::from_str(&json)
             .expect("[Texture Manager] Impossible de deserialiser le animations.json");

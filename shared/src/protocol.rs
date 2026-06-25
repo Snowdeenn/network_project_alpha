@@ -132,6 +132,7 @@ pub struct EntityState {
 
 #[derive(Debug, Deserialize, Serialize, Clone, Decode, Encode)]
 pub enum WaveState {
+    Waiting,
     InProgress,
     BetweenWave { remaining_ms: u32 },
 }

@@ -180,6 +180,7 @@ pub fn wave_flow_manager(
             } else {
                 wave_manager.wave_state = WaveState::BetweenWave(remaining);
             }
-        }
+        },
+        _ => {}
     }
 }

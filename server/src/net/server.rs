@@ -1,9 +1,10 @@
+use renet::{RenetServer, ServerEvent};
+use renet_netcode::{NetcodeServerTransport, ServerAuthentication, ServerConfig};
 use std::net::{SocketAddr, UdpSocket};
 
-use renet::{Bytes, RenetServer, ServerEvent};
-use renet_netcode::{NetcodeServerTransport, ServerAuthentication, ServerConfig};
-
-use shared::net::{CHANNEL_EVENT, CHANNEL_INPUT, CHANNEL_LOBBY, CHANNEL_SHOP, CHANNEL_STATE, connection_config};
+use shared::net::{
+    CHANNEL_EVENT, CHANNEL_INPUT, CHANNEL_LOBBY, CHANNEL_SHOP, CHANNEL_STATE, connection_config,
+};
 use shared::protocol::{GameEvent, InputPacket, LobbyMessage, ShopAction, StateSnapshot};
 
 const MAX_CLIENTS: usize = 4;
@@ -50,7 +51,8 @@ impl GameNetServer {
 
     pub fn drain_inputs(&mut self) -> Vec<(u64, InputPacket)> {
         let mut inputs = Vec::new();
-        for client_id in self.server.clients_id() {
+        let client_ids: Vec<u64> = self.server.clients_id().into_iter().collect();
+        for client_id in client_ids {
             while let Some(bytes) = self.server.receive_message(client_id, CHANNEL_INPUT) {
                 if let Ok((packet, _)) =
                     bincode::decode_from_slice(&bytes, bincode::config::standard())
@@ -76,6 +78,19 @@ impl GameNetServer {
         actions
     }
 
+    pub fn drain_lobby_messages(&mut self) -> Vec<(u64, LobbyMessage)> {
+        let mut msg = Vec::new();
+        for client_id in self.server.clients_id() {
+            while let Some(bytes) = self.server.receive_message(client_id, CHANNEL_LOBBY) {
+                if let Ok((m, _)) = bincode::decode_from_slice(&bytes, bincode::config::standard())
+                {
+                    msg.push((client_id, m));
+                }
+            }
+        }
+        msg
+    }
+
     pub fn broadcast_snapshot(&mut self, snapshot: &StateSnapshot) {
         let bytes = bincode::encode_to_vec(snapshot, bincode::config::standard()).unwrap();
         self.server.broadcast_message(CHANNEL_STATE, bytes);
@@ -84,6 +99,11 @@ impl GameNetServer {
     pub fn broadcast_event(&mut self, event: &GameEvent) {
         let bytes = bincode::encode_to_vec(event, bincode::config::standard()).unwrap();
         self.server.broadcast_message(CHANNEL_EVENT, bytes);
+    }
+
+    pub fn broadcast_lobby(&mut self, msg: &LobbyMessage) {
+        let bytes = bincode::encode_to_vec(msg, bincode::config::standard()).unwrap();
+        self.server.broadcast_message(CHANNEL_LOBBY, bytes);
     }
 
     pub fn send_snapshot(&mut self, client_id: u64, snapshot: &StateSnapshot) {

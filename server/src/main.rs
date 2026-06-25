@@ -1,23 +1,22 @@
 mod config;
+mod lobby;
 mod net;
+mod session;
 mod simulation;
 mod snapshot;
-mod session;
 
 use crate::config::*;
+use crate::session::*;
 use crate::simulation::helper::{PlayerHp, PlayerPos};
 use crate::simulation::systems::{
-    attack::*, coin::*, debug::*, health::*, ia::*, physics::*, spawn::spawn_player,
-    state::dash_system, wave::*,
+    attack::*, coin::*, debug::*, health::*, ia::*, physics::*, state::dash_system, wave::*,
 };
 
 use legion::{Entity, EntityStore, IntoQuery, Resources, Schedule, component, world::World};
 use net::server::GameNetServer;
 use renet::ServerEvent;
 use shared::config::{ClassConfig, ClassRegistery, GameConfig, PlayerClass};
-use shared::protocol::{
-    GameEvent, GameEventKind, InputPacket, ShopAction, ShopActionKind, ShopItem,
-};
+use shared::protocol::*;
 use simulation::shop::PlayerShops;
 use simulation::{
     components::*, eco::*, event::*, helper::clear_resource_queues, input::InputQueue, wave::*,
@@ -82,7 +81,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             enemies_remaining: wave_configs[0].enemy_count,
             enemies_to_spawn: wave_configs[0].enemy_count,
             spawn_timer: Duration::from_millis(wave_configs[0].spawn_interval_ms),
-            wave_state: WaveState::InProgress,
+            wave_state: simulation::wave::WaveState::Waiting,
         });
         resources.insert(WaveConfigs(wave_configs));
     }
@@ -254,6 +253,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut tick_id = 0u64;
     let mut last = Instant::now();
 
+    let mut session = {
+        let server_cfg = resources.get::<ServerConfig>().unwrap();
+        SessionState::new(&server_cfg)
+    };
+    println!("Code de session : {}", session.code);
+
     println!("Serveur démarré sur 127.0.0.1:7777");
 
     loop {
@@ -265,44 +270,53 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         for event in net.drain_events() {
             match event {
                 ServerEvent::ClientConnected { client_id } => {
-                    println!("Client connecté : {}", client_id);
-                    client_ids.push(client_id);
+                    let game_cfg = resources.get::<GameConfig>().unwrap();
+                    match session.add_slot(client_id, &game_cfg) {
+                        Some(slot_index) => {
+                            resources
+                                .get_mut::<PlayerGold>()
+                                .expect("PlayerGold est pas dans les resources")
+                                .0
+                                .insert(client_id, 0);
 
-                    let player_game_id = next_id();
+                            // Confirmer la jointure au client
+                            let msg = LobbyMessage::SessionJoined {
+                                code: session.code.clone(),
+                                slot_index,
+                            };
+                            net.send_lobby(client_id, &msg);
 
-                    let entity = spawn_player(
-                        &mut world,
-                        player_game_id,
-                        &resources.get::<ClassRegistery>().unwrap(),
-                        PlayerClass::Mage,
-                        Position { x: 960.0, y: 540.0 },
-                    );
-
-                    if let Some(mut players_entity) = resources.get_mut::<HashMap<u64, Entity>>() {
-                        players_entity.insert(client_id, entity);
-                    }
-
-                    // Creation de la ressource gold individuel pour chaque joueur
-                    if let Some(mut player_gold) = resources.get_mut::<PlayerGold>() {
-                        player_gold.0.insert(client_id, 0);
-                    }
-
-                    if let Some(mut mapping) = resources.get_mut::<EntityToClient>() {
-                        mapping.0.insert(player_game_id, client_id);
+                            // Broadcaster l'état du lobby à tous
+                            let update = LobbyMessage::LobbyUpdate {
+                                slots: session.to_slot_infos(),
+                                phase: session.to_phase_info(),
+                            };
+                            net.broadcast_lobby(&update);
+                        }
+                        None => {
+                            let msg = LobbyMessage::SessionError {
+                                reason: SessionErrorKind::SessionFull,
+                            };
+                            net.send_lobby(client_id, &msg);
+                        }
                     }
                 }
                 ServerEvent::ClientDisconnected { client_id, .. } => {
-                    println!("Client déconnecté {}", client_id);
-                    if let Option::Some(entity) = resources
+                    session.remove_slot(client_id);
+
+                    // Cleanup existant
+                    if let Some(entity) = resources
                         .get_mut::<HashMap<u64, Entity>>()
                         .unwrap()
                         .remove(&client_id)
                     {
                         if let Ok(entry) = world.entry_ref(entity) {
                             if let Ok(id) = entry.get_component::<EntityId>() {
-                                if let Some(mut mapping) = resources.get_mut::<EntityToClient>() {
-                                    mapping.0.remove(&id.0);
-                                }
+                                resources
+                                    .get_mut::<EntityToClient>()
+                                    .unwrap()
+                                    .0
+                                    .remove(&id.0);
                             }
                         }
                         world.remove(entity);
@@ -313,6 +327,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .unwrap()
                         .0
                         .remove(&client_id);
+
+                    // Broadcaster le lobby mis à jour
+                    let update = LobbyMessage::LobbyUpdate {
+                        slots: session.to_slot_infos(),
+                        phase: session.to_phase_info(),
+                    };
+                    net.broadcast_lobby(&update);
                 }
             }
         }
@@ -336,6 +357,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
+        for (client_id, msg) in net.drain_lobby_messages() {
+            lobby::handle_lobby_message(
+                client_id,
+                msg,
+                &mut session,
+                &mut net,
+                &mut world,
+                &mut resources,
+            );
+        }
+        
         // Met à jour le tick actuel dans les ressources pour que les systèmes puissent y accéder
         if let Some(mut res_dt) = resources.get_mut::<Duration>() {
             *res_dt = TICK_DURATION; // timestep fixe côté serveur

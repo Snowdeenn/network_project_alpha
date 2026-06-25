@@ -1,7 +1,14 @@
 {
-    "max_players": 4,
-    "shared_lives": 4,
-    "respawn_delay_secs": 5.0,
-    "spectator_follow_key": "Tab",
-    "spectator_free_key": "Tab"
+  "max_players": 4,
+  "shared_lives": 4,
+  "respawn_delay_secs": 5.0,
+  "arena_w": 1920.0,
+  "arena_h": 1080.0,
+  "spectator_toggle_key": "Tab",
+  "spawn_points": [
+    { "x": 200.0, "y": 200.0 },
+    { "x": 1720.0, "y": 200.0 },
+    { "x": 200.0, "y": 880.0 },
+    { "x": 1720.0, "y": 880.0 }
+  ]
 }

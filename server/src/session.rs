@@ -5,8 +5,6 @@ use shared::{
 };
 use crate::config::ServerConfig;
 
-// ---- Structures publiques ----
-
 pub enum LobbyPhase {
     Waiting,
     Starting { countdown: std::time::Duration },
@@ -25,7 +23,6 @@ pub struct SessionState {
     pub phase: LobbyPhase,
 }
 
-// ---- Implémentation ----
 
 impl SessionState {
     pub fn new(server_cfg: &ServerConfig) -> Self {
@@ -89,7 +86,7 @@ impl SessionState {
             .map(|i| i as u8)
     }
 
-    /// Snapshot sérialisable envoyé aux clients via LobbyUpdate
+    // Snapshot sérialisable envoyé aux clients via LobbyUpdate
     pub fn to_slot_infos(&self) -> Vec<Option<LobbySlotInfo>> {
         let mut result: Vec<Option<LobbySlotInfo>> = vec![None; 4];
         for (i, slot) in self.slots.iter().enumerate() {
@@ -113,7 +110,7 @@ impl SessionState {
     }
 }
 
-// ---- Génération du code ----
+// ---- Génération du code de session ----
 
 fn generate_code(cfg: &ServerConfig) -> String {
     let charset: Vec<char> = cfg.session_code_charset.chars().collect();

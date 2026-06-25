@@ -1,21 +1,20 @@
 mod camera;
+mod config;
 mod event;
 mod input;
 mod net;
-mod renderer;
-mod config;
 mod particle;
+mod renderer;
 
 use event::ClientState;
 use net::client::GameNetClient;
-use raylib::ffi::{MouseButton, KeyboardKey};
+use raylib::ffi::{KeyboardKey, MouseButton};
 use renderer::Renderer;
-use shared::protocol::{StateSnapshot};
-use std::time::{Duration, Instant};
+use shared::protocol::StateSnapshot;
 use shared::protocol::{ShopAction, ShopActionKind};
+use std::time::{Duration, Instant};
 
-use crate::{particle::ParticleSystem};
-
+use crate::particle::ParticleSystem;
 
 const TICK_DURATION: Duration = Duration::from_millis(50);
 
@@ -63,15 +62,23 @@ fn main() {
 
         input::handle_shop_input(&renderer.rl, &mut client, &mut client_state);
 
-        if client_state.phase.can_show_shop() && renderer.rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT) {
+        if client_state.phase.can_show_shop()
+            && renderer
+                .rl
+                .is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT)
+        {
             let mouse = renderer.rl.get_mouse_position();
-            let slots_x = [335, 785, 1235];
 
-            let clicked = slots_x.iter().enumerate().find(|&(_, &x)| {
-                mouse.x >= x as f32
-                    && mouse.x <= (x + 350) as f32
-                    && mouse.y >= 290.0
-                    && mouse.y <= 790.0
+            let card_y = renderer.screen_scale.y(config::SHOP_CARD_Y);
+            let card_w = renderer.screen_scale.w(config::SHOP_CARD_W);
+            let card_h = renderer.screen_scale.h(config::SHOP_CARD_H);
+            let clicked = config::SHOP_SLOTS_X.iter().enumerate().find(|&(_, &x)| {
+                let card_x = renderer.screen_scale.x(x);
+
+                mouse.x as i32 >= card_x
+                    && mouse.x as i32 <= card_x + card_w
+                    && mouse.y as i32 >= card_y
+                    && mouse.y as i32 <= card_y + card_h
             });
 
             if let Some((slot, _)) = clicked {
@@ -80,7 +87,6 @@ fn main() {
                     slot: slot as u8,
                 });
             }
-
         }
 
         // tick réseau 20 Hz — envoi uniquement
@@ -88,7 +94,8 @@ fn main() {
             last_tick = Instant::now();
 
             if client.is_connected() {
-                let packet = input::read_input(&renderer.rl, tick_id, renderer.screen_w, renderer.screen_h);
+                let packet =
+                    input::read_input(&renderer.rl, tick_id, renderer.screen_w, renderer.screen_h);
                 client.send_input(&packet);
             }
 
@@ -117,5 +124,4 @@ fn main() {
             std::process::exit(0);
         }
     }
-
 }

@@ -53,7 +53,7 @@ pub struct Renderer {
     pub cam: Camera2D,
     pub screen_w: i32,
     pub screen_h: i32,
-    screen_scale: ScreenScale,
+    pub screen_scale: ScreenScale,
     pub imgui: RaylibGui,
     texture: TextureManager,
     anim_entities: HashMap<u64, AnimEntity>,

@@ -10,6 +10,7 @@ use crate::simulation::systems::{
 use legion::{Entity, EntityStore, IntoQuery, Resources, Schedule, component, world::World};
 use net::server::GameNetServer;
 use renet::ServerEvent;
+use shared::{ClassConfig, ClassRegistery};
 use shared::protocol::{
     GameEvent, GameEventKind, InputPacket, ShopAction, ShopActionKind, ShopItem,
 };
@@ -20,6 +21,7 @@ use simulation::{
 use snapshot::build_snapshot;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
+use shared::PlayerClass;
 const TICK_DURATION: Duration = Duration::from_millis(50);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -68,7 +70,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // --- wave config ---
     {
         let wave_json =
-            std::fs::read_to_string("assets/wave.json").expect("assets/wave.json introuvable");
+            std::fs::read_to_string("assets/config/wave.json").expect("assets/config/wave.json introuvable");
         let wave_configs: Vec<WaveConfig> =
             serde_json::from_str(&wave_json).expect("impossible de parser wave.json");
 
@@ -84,7 +86,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // --- Enemy Config ---
     {
-        let json = std::fs::read_to_string("assets/enemy_config.json")
+        let json = std::fs::read_to_string("assets/config/enemy_config.json")
             .expect("enemy_config.json introuvable");
         let enemy_config: HashMap<String, EnemyStatsConfig> =
             serde_json::from_str(&json).expect("impossible de parser enemy_config.json");
@@ -153,9 +155,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // ---- Items Pool ----
     {
-        let items_json = std::fs::read_to_string("assets/items.json")?;
+        let items_json = std::fs::read_to_string("assets/config/items.json")?;
         let items: Vec<Option<ShopItem>> = serde_json::from_str(&items_json)?;
         resources.insert(ItemPool { items });
+    }
+
+    // --- Class Config ---
+    {
+        let warrior = std::fs::read_to_string("assets/classes/warrior.json")
+            .expect("Le chemion ou les droit sur le fichier warrior.json ne sont pas bon");
+        let assassin = std::fs::read_to_string("assets/classes/assassin.json")
+            .expect("Le chemion ou les droit sur le fichier assassin.json ne sont pas bon");
+        let mage = std::fs::read_to_string("assets/classes/mage.json")
+            .expect("Le chemion ou les droit sur le fichier mage.json ne sont pas bon");
+        let tank = std::fs::read_to_string("assets/classes/tank.json")
+            .expect("Le chemion ou les droit sur le fichier tank.json ne sont pas bon");
+
+        let p_w: ClassConfig =
+            serde_json::from_str(&warrior).expect("Impossible de parser le ficher warrior.json");
+        let p_a: ClassConfig =
+            serde_json::from_str(&assassin).expect("Impossible de parser le ficher assassin.json");
+        let p_m: ClassConfig = serde_json::from_str(&mage).expect("Impossible de parser le ficher mage.json");
+        let p_t: ClassConfig = serde_json::from_str(&tank).expect("Impossible de parser le ficher tank.json");
+
+        let mut config = HashMap::new();
+        config.insert(PlayerClass::Warrior, p_w);
+        config.insert(PlayerClass::Assassin, p_a);
+        config.insert(PlayerClass::Mage, p_m);
+        config.insert(PlayerClass::Tank, p_t);
+
+        resources.insert(ClassRegistery { config });
     }
 
     let mut schedule = Schedule::builder()
@@ -210,6 +239,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let entity = spawn_player(
                         &mut world,
                         player_game_id,
+                        &resources.get::<ClassRegistery>().unwrap(),
                         PlayerClass::Mage,
                         Position { x: 960.0, y: 540.0 },
                     );

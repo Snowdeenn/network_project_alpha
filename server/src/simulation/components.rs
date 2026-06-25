@@ -114,14 +114,6 @@ pub struct Knockback {
     pub duration: f32
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PlayerClass {
-    Warrior,
-    Assassin,
-    Mage,
-    Tank,
-}
-
 #[derive(Debug, Clone, Copy)]
 pub struct MovementStats {
     pub accel: f64,

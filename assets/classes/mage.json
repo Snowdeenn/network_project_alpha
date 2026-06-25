@@ -1,0 +1,29 @@
+{
+    "class": "Mage",
+    "max_hp": 80,
+    "collider": {
+        "w": 36.0,
+        "h": 36.0
+    },
+    "movement": {
+        "accel": 1200.0,
+        "max_speed": 250.0
+    },
+    "attack": {
+        "range": 320.0,
+        "damage": 18,
+        "box_half_length": 6.0,
+        "box_half_width": 6.0,
+        "projectile_speed": 440.0
+    },
+    "attack_interval_secs": 0.6,
+    "special": {
+        "kind": "Archimage",
+        "params": {
+            "damage_multiplier": 1.5,
+            "fire_rate": 0.1,
+            "speed_debuff": 0.3,
+            "duration_secs": 2.0
+        }
+    }
+}

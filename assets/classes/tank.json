@@ -1,0 +1,28 @@
+{
+    "class": "Tank",
+    "max_hp": 180,
+    "collider": {
+        "w": 48.0,
+        "h": 48.0
+    },
+    "movement": {
+        "accel": 900.0,
+        "max_speed": 200.0
+    },
+    "attack": {
+        "range": 30.0,
+        "damage": 15,
+        "box_half_length": 30.0,
+        "box_half_width": 45.0,
+        "projectile_speed": null
+    },
+    "attack_interval_secs": 0.7,
+    "special": {
+        "kind": "Iron",
+        "params": {
+            "hp_boost": 1.4,
+            "damage_reduction": 0.5,
+            "duration_secs": 4.0
+        }
+    }
+}

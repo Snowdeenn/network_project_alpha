@@ -1,0 +1,28 @@
+{
+    "class": "Warrior",
+    "max_hp": 100,
+    "collider": {
+        "w": 40.0,
+        "h": 40.0
+    },
+    "movement": {
+        "accel": 1500.0,
+        "max_speed": 300.0
+    },
+    "attack": {
+        "range": 45.0,
+        "damage": 15,
+        "box_half_length": 25.0,
+        "box_half_width": 30.0,
+        "projectile_speed": null
+    },
+    "attack_interval_secs": 0.5,
+    "special": {
+        "kind": "Berserker",
+        "params": {
+            "hp_threshold_pct": 30,
+            "damage_multiplier": 1.5,
+            "duration_secs": 5.0
+        }
+    }
+}

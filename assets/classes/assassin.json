@@ -1,0 +1,28 @@
+{
+    "class": "Assassin",
+    "max_hp": 75,
+    "collider": {
+        "w": 32.0,
+        "h": 32.0
+    },
+    "movement": {
+        "accel": 2200.0,
+        "max_speed": 420.0
+    },
+    "attack": {
+        "range": 25.0,
+        "damage": 25,
+        "box_half_length": 20.0,
+        "box_half_width": 20.0,
+        "projectile_speed": null
+    },
+    "attack_interval_secs": 0.3,
+    "special": {
+        "kind": "Poison",
+        "params": {
+            "poison_damage": 5,
+            "poison_tick": 0.3,
+            "duration_secs": 5.0
+        }
+    }
+}

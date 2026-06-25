@@ -1,0 +1,7 @@
+{
+    "max_players": 4,
+    "shared_lives": 4,
+    "respawn_delay_secs": 5.0,
+    "spectator_follow_key": "Tab",
+    "spectator_free_key": "Tab"
+}

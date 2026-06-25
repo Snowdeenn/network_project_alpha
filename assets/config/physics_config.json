@@ -1,0 +1,8 @@
+{
+  "friction": 0.85,
+  "spawn_radius": 800.0,
+  "knockback_force": 600.0,
+  "knockback_duration": 0.12,
+  "dash_duration_ms": 20,
+  "dash_cooldown_secs": 2.0
+}

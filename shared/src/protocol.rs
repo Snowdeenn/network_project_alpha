@@ -3,6 +3,8 @@ use std::time::Duration;
 use bincode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
+use crate::config::PlayerClass;
+
 #[derive(Serialize, Deserialize, Clone, Debug, Encode, Decode)]
 pub struct InputPacket {
     pub move_dir: [f32; 2],
@@ -101,7 +103,7 @@ pub enum GameEventKind {
     DebugCollider {
         x: f32,
         y: f32,
-    }
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Encode, Decode)]
@@ -154,4 +156,68 @@ pub struct PlayerInfo {
     pub health: f32,
     pub max_health: f32,
     pub gold: u32,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Decode, Encode)]
+pub struct ClassSelected {
+    pub class: PlayerClass,
+}
+
+#[derive(Serialize, Deserialize, Encode, Decode)]
+pub enum LobbyMessage {
+    // Client → Serveur (déjà dans protocol.rs)
+    RequestJoinSession {
+        code: String,
+    },
+    ClassSelected {
+        class: PlayerClass,
+    },
+    ToggleReady,
+    LeaveSession,
+
+    // Serveur → Client (à ajouter)
+    SessionJoined {
+        code: String,
+        slot_index: u8,
+    },
+    LobbyUpdate {
+        slots: Vec<Option<LobbySlotInfo>>,
+        phase: LobbyPhaseInfo,
+    },
+    GameStarting {
+        countdown_secs: u8,
+    },
+    SessionError {
+        reason: SessionErrorKind,
+    },
+
+    // In-game (à ajouter)
+    SharedLivesUpdate {
+        remaining: u32,
+    },
+    RespawnScheduled {
+        player_id: u64,
+        delay_secs: f32,
+    },
+}
+
+#[derive(Serialize, Deserialize, Encode, Decode, Clone)]
+pub struct LobbySlotInfo {
+    pub slot_index: u8,
+    pub player_name: String, // pour l'instant = client_id en string, nom plus tard
+    pub class: Option<PlayerClass>,
+    pub ready: bool,
+}
+
+#[derive(Serialize, Deserialize, Encode, Decode)]
+pub enum SessionErrorKind {
+    SessionFull,
+    InvalidCode,
+    AlreadyInSession,
+}
+
+#[derive(Serialize, Deserialize, Encode, Decode)]
+pub enum LobbyPhaseInfo {
+    Waiting,
+    Starting { countdown_secs: u8 },
 }

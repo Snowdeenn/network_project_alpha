@@ -1,14 +1,14 @@
 use crate::simulation::components::*;
 use legion::world::World;
 use legion::*;
-use shared::ClassRegistery;
+use shared::config::ClassRegistery;
 use std::time::Duration;
 
 pub fn spawn_player(
     world: &mut World,
     player_game_id: u64,
     registry: &ClassRegistery,
-    class: shared::PlayerClass,
+    class: shared::config::PlayerClass,
     spawn_pos: Position,
 ) -> Entity {
     let config = registry

@@ -1,16 +1,20 @@
+mod config;
 mod net;
 mod simulation;
 mod snapshot;
+mod session;
 
+use crate::config::*;
 use crate::simulation::helper::{PlayerHp, PlayerPos};
 use crate::simulation::systems::{
     attack::*, coin::*, debug::*, health::*, ia::*, physics::*, spawn::spawn_player,
     state::dash_system, wave::*,
 };
+
 use legion::{Entity, EntityStore, IntoQuery, Resources, Schedule, component, world::World};
 use net::server::GameNetServer;
 use renet::ServerEvent;
-use shared::{ClassConfig, ClassRegistery};
+use shared::config::{ClassConfig, ClassRegistery, GameConfig, PlayerClass};
 use shared::protocol::{
     GameEvent, GameEventKind, InputPacket, ShopAction, ShopActionKind, ShopItem,
 };
@@ -21,7 +25,6 @@ use simulation::{
 use snapshot::build_snapshot;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
-use shared::PlayerClass;
 const TICK_DURATION: Duration = Duration::from_millis(50);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -69,8 +72,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // --- wave config ---
     {
-        let wave_json =
-            std::fs::read_to_string("assets/config/wave.json").expect("assets/config/wave.json introuvable");
+        let wave_json = std::fs::read_to_string("assets/config/wave.json")
+            .expect("assets/config/wave.json introuvable");
         let wave_configs: Vec<WaveConfig> =
             serde_json::from_str(&wave_json).expect("impossible de parser wave.json");
 
@@ -175,8 +178,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             serde_json::from_str(&warrior).expect("Impossible de parser le ficher warrior.json");
         let p_a: ClassConfig =
             serde_json::from_str(&assassin).expect("Impossible de parser le ficher assassin.json");
-        let p_m: ClassConfig = serde_json::from_str(&mage).expect("Impossible de parser le ficher mage.json");
-        let p_t: ClassConfig = serde_json::from_str(&tank).expect("Impossible de parser le ficher tank.json");
+        let p_m: ClassConfig =
+            serde_json::from_str(&mage).expect("Impossible de parser le ficher mage.json");
+        let p_t: ClassConfig =
+            serde_json::from_str(&tank).expect("Impossible de parser le ficher tank.json");
 
         let mut config = HashMap::new();
         config.insert(PlayerClass::Warrior, p_w);
@@ -187,6 +192,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         resources.insert(ClassRegistery { config });
     }
 
+    // --- Game Config ---
+    {
+        let json = std::fs::read_to_string("assets/config/game_config.json")
+            .expect("Le chemin ou les droits sur game_config.json ne sont pas bon");
+        let game_config: GameConfig =
+            serde_json::from_str(&json).expect("Impossible de parser le json game_config.json");
+
+        resources.insert(game_config);
+    }
+
+    // --- Serveur Config ---
+    {
+        let json = std::fs::read_to_string("assets/config/server_config.json")
+            .expect("Le chemin ou les droits sur server_config.json ne sont pas bon");
+        let server_config: ServerConfig =
+            serde_json::from_str(&json).expect("Impossible de parser le json server_config.json");
+
+        resources.insert(server_config);
+    }
+
+    // --- Physics Config ---
+    {
+        let json = std::fs::read_to_string("assets/config/physics_config.json")
+            .expect("Le chemin ou les droits sur physics_config.json ne sont pas bon");
+        let physics_config: PhysicsConfig =
+            serde_json::from_str(&json).expect("Impossible de parser le json physics_config.json");
+
+        resources.insert(physics_config);
+    }
     let mut schedule = Schedule::builder()
         .add_system(ia_targeting_system())
         .add_system(friction_system())

@@ -1,5 +1,5 @@
 {
-    "port": 5000,
+    "port": 7777,
     "tick_rate_hz": 20,
     "session_code_length": 6,
     "session_code_charset": "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"

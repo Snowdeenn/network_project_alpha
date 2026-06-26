@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use crate::config::SOLD_ANIM_DURATION;
-use shared::protocol::{GameEvent, GameEventKind, ShopItem};
+use shared::{config::PlayerClass, protocol::{GameEvent, GameEventKind, LobbyPhaseInfo, LobbySlotInfo, ShopItem}};
 
 pub enum GamePhase {
     Wave,
@@ -227,4 +227,20 @@ impl ClientState {
     pub fn close_shop(&mut self) {
         self.shop_ui.close();
     }
+}
+
+pub enum AppScreen {
+    MainMenu,
+    Lobby(LobbyScreenState),
+    InGame(ClientState),
+}
+
+pub struct LobbyScreenState {
+    pub code: String,
+    pub slot_index: u8,
+    pub slots: Vec<Option<LobbySlotInfo>>,
+    pub my_class: Option<PlayerClass>,
+    pub ready: bool,
+    pub is_solo: bool,
+    pub phase: LobbyPhaseInfo,
 }

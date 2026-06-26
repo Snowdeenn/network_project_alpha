@@ -82,9 +82,12 @@ impl GameNetServer {
         let mut msg = Vec::new();
         for client_id in self.server.clients_id() {
             while let Some(bytes) = self.server.receive_message(client_id, CHANNEL_LOBBY) {
-                if let Ok((m, _)) = bincode::decode_from_slice(&bytes, bincode::config::standard())
+                if let Ok((m, _)) = 
+                    bincode::decode_from_slice(&bytes, bincode::config::standard())
                 {
                     msg.push((client_id, m));
+                } else {
+                    eprintln!("Impossible de decoder le lobby message");
                 }
             }
         }

@@ -1,17 +1,17 @@
+use crate::EntityToClient;
+use crate::net::server::GameNetServer;
+use crate::next_id;
 use crate::session::{LobbyPhase, SessionState};
-use shared::protocol::{LobbyMessage, SessionErrorKind};
-use shared::config::{ClassRegistery, GameConfig};
-use legion::World;
+use crate::simulation::components::Position;
+use crate::simulation::systems::spawn::spawn_player;
+use crate::simulation::wave::{WaveManager, WaveState};
 use legion::Entity;
 use legion::Resources;
-use crate::net::server::GameNetServer;
-use std::time::Duration;
+use legion::World;
+use shared::config::{ClassRegistery, GameConfig};
+use shared::protocol::{LobbyMessage, SessionErrorKind};
 use std::collections::HashMap;
-use crate::simulation::wave::{WaveManager, WaveState};
-use crate::next_id;
-use crate::simulation::systems::spawn::spawn_player;
-use crate::simulation::components::Position;
-use crate::EntityToClient;
+use std::time::Duration;
 
 pub fn handle_lobby_message(
     client_id: u64,
@@ -23,13 +23,24 @@ pub fn handle_lobby_message(
 ) {
     match msg {
         LobbyMessage::ClassSelected { class } => {
+            println!("ClassSelected reçu: {:?} de {}", class, client_id);
             session.set_class(client_id, class);
             broadcast_lobby_update(session, net);
         }
 
         LobbyMessage::ToggleReady => {
+            println!("ToggleReady de {}", client_id);
+            println!(
+                "Slot class avant toggle : {:?}",
+                session
+                    .slots
+                    .iter()
+                    .flatten()
+                    .find(|s| s.client_id == client_id)
+                    .map(|s| s.class)
+            );
             session.toggle_ready(client_id);
-
+            println!("All ready : {}", session.all_ready());
             if session.all_ready() {
                 session.phase = LobbyPhase::Starting {
                     countdown: Duration::from_secs(3),
@@ -50,9 +61,12 @@ pub fn handle_lobby_message(
 
         LobbyMessage::RequestJoinSession { code } => {
             if code != session.code {
-                net.send_lobby(client_id, &LobbyMessage::SessionError {
-                    reason: SessionErrorKind::InvalidCode,
-                });
+                net.send_lobby(
+                    client_id,
+                    &LobbyMessage::SessionError {
+                        reason: SessionErrorKind::InvalidCode,
+                    },
+                );
                 return;
             }
             // Déjà géré dans ClientConnected pour la connexion initiale
@@ -64,30 +78,34 @@ pub fn handle_lobby_message(
     }
 }
 
-fn start_game(
-    session: &mut SessionState,
-    world: &mut World,
-    resources: &mut Resources,
-) {
+fn start_game(session: &mut SessionState, world: &mut World, resources: &mut Resources) {
     let registry = resources.get::<ClassRegistery>().unwrap();
     let game_cfg = resources.get::<GameConfig>().unwrap();
 
     let spawn_points = &game_cfg.spawn_points;
 
-    for (i, slot) in session.slots.iter().enumerate() {
+    for (i, slot) in session.slots.iter().flatten().enumerate() {
         let class = slot.class.unwrap(); // garanti par all_ready()
         let pos = spawn_points
             .get(i)
-            .map(|p| Position { x: p.x as f64, y: p.y as f64 })
+            .map(|p| Position {
+                x: p.x as f64,
+                y: p.y as f64,
+            })
             .unwrap_or(Position { x: 960.0, y: 540.0 });
 
         let player_game_id = next_id();
         let entity = spawn_player(world, player_game_id, &registry, class, pos);
 
-        resources.get_mut::<HashMap<u64, Entity>>().unwrap()
+        resources
+            .get_mut::<HashMap<u64, Entity>>()
+            .unwrap()
             .insert(slot.client_id, entity);
-        resources.get_mut::<EntityToClient>().unwrap()
-            .0.insert(player_game_id, slot.client_id);
+        resources
+            .get_mut::<EntityToClient>()
+            .unwrap()
+            .0
+            .insert(player_game_id, slot.client_id);
     }
 
     session.phase = LobbyPhase::InGame;

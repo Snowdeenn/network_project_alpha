@@ -270,6 +270,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         for event in net.drain_events() {
             match event {
                 ServerEvent::ClientConnected { client_id } => {
+                    println!("Client connected : {}", client_id);
                     let game_cfg = resources.get::<GameConfig>().unwrap();
                     match session.add_slot(client_id, &game_cfg) {
                         Some(slot_index) => {
@@ -302,6 +303,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 ServerEvent::ClientDisconnected { client_id, .. } => {
+                    println!("Client disconnected: {}", client_id);
                     session.remove_slot(client_id);
 
                     // Cleanup existant

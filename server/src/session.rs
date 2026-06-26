@@ -1,9 +1,9 @@
+use crate::config::ServerConfig;
 use rand::seq::IndexedRandom;
 use shared::{
-    config::{PlayerClass, GameConfig},
+    config::{GameConfig, PlayerClass},
     protocol::{LobbyPhaseInfo, LobbySlotInfo},
 };
-use crate::config::ServerConfig;
 
 pub enum LobbyPhase {
     Waiting,
@@ -19,49 +19,70 @@ pub struct LobbySlot {
 
 pub struct SessionState {
     pub code: String,
-    pub slots: Vec<LobbySlot>,
+    pub slots: [Option<LobbySlot>; 4],
     pub phase: LobbyPhase,
 }
-
 
 impl SessionState {
     pub fn new(server_cfg: &ServerConfig) -> Self {
         Self {
             code: generate_code(server_cfg),
-            slots: Vec::with_capacity(4),
+            slots: [const { None }; 4],
             phase: LobbyPhase::Waiting,
         }
     }
 
     /// Retourne le slot_index attribué, ou None si la session est pleine ou InGame
     pub fn add_slot(&mut self, client_id: u64, game_cfg: &GameConfig) -> Option<u8> {
-        if self.slots.len() >= game_cfg.max_players as usize {
-            return None;
-        }
         if matches!(self.phase, LobbyPhase::InGame) {
             return None;
         }
-        let index = self.slots.len() as u8;
-        self.slots.push(LobbySlot {
+
+        let slot_index = self.slots.iter().position(|s| s.is_none())?;
+        if slot_index >= game_cfg.max_players as usize {
+            return None;
+        }
+
+        self.slots[slot_index] = Some(LobbySlot {
             client_id,
             class: None,
             ready: false,
         });
-        Some(index)
+
+        Some(slot_index as u8)
     }
 
     pub fn remove_slot(&mut self, client_id: u64) {
-        self.slots.retain(|s| s.client_id != client_id);
+        for slot in self.slots.iter_mut() {
+            if slot
+                .as_ref()
+                .map(|s| s.client_id == client_id)
+                .unwrap_or(false)
+            {
+                *slot = None;
+                return;
+            }
+        }
     }
 
     pub fn set_class(&mut self, client_id: u64, class: PlayerClass) {
-        if let Some(slot) = self.slots.iter_mut().find(|s| s.client_id == client_id) {
+        if let Some(slot) = self
+            .slots
+            .iter_mut()
+            .flatten()
+            .find(|s| s.client_id == client_id)
+        {
             slot.class = Some(class);
         }
     }
 
     pub fn toggle_ready(&mut self, client_id: u64) {
-        if let Some(slot) = self.slots.iter_mut().find(|s| s.client_id == client_id) {
+        if let Some(slot) = self
+            .slots
+            .iter_mut()
+            .flatten()
+            .find(|s| s.client_id == client_id)
+        {
             // On ne peut pas être ready sans avoir choisi une classe
             if slot.class.is_some() {
                 slot.ready = !slot.ready;
@@ -71,8 +92,8 @@ impl SessionState {
 
     /// Tous les slots ont une classe et sont ready, et il y a au moins 1 joueur
     pub fn all_ready(&self) -> bool {
-        !self.slots.is_empty()
-            && self.slots.iter().all(|s| s.ready && s.class.is_some())
+        let occupied: Vec<_> = self.slots.iter().flatten().collect();
+        !occupied.is_empty() && occupied.iter().all(|s| s.ready && s.class.is_some())
     }
 
     pub fn is_full(&self, game_cfg: &GameConfig) -> bool {
@@ -82,22 +103,25 @@ impl SessionState {
     pub fn slot_index_of(&self, client_id: u64) -> Option<u8> {
         self.slots
             .iter()
+            .flatten()
             .position(|s| s.client_id == client_id)
             .map(|i| i as u8)
     }
 
     // Snapshot sérialisable envoyé aux clients via LobbyUpdate
     pub fn to_slot_infos(&self) -> Vec<Option<LobbySlotInfo>> {
-        let mut result: Vec<Option<LobbySlotInfo>> = vec![None; 4];
-        for (i, slot) in self.slots.iter().enumerate() {
-            result[i] = Some(LobbySlotInfo {
-                slot_index: i as u8,
-                player_name: slot.client_id.to_string(),
-                class: slot.class,
-                ready: slot.ready,
-            });
-        }
-        result
+        self.slots
+            .iter()
+            .enumerate()
+            .map(|(i, slot)| {
+                slot.as_ref().map(|s| LobbySlotInfo {
+                    slot_index: i as u8,
+                    player_name: s.client_id.to_string(),
+                    class: s.class,
+                    ready: s.ready,
+                })
+            })
+            .collect()
     }
 
     pub fn to_phase_info(&self) -> LobbyPhaseInfo {

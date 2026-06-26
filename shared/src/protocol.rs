@@ -164,7 +164,7 @@ pub struct ClassSelected {
     pub class: PlayerClass,
 }
 
-#[derive(Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, Serialize, Deserialize, Encode, Decode)]
 pub enum LobbyMessage {
     // Client → Serveur (déjà dans protocol.rs)
     RequestJoinSession {
@@ -202,7 +202,7 @@ pub enum LobbyMessage {
     },
 }
 
-#[derive(Serialize, Deserialize, Encode, Decode, Clone)]
+#[derive(Debug, Serialize, Deserialize, Encode, Decode, Clone)]
 pub struct LobbySlotInfo {
     pub slot_index: u8,
     pub player_name: String, // pour l'instant = client_id en string, nom plus tard
@@ -210,14 +210,14 @@ pub struct LobbySlotInfo {
     pub ready: bool,
 }
 
-#[derive(Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, Serialize, Deserialize, Encode, Decode, Clone, Copy)]
 pub enum SessionErrorKind {
     SessionFull,
     InvalidCode,
     AlreadyInSession,
 }
 
-#[derive(Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, Serialize, Deserialize, Encode, Decode, Clone, Copy)]
 pub enum LobbyPhaseInfo {
     Waiting,
     Starting { countdown_secs: u8 },

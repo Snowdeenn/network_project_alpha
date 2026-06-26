@@ -4,26 +4,28 @@ use std::time::Duration;
 use renet::RenetClient;
 use renet_netcode::{ClientAuthentication, NetcodeClientTransport};
 
-use shared::net::{connection_config, CHANNEL_EVENT, CHANNEL_INPUT, CHANNEL_SHOP, CHANNEL_STATE};
-use shared::protocol::{GameEvent, InputPacket, ShopAction, StateSnapshot};
+use shared::net::{
+    CHANNEL_EVENT, CHANNEL_INPUT, CHANNEL_LOBBY, CHANNEL_SHOP, CHANNEL_STATE, connection_config,
+};
+use shared::protocol::{GameEvent, InputPacket, LobbyMessage, ShopAction, StateSnapshot};
 
 const SERVER_ADDR: &str = "127.0.0.1:7777";
 
 pub struct GameNetClient {
-    client:    RenetClient,
+    client: RenetClient,
     transport: NetcodeClientTransport,
 }
 
 impl GameNetClient {
     pub fn new(client_id: u64) -> Self {
-        let socket     = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
         let server_addr: SocketAddr = SERVER_ADDR.parse().unwrap();
 
         let auth = ClientAuthentication::Unsecure {
             client_id,
-            protocol_id:  1337,         // doit matcher le serveur
+            protocol_id: 1337, // doit matcher le serveur
             server_addr,
-            user_data:    None,
+            user_data: None,
         };
 
         let current_time = std::time::SystemTime::now()
@@ -31,7 +33,7 @@ impl GameNetClient {
             .unwrap();
 
         let transport = NetcodeClientTransport::new(current_time, auth, socket).unwrap();
-        let client    = RenetClient::new(connection_config());
+        let client = RenetClient::new(connection_config());
 
         Self { client, transport }
     }
@@ -55,6 +57,11 @@ impl GameNetClient {
         self.client.send_message(CHANNEL_SHOP, bytes);
     }
 
+    pub fn send_lobby_message(&mut self, msg: &LobbyMessage) {
+        let bytes = bincode::encode_to_vec(msg, bincode::config::standard()).unwrap();
+        self.client.send_message(CHANNEL_LOBBY, bytes);
+    }
+
     pub fn recv_snapshot(&mut self) -> Option<StateSnapshot> {
         let bytes = self.client.receive_message(CHANNEL_STATE)?;
         bincode::decode_from_slice(&bytes, bincode::config::standard())
@@ -67,6 +74,13 @@ impl GameNetClient {
         bincode::decode_from_slice(&bytes, bincode::config::standard())
             .ok()
             .map(|(e, _)| -> GameEvent { e })
+    }
+
+    pub fn recv_lobby_message(&mut self) -> Option<LobbyMessage> {
+        let byte = self.client.receive_message(CHANNEL_LOBBY)?;
+        bincode::decode_from_slice(&byte, bincode::config::standard())
+            .ok()
+            .map(|(m, _)| m)
     }
 
     pub fn flush(&mut self) {

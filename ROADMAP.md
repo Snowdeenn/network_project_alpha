@@ -68,11 +68,11 @@ Le serveur home lab est le point d'entrée unique. Au lancement le client s'y co
 - [ ] Serveur en écoute permanente, gestion des reconnexions clients
 
 ### 2b — Sélection du mode de jeu & Lobby de classe
-- [ ] Écran de sélection Solo / Multijoueur au lancement
-- [ ] **Lobby de sélection des personnages** (Max 4 joueurs) : Choix parmi les classes (`Warrior`, `Assassin`, `Mage`, `Tank`)
-- [ ] Mode **Solo** : serveur spawne une instance via `MemoryTransport` (in-process, zéro réseau)
-- [ ] Mode **Multijoueur** : session normale via `NetcodeTransport` (UDP), jusqu'à 4 joueurs
-- [ ] Lancement d'une partie (lobby minimal : ready → start)
+- [x] Écran de sélection Solo / Multijoueur au lancement
+- [x] **Lobby de sélection des personnages** (Max 4 joueurs) : Choix parmi les classes (`Warrior`, `Assassin`, `Mage`, `Tank`)
+- [x] Mode **Solo** : serveur spawne une instance via `MemoryTransport` (in-process, zéro réseau)
+- [x] Mode **Multijoueur** : session normale via `NetcodeTransport` (UDP), jusqu'à 4 joueurs
+- [x] Lancement d'une partie (lobby minimal : ready → start)
 - [x] Spawner de joueur Data-Driven (injection des composants spécifiques à la classe choisie au moment du `spawn`)
 - [ ] Respawn des joueurs en cours de partie
 

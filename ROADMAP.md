@@ -73,7 +73,7 @@ Le serveur home lab est le point d'entrée unique. Au lancement le client s'y co
 - [ ] Mode **Solo** : serveur spawne une instance via `MemoryTransport` (in-process, zéro réseau)
 - [ ] Mode **Multijoueur** : session normale via `NetcodeTransport` (UDP), jusqu'à 4 joueurs
 - [ ] Lancement d'une partie (lobby minimal : ready → start)
-- [ ] Spawner de joueur Data-Driven (injection des composants spécifiques à la classe choisie au moment du `spawn`)
+- [x] Spawner de joueur Data-Driven (injection des composants spécifiques à la classe choisie au moment du `spawn`)
 - [ ] Respawn des joueurs en cours de partie
 
 ---

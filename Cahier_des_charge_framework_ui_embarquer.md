@@ -61,6 +61,7 @@ pub struct UIVertex {
     pub uv: [f32; 2],
     pub color: [u8; 4],
 }
+````
 
 ## 4. Contraintes et Critères de Performance
 

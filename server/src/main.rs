@@ -45,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut world = World::default();
     let mut resources = Resources::default();
     let players_entities: HashMap<u64, Entity> = HashMap::new();
-    let mut client_ids: Vec<u64> = Vec::new();
+    let mut _client_ids: Vec<u64> = Vec::new();
 
     // --- resources ---
     {

@@ -61,7 +61,7 @@ pub struct UIVertex {
     pub uv: [f32; 2],
     pub color: [u8; 4],
 }
-
+````
 ## 4. Contraintes et Critères de Performance
 
 * **Fréquence de rafraîchissement :** Le framework ne doit pas impacter la boucle principale du jeu. L'objectif est un coût d'exécution inférieur à **0.5 milliseconde** par frame pour un HUD complet (cible à plus de 144 FPS).

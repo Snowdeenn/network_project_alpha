@@ -9,6 +9,7 @@ pub fn render(
     d: &mut RaylibDrawHandle,
     snap: &StateSnapshot,
     s: &ScreenScale,
+    client_state: &ClientState,
 ) {
     d.draw_text(
         &format!(
@@ -45,6 +46,20 @@ pub fn render(
             s.font(HUD_GOLD_FONT),
             Color::GOLD,
         );
+    }
+
+    // Shared Lives Display
+    {
+        let lives =  &client_state.ui.shared_lives;
+        if lives.max > 0 {
+            d.draw_text(
+                &format!("Vies : {}/{}", lives.current, lives.max),
+                s.x(SHARED_LIVES_X),
+                s.y(SHARED_LIVES_Y),
+                s.font(SHARED_LIVES_FONT),
+                Color::RED,
+            );
+        }
     }
 }
 

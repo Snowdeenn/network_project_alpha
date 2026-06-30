@@ -142,6 +142,16 @@ impl Renderer {
                             Color::RED,
                         );
                     }
+                    GamePhase::GameOver => {
+                        d2.draw_text("GAME OVER", s.x(0.32), s.y(0.42), s.font(0.12), Color::RED);
+                        d2.draw_text(
+                            "Toutes les vies sont épuisées",
+                            s.x(0.35),
+                            s.y(0.58),
+                            s.font(0.03),
+                            Color::LIGHTGRAY,
+                        );
+                    }
                     _ => render_world(
                         &mut d2,
                         particle_system,
@@ -157,7 +167,7 @@ impl Renderer {
         }
 
         if let Some(snap) = current {
-            hud::render(&mut d, snap, s);
+            hud::render(&mut d, snap, s, client_state);
         }
 
         {
@@ -240,14 +250,7 @@ fn render_world(
 
             let origin = Vector2::new(scaled_w / 2.0, scaled_h / 2.0);
 
-            d.draw_texture_pro(
-                &tex,
-                source_rec,
-                dest_rec,
-                origin,
-                0.0,
-                Color::WHITE,
-            );
+            d.draw_texture_pro(&tex, source_rec, dest_rec, origin, 0.0, Color::WHITE);
         } else {
             draw_fallback(d, &entity.entity_kind, x, y, entity);
         }

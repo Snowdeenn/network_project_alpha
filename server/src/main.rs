@@ -198,6 +198,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let game_config: GameConfig =
             serde_json::from_str(&json).expect("Impossible de parser le json game_config.json");
 
+        resources.insert(SharedLives::new(game_config.shared_lives));
         resources.insert(game_config);
     }
 
@@ -279,20 +280,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .expect("PlayerGold est pas dans les resources")
                                 .0
                                 .insert(client_id, 0);
+                            
+                            net.send_lobby(
+                                client_id,
+                                &LobbyMessage::SessionJoined {
+                                    code: session.code.clone(),
+                                    slot_index,
+                                },
+                            );
 
-                            // Confirmer la jointure au client
-                            let msg = LobbyMessage::SessionJoined {
-                                code: session.code.clone(),
-                                slot_index,
-                            };
-                            net.send_lobby(client_id, &msg);
+                            if matches!(session.phase, LobbyPhase::InGame) {
+                                // Partie déjà en cours → envoyer direct en jeu
+                                net.send_lobby(
+                                    client_id,
+                                    &LobbyMessage::GameStarting { countdown_secs: 0 },
+                                );
 
-                            // Broadcaster l'état du lobby à tous
-                            let update = LobbyMessage::LobbyUpdate {
-                                slots: session.to_slot_infos(),
-                                phase: session.to_phase_info(),
-                            };
-                            net.broadcast_lobby(&update);
+                                if let Some(lives) = resources.get::<SharedLives>() {
+                                    net.send_event(
+                                        client_id,
+                                        &GameEvent {
+                                            kind: GameEventKind::SharedLivesUpdate {
+                                                remaining: lives.remaining,
+                                                max: lives.max,
+                                            },
+                                        },
+                                    );
+                                }
+                            } else {
+                                // Lobby normal
+                                net.broadcast_lobby(&LobbyMessage::LobbyUpdate {
+                                    slots: session.to_slot_infos(),
+                                    phase: session.to_phase_info(),
+                                });
+                            }
                         }
                         None => {
                             let msg = LobbyMessage::SessionError {
@@ -369,7 +390,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 &mut resources,
             );
         }
-        
+
         // Met à jour le tick actuel dans les ressources pour que les systèmes puissent y accéder
         if let Some(mut res_dt) = resources.get_mut::<Duration>() {
             *res_dt = TICK_DURATION; // timestep fixe côté serveur

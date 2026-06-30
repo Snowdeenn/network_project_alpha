@@ -104,6 +104,11 @@ pub enum GameEventKind {
         x: f32,
         y: f32,
     },
+    SharedLivesUpdate {
+        remaining: u32,
+        max: u32,
+    },
+    GameOver,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Encode, Decode)]

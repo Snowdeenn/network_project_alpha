@@ -1,3 +1,4 @@
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct NodeId {
     pub index: usize,
     pub generation: u32,
@@ -41,13 +42,7 @@ impl<T> Arena<T> {
         }
     }
 
-    pub fn get(&self, id: &NodeId) -> Option<&T> {
-        debug_assert!(id.index < self.nodes.len(), "NodeId index hors bornes");
-        debug_assert!(
-            id.generation == self.nodes[id.index].generation,
-            "NodeId périmé - doit être supprimer"
-        );
-
+    pub fn get(&self, id: NodeId) -> Option<&T> {
         if id.index > self.nodes.len()
             || id.generation != self.nodes[id.index].generation
             || self.nodes[id.index].value.is_none()
@@ -58,13 +53,7 @@ impl<T> Arena<T> {
         }
     }
 
-    pub fn get_mut(&mut self, id: &NodeId) -> Option<&mut T> {
-        debug_assert!(id.index < self.nodes.len(), "NodeId index hors bornes");
-        debug_assert!(
-            id.generation == self.nodes[id.index].generation,
-            "NodeId périmé - doit être supprimer"
-        );
-
+    pub fn get_mut(&mut self, id: NodeId) -> Option<&mut T> {
         if id.index > self.nodes.len()
             || id.generation != self.nodes[id.index].generation
             || self.nodes[id.index].value.is_none()
@@ -75,7 +64,7 @@ impl<T> Arena<T> {
         }
     }
 
-    pub fn remove(&mut self, id: &NodeId) -> Option<T> {
+    pub fn remove(&mut self, id: NodeId) -> Option<T> {
         if id.generation != self.nodes[id.index].generation {
             return None;
         } else {
@@ -93,9 +82,8 @@ mod tests {
     fn test_insert() {
         let mut arena: Arena<_> = Arena::new();
         let id = arena.insert(10);
-        if let Some(value) = arena.get(&id) {
-            assert_eq!(*value, 10);
-        }
+        let value = arena.get(id).expect("devrait etre la");
+        assert_eq!(*value, 10);
     }
 
     #[test]
@@ -105,23 +93,64 @@ mod tests {
         let id2 = arena.insert(2);
         let id3 = arena.insert(3);
 
-        if let Some(value1) = arena.get(&id1) {
-            assert_eq!(*value1, 1);
-        }
-        if let Some(value2) = arena.get(&id2) {
-            assert_eq!(*value2, 2)
-        }
-        if let Some(value3) = arena.get(&id3) {
-            assert_eq!(*value3, 3);
-        }
+        let value1 = arena.get(id1).unwrap();
+        let value2 = arena.get(id2).unwrap();
+        let value3 = arena.get(id3).unwrap();
+
+        assert_eq!(*value1, 1);
+        assert_eq!(*value2, 2);
+        assert_eq!(*value3, 3);
     }
 
     #[test]
-    fn test_odler_node() {
+    fn test_remove() {
+        let mut arena = Arena::new();
+        let id = arena.insert(1);
+        arena.remove(id);
+        assert_eq!(arena.get(id), None);
+    }
+
+    #[test]
+    fn test_remove_insert() {
         let mut arena = Arena::new();
         let id_ancien = arena.insert(1);
-        arena.remove(&id_ancien);
-        arena.insert(2);
-        assert_eq!(arena.get(&id_ancien), None);
+        arena.remove(id_ancien);
+        let nouv_id = arena.insert(2);
+        let value = arena.get(nouv_id).unwrap();
+
+        assert_eq!(*value, 2);
+    }
+
+    #[test]
+    fn test_ancien_id_invalide_apres_reinsert() {
+        let mut arena = Arena::new();
+        let id_ancien = arena.insert(1);
+        arena.remove(id_ancien);
+        let _id_nouveau = arena.insert(2);
+
+        assert_eq!(arena.get(id_ancien), None); // id_ancien doit rester mort
+    }
+
+    #[test]
+    fn test_index_hors_bornes() {
+        let arena: Arena<i32> = Arena::new();
+        let id_bidon = NodeId {
+            index: 99,
+            generation: 0,
+        };
+        assert_eq!(arena.get(id_bidon), None); // pas de panic
+    }
+
+    #[test]
+    fn test_remove_avec_generation_perimee() {
+        let mut arena = Arena::new();
+        let id_ancien = arena.insert(1);
+        arena.remove(id_ancien); // id_ancien périmé après ça
+        let id_nouveau = arena.insert(2); // réutilise le slot, nouvelle gen
+
+        let result = arena.remove(id_ancien); // tentative remove avec gen périmée
+
+        assert_eq!(result, None); // ne doit RIEN retirer
+        assert_eq!(arena.get(id_nouveau), Some(&2)); // le nouveau doit survivre intact
     }
 }

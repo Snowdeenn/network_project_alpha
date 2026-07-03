@@ -1,6 +1,26 @@
 use crate::shader::{ShaderId, ShaderRegistry};
 use crate::texture::{TextureId, TextureRegistry};
 use raylib::prelude::*;
+
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct NinePatchMargins {
+    pub top: f32,
+    pub bottom: f32,
+    pub left: f32,
+    pub right: f32,
+}
+
+impl NinePatchMargins {
+    pub fn uniform(value: f32) -> Self {
+        Self {
+            top: value,
+            bottom: value,
+            left: value,
+            right: value,
+        }
+    }
+}
+
 pub enum DrawCommand {
     Rect {
         pos: Vector2,
@@ -27,6 +47,14 @@ pub enum DrawCommand {
         texture_id: TextureId,
         pos: Vector2,
         size: Vector2,
+        tint: Color,
+        layer: u8,
+    },
+    NinePatch {
+        texture_id: TextureId,
+        pos: Vector2,
+        size: Vector2,
+        margins: NinePatchMargins,
         tint: Color,
         layer: u8,
     },
@@ -159,6 +187,47 @@ impl DrawCommandBuffer {
                     }
                     i += 1;
                 }
+                DrawCommand::NinePatch {
+                    texture_id,
+                    pos,
+                    size,
+                    margins,
+                    tint,
+                    ..
+                } => {
+                    if let Some(texture) = tex_reg.get(*texture_id) {
+                        let source = Rectangle {
+                            x: 0.0,
+                            y: 0.0,
+                            width: texture.width as f32,
+                            height: texture.height as f32,
+                        };
+                        let dest = Rectangle {
+                            x: pos.x,
+                            y: pos.y,
+                            width: size.x,
+                            height: size.y,
+                        };
+
+                        let n_patch_info = NPatchInfo {
+                            source,
+                            left: margins.left as i32,
+                            top: margins.top as i32,
+                            right: margins.right as i32,
+                            bottom: margins.bottom as i32,
+                            layout: NPatchLayout::NPATCH_NINE_PATCH,
+                        };
+                        d.draw_texture_n_patch(
+                            texture,
+                            n_patch_info,
+                            dest,
+                            Vector2::zero(),
+                            0.0,
+                            *tint,
+                        );
+                    }
+                    i += 1;
+                }
             }
         }
     }
@@ -179,5 +248,8 @@ fn sort_key(command: &DrawCommand) -> (u8, u16, u16) {
             texture_id,
             ..
         } => (*layer, texture_id.value(), shader_id.value()),
+        DrawCommand::NinePatch {
+            texture_id, layer, ..
+        } => (*layer, texture_id.value(), 0),
     }
 }

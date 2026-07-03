@@ -72,6 +72,14 @@ impl<T> Arena<T> {
             self.nodes[id.index].value.take()
         }
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = &T> {
+        self.nodes.iter().filter_map(|slot| slot.value.as_ref())
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
+        self.nodes.iter_mut().filter_map(|slot| slot.value.as_mut())
+    }
 }
 
 #[cfg(test)]

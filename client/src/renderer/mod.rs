@@ -13,8 +13,12 @@ use crate::renderer::texture::{BossState, EnemyState, PlayerState, TextureId, Te
 use raylib::prelude::*;
 use raylib_imgui::RaylibGui;
 use shared::protocol::{EntityKind, EntityState, StateSnapshot};
+use ui::context::UiContext;
+use ui::shader::ShaderRegistry;
+use ui::texture::TextureRegistry;
 use std::collections::HashMap;
 use std::time::Instant;
+use ui::draw::{DrawCommandBuffer};
 
 #[derive(Clone, Copy)]
 pub struct ScreenScale {
@@ -111,6 +115,10 @@ impl Renderer {
         last_snap_time: Instant,
         client_state: &mut ClientState,
         particle_system: &mut ParticleSystem,
+        buffer: &mut DrawCommandBuffer,
+        tex_registry: &TextureRegistry,
+        shader_registry: &mut ShaderRegistry,
+        ui_ctx: &mut UiContext,
     ) {
         let t =
             (last_snap_time.elapsed().as_secs_f32() / TICK_DURATION.as_secs_f32()).clamp(0.0, 1.0);
@@ -189,6 +197,11 @@ impl Renderer {
             }
         }
 
+        ui_ctx.collect(buffer);
+        buffer.sort();
+        buffer.flush(&mut d, tex_registry, shader_registry);
+        buffer.clear();
+        
         hud::render_shop(&mut d, client_state, s);
         debug_ui::process_debug(ui, &mut d, &self.cam, client_state);
         self.imgui.end();

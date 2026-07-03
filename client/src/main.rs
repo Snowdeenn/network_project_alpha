@@ -9,10 +9,18 @@ mod screens;
 
 use net::client::GameNetClient;
 use raylib::ffi::{KeyboardKey, MouseButton};
+use raylib::prelude::*;
 use renderer::Renderer;
 use shared::protocol::StateSnapshot;
 use shared::protocol::{ShopAction, ShopActionKind};
 use std::time::{Duration, Instant};
+use ui::context::UiContext;
+use ui::draw::DrawCommandBuffer;
+use ui::node::Anchor;
+use ui::node::LayoutProps;
+use ui::node::{VisualKind, VisualProps};
+use ui::shader::ShaderRegistry;
+use ui::texture::TextureRegistry;
 
 use crate::event::AppScreen;
 use crate::particle::ParticleSystem;
@@ -25,6 +33,10 @@ fn main() {
     let mut renderer = Renderer::new(1280, 720);
     let mut client: Option<GameNetClient> = None;
     let mut screen = AppScreen::MainMenu;
+    let mut draw_buffer = DrawCommandBuffer::new(4046);
+    let tex_registry = TextureRegistry::new();
+    let mut shader_registry = ShaderRegistry::new();
+    let mut ui_ctx = UiContext::new(renderer.screen_w as f32, renderer.screen_h as f32);
 
     let mut last_tick = Instant::now();
     let mut last_frame = Instant::now();
@@ -34,6 +46,27 @@ fn main() {
     let mut last_snap_time: Instant = Instant::now();
     let mut particle_system = ParticleSystem::new();
     let mut is_solo: bool = false;
+
+    let shader_src = include_str!("../../shader/test.frag");
+    let raw_shader = renderer
+        .rl
+        .load_shader_from_memory(&renderer.thread, None, Some(shader_src));
+    let shader_id = shader_registry.register(raw_shader);
+
+    ui_ctx.add_node(
+        ui_ctx.root,
+        LayoutProps::new(
+            Anchor::TopRight,
+            Vector2::new(20.0, 20.0),
+            Vector2::new(180.0, 40.0),
+        ),
+        VisualProps {
+            kind: VisualKind::Shader { id: shader_id },
+            color: Color::RED,
+            visible: true,
+            opacity: 1.0,
+        },
+    );
 
     // tick réseau 20 Hz
     while !renderer.rl.window_should_close() {
@@ -54,8 +87,14 @@ fn main() {
                 let action = screens::main_menu::handle_input(&renderer.rl, &mut client, client_id);
 
                 match action {
-                    MenuAction::Solo => { is_solo = true; println!("SOLO") },
-                    MenuAction::Multi => { is_solo = false; println!("MULTI") },
+                    MenuAction::Solo => {
+                        is_solo = true;
+                        println!("SOLO")
+                    }
+                    MenuAction::Multi => {
+                        is_solo = false;
+                        println!("MULTI")
+                    }
                     MenuAction::None => {}
                 }
 
@@ -167,6 +206,7 @@ fn main() {
                     camera::update(&mut renderer.cam, prev_snapshot.as_ref(), curr, t);
                 }
 
+                ui_ctx.resolve_layout();
                 // rendu 60 Hz
                 renderer.render_frame(
                     prev_snapshot.as_ref(),
@@ -174,6 +214,10 @@ fn main() {
                     last_snap_time,
                     client_state,
                     &mut particle_system,
+                    &mut draw_buffer,
+                    &tex_registry,
+                    &mut shader_registry,
+                    &mut ui_ctx,
                 );
             }
         }

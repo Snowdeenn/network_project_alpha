@@ -1,17 +1,20 @@
-use std::collections::{VecDeque, HashSet};
+use std::collections::{HashSet, VecDeque};
 
-use raylib::{drawing::RaylibDraw, math::Vector2};
-use raylib::drawing::RaylibDrawHandle;
+use raylib::math::Vector2;
 
+use crate::draw::{DrawCommand, DrawCommandBuffer};
+use crate::event::UIEvent;
+use crate::node::VisualKind;
 use crate::{
     arena::{Arena, NodeId},
     layout::compute_anchor_pos,
-    node::{LayoutProps, UiNode, VisualProps, Anchor},
+    node::{Anchor, LayoutProps, UiNode, VisualProps},
 };
 
 pub struct UiContext {
     arena: Arena<UiNode>,
-    root: NodeId,
+    pub root: NodeId,
+    events: VecDeque<UIEvent>,
 }
 
 impl UiContext {
@@ -26,11 +29,13 @@ impl UiContext {
         if let Some(root_node) = arena.get_mut(root_id) {
             root_node.layout.computed_pos = Vector2::zero();
             root_node.layout.computed_size = Vector2::new(screen_w, screen_h);
+            root_node.visual.visible = false;
         }
 
         Self {
             arena,
             root: root_id,
+            events: VecDeque::new(),
         }
     }
 
@@ -81,7 +86,7 @@ impl UiContext {
         order
     }
 
-    pub fn resolve_layout(&mut self) {
+    fn resolve_layout(&mut self) {
         let order = self.build_traversal_order();
 
         for id in &order[1..] {
@@ -112,31 +117,135 @@ impl UiContext {
         }
     }
 
-    pub fn render(&self, d: &mut RaylibDrawHandle) {
-    let order = self.build_traversal_order();
-    let mut hidden: HashSet<NodeId> = HashSet::new();
+    pub fn collect(&self, buf: &mut DrawCommandBuffer) {
+        let order = self.build_traversal_order();
+        let mut hidden: HashSet<NodeId> = HashSet::new();
 
-    for id in order {
-        if let Some(node) = self.arena.get(id) {
+        for (depth, id) in order[1..].iter().enumerate() {
+            if let Some(node) = self.arena.get(*id) {
+                let parent_hidden = node.parent.map(|p| hidden.contains(&p)).unwrap_or(false);
 
-            let parent_hidden = node.parent
-                .map(|p| hidden.contains(&p))
-                .unwrap_or(false);
+                if !node.visual.visible || parent_hidden {
+                    hidden.insert(*id);
+                    continue;
+                }
 
-            if !node.visual.visible || parent_hidden {
-                hidden.insert(id);
-                continue;
+                let color = node.visual.color.alpha(node.visual.opacity);
+                match node.visual.kind {
+                    VisualKind::Rect => {
+                        buf.push(DrawCommand::Rect {
+                            pos: node.layout.computed_pos,
+                            size: node.layout.computed_size,
+                            color,
+                            layer: depth as u8,
+                        });
+                    }
+                    VisualKind::Texture { id } => {
+                        buf.push(DrawCommand::Texture {
+                            texture_id: id,
+                            pos: node.layout.computed_pos,
+                            size: node.layout.computed_size,
+                            tint: color,
+                            layer: depth as u8,
+                        });
+                    }
+                    VisualKind::Shader { id } => {
+                        buf.push(DrawCommand::Shader {
+                            shader_id: id,
+                            pos: node.layout.computed_pos,
+                            size: node.layout.computed_size,
+                            color,
+                            layer: depth as u8,
+                        });
+                    }
+                    VisualKind::ShaderTexture {
+                        shader_id,
+                        texture_id,
+                    } => {
+                        buf.push(DrawCommand::ShaderTexture {
+                            shader_id,
+                            texture_id,
+                            pos: node.layout.computed_pos,
+                            size: node.layout.computed_size,
+                            tint: color,
+                            layer: depth as u8,
+                        });
+                    }
+                }
             }
-
-            let color = node.visual.color.alpha(node.visual.opacity);
-            d.draw_rectangle_v(node.layout.computed_pos, node.layout.computed_size, color);
         }
     }
-}
+
+    pub fn send_event(&mut self, event: UIEvent) {
+        self.events.push_back(event);
+    }
+
+    fn process_event(&mut self) {
+        while let Some(event) = self.events.pop_front() {
+            match event {
+                UIEvent::SetColor { target, color } => {
+                    if let Some(node) = self.arena.get_mut(target) {
+                        node.visual.color = color;
+                        node.dirty.visual_dirty = true;
+                    }
+                }
+                UIEvent::SetOpacity { target, opacity } => {
+                    if let Some(node) = self.arena.get_mut(target) {
+                        node.visual.opacity = opacity;
+                        node.dirty.visual_dirty = true;
+                    }
+                }
+                UIEvent::SetVisible { target, visible } => {
+                    if let Some(node) = self.arena.get_mut(target) {
+                        node.visual.visible = visible;
+                        node.dirty.visual_dirty = true;
+                    }
+                }
+                UIEvent::SetPosition { target, offset } => {
+                    if let Some(node) = self.arena.get_mut(target) {
+                        node.layout.offset = offset;
+                        node.dirty.layout_dirty = true;
+                    }
+                }
+                UIEvent::SetSize { target, size } => {
+                    if let Some(node) = self.arena.get_mut(target) {
+                        node.layout.size = size;
+                        node.dirty.layout_dirty = true;
+                    }
+                }
+                UIEvent::SetTexture { target, id } => {
+                    if let Some(node) = self.arena.get_mut(target) {
+                        node.visual.kind = VisualKind::Texture { id };
+                        node.dirty.visual_dirty = true;
+                    }
+                }
+                UIEvent::SetShader { target, id } => {
+                    if let Some(node) = self.arena.get_mut(target) {
+                        node.visual.kind = VisualKind::Shader { id };
+                        node.dirty.visual_dirty = true;
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn update(&mut self) {
+        self.process_event();
+
+        let need_resolve_layout = self.arena.iter().any(|node| node.dirty.layout_dirty);
+        if need_resolve_layout {
+            self.resolve_layout();
+            for node in self.arena.iter_mut() {
+                node.dirty.layout_dirty = false;
+                node.dirty.visual_dirty = false;
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod test {
+    // dans Arena<T>
 
     use super::*;
     use crate::node::Anchor;

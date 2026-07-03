@@ -206,7 +206,7 @@ fn main() {
                     camera::update(&mut renderer.cam, prev_snapshot.as_ref(), curr, t);
                 }
 
-                ui_ctx.resolve_layout();
+                ui_ctx.update();
                 // rendu 60 Hz
                 renderer.render_frame(
                     prev_snapshot.as_ref(),

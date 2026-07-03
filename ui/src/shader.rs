@@ -1,11 +1,13 @@
-use std::{collections::HashMap, hash::Hash};
 use raylib::prelude::Shader;
+use std::{collections::HashMap, hash::Hash};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ShaderId(u16);
 
 impl ShaderId {
-    pub fn value(&self) -> u16 { self.0 }
+    pub fn value(&self) -> u16 {
+        self.0
+    }
 }
 
 pub struct ShaderRegistry {
@@ -22,6 +24,10 @@ impl ShaderRegistry {
     }
 
     pub fn register(&mut self, shader: Shader) -> ShaderId {
+        debug_assert!(
+            self.next_id < u16::MAX,
+            "ShaderRegistry has reached its maximum capacity of shaders."
+        );
         let id = ShaderId(self.next_id);
         self.shaders.insert(id, shader);
         self.next_id += 1;

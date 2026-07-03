@@ -5,6 +5,7 @@ use raylib::math::Vector2;
 use crate::draw::{DrawCommand, DrawCommandBuffer};
 use crate::event::UIEvent;
 use crate::node::VisualKind;
+use crate::tween::TweenEngine;
 use crate::{
     arena::{Arena, NodeId},
     layout::compute_anchor_pos,
@@ -15,6 +16,7 @@ pub struct UiContext {
     arena: Arena<UiNode>,
     pub root: NodeId,
     events: VecDeque<UIEvent>,
+    pub tween: TweenEngine,
 }
 
 impl UiContext {
@@ -36,6 +38,7 @@ impl UiContext {
             arena,
             root: root_id,
             events: VecDeque::new(),
+            tween: TweenEngine::default(),
         }
     }
 
@@ -170,6 +173,16 @@ impl UiContext {
                             tint: color,
                             layer: depth as u8,
                         });
+                    },
+                    VisualKind::NinePatch { id, margins } => {
+                        buf.push(DrawCommand::NinePatch {
+                            texture_id: id,
+                            pos: node.layout.computed_pos,
+                            size: node.layout.computed_size,
+                            margins,
+                            tint: color,
+                            layer: depth as u8,
+                        });
                     }
                 }
             }
@@ -229,16 +242,24 @@ impl UiContext {
         }
     }
 
-    pub fn update(&mut self) {
+    pub fn update(&mut self, dt: f32) {
+        let mut tween = std::mem::take(&mut self.tween);
+        tween.update(dt);
+
+        for event in tween.drain_events() {
+            self.send_event(event);
+        }
+        self.tween = tween;
+
         self.process_event();
 
         let need_resolve_layout = self.arena.iter().any(|node| node.dirty.layout_dirty);
         if need_resolve_layout {
             self.resolve_layout();
-            for node in self.arena.iter_mut() {
-                node.dirty.layout_dirty = false;
-                node.dirty.visual_dirty = false;
-            }
+        }
+        for node in self.arena.iter_mut() {
+            node.dirty.layout_dirty = false;
+            node.dirty.visual_dirty = false;
         }
     }
 }

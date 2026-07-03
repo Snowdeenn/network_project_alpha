@@ -6,3 +6,4 @@ pub mod draw;
 pub mod texture;
 pub mod shader;
 pub mod event;
+pub mod tween;

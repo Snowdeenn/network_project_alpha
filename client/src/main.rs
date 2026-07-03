@@ -21,6 +21,7 @@ use ui::node::LayoutProps;
 use ui::node::{VisualKind, VisualProps};
 use ui::shader::ShaderRegistry;
 use ui::texture::TextureRegistry;
+use ui::tween::{easing, TweenProperty, Tween};
 
 use crate::event::AppScreen;
 use crate::particle::ParticleSystem;
@@ -53,7 +54,7 @@ fn main() {
         .load_shader_from_memory(&renderer.thread, None, Some(shader_src));
     let shader_id = shader_registry.register(raw_shader);
 
-    ui_ctx.add_node(
+    let node_id = ui_ctx.add_node(
         ui_ctx.root,
         LayoutProps::new(
             Anchor::TopRight,
@@ -67,6 +68,14 @@ fn main() {
             opacity: 1.0,
         },
     );
+    ui_ctx.tween.add(Tween {
+        target: node_id,
+        property: TweenProperty::Opacity { from: 0.0, to: 1.0 },
+        duration: 2.0,
+        elapsed: 0.0,
+        easing: easing::ease_in_out_quad,
+        done: false,
+    });
 
     // tick réseau 20 Hz
     while !renderer.rl.window_should_close() {
@@ -206,7 +215,7 @@ fn main() {
                     camera::update(&mut renderer.cam, prev_snapshot.as_ref(), curr, t);
                 }
 
-                ui_ctx.update();
+                ui_ctx.update(frame_delta.as_secs_f32());
                 // rendu 60 Hz
                 renderer.render_frame(
                     prev_snapshot.as_ref(),

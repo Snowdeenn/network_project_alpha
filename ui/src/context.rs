@@ -134,7 +134,7 @@ impl UiContext {
                 }
 
                 let color = node.visual.color.alpha(node.visual.opacity);
-                match node.visual.kind {
+                match &node.visual.kind {
                     VisualKind::Rect => {
                         buf.push(DrawCommand::Rect {
                             pos: node.layout.computed_pos,
@@ -145,7 +145,7 @@ impl UiContext {
                     }
                     VisualKind::Texture { id } => {
                         buf.push(DrawCommand::Texture {
-                            texture_id: id,
+                            texture_id: *id,
                             pos: node.layout.computed_pos,
                             size: node.layout.computed_size,
                             tint: color,
@@ -154,7 +154,7 @@ impl UiContext {
                     }
                     VisualKind::Shader { id } => {
                         buf.push(DrawCommand::Shader {
-                            shader_id: id,
+                            shader_id: *id,
                             pos: node.layout.computed_pos,
                             size: node.layout.computed_size,
                             color,
@@ -166,21 +166,30 @@ impl UiContext {
                         texture_id,
                     } => {
                         buf.push(DrawCommand::ShaderTexture {
-                            shader_id,
-                            texture_id,
+                            shader_id: *shader_id,
+                            texture_id: *texture_id,
                             pos: node.layout.computed_pos,
                             size: node.layout.computed_size,
                             tint: color,
                             layer: depth as u8,
                         });
-                    },
+                    }
                     VisualKind::NinePatch { id, margins } => {
                         buf.push(DrawCommand::NinePatch {
-                            texture_id: id,
+                            texture_id: *id,
                             pos: node.layout.computed_pos,
                             size: node.layout.computed_size,
-                            margins,
+                            margins: *margins,
                             tint: color,
+                            layer: depth as u8,
+                        });
+                    }
+                    VisualKind::Text { content, font_size } => {
+                        buf.push(DrawCommand::Text {
+                            text: content.clone(),
+                            pos: node.layout.computed_pos,
+                            font_size: *font_size,
+                            color,
                             layer: depth as u8,
                         });
                     }
@@ -236,6 +245,14 @@ impl UiContext {
                     if let Some(node) = self.arena.get_mut(target) {
                         node.visual.kind = VisualKind::Shader { id };
                         node.dirty.visual_dirty = true;
+                    }
+                }
+                UIEvent::SetText { target, content } => {
+                    if let Some(node) = self.arena.get_mut(target) {
+                        if let VisualKind::Text { content: c, .. } = &mut node.visual.kind {
+                            *c = content;
+                            node.dirty.visual_dirty = true;
+                        }
                     }
                 }
             }

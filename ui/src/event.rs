@@ -13,4 +13,6 @@ pub enum UIEvent {
     
     SetTexture  { target: NodeId, id: TextureId },
     SetShader   { target: NodeId, id: ShaderId },
+
+    SetText { target: NodeId, content: String }
 }

@@ -58,6 +58,13 @@ pub enum DrawCommand {
         tint: Color,
         layer: u8,
     },
+    Text {
+        text: String,
+        pos: Vector2,
+        font_size: f32,
+        color: Color,
+        layer: u8,
+    },
 }
 
 pub struct DrawCommandBuffer {
@@ -228,6 +235,16 @@ impl DrawCommandBuffer {
                     }
                     i += 1;
                 }
+                DrawCommand::Text {
+                    text,
+                    pos,
+                    font_size,
+                    color,
+                    ..
+                } => {
+                    d.draw_text(text, pos.x as i32, pos.y as i32, *font_size as i32, *color);
+                    i += 1;
+                }
             }
         }
     }
@@ -251,5 +268,6 @@ fn sort_key(command: &DrawCommand) -> (u8, u16, u16) {
         DrawCommand::NinePatch {
             texture_id, layer, ..
         } => (*layer, texture_id.value(), 0),
+        DrawCommand::Text { layer, .. } => (*layer, 0, 0),
     }
 }

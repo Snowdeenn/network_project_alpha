@@ -1,6 +1,6 @@
 use raylib::prelude::{Color, Vector2};
 
-use crate::{arena::NodeId, shader::ShaderId, texture::TextureId, draw::NinePatchMargins};
+use crate::{arena::NodeId, draw::NinePatchMargins, shader::ShaderId, texture::TextureId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Anchor {
@@ -31,7 +31,7 @@ impl LayoutProps {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum VisualKind {
     Rect,
     Texture {
@@ -47,6 +47,10 @@ pub enum VisualKind {
     NinePatch {
         id: TextureId,
         margins: NinePatchMargins,
+    },
+    Text {
+        content: String,
+        font_size: f32,
     },
 }
 

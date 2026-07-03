@@ -7,3 +7,4 @@ pub mod texture;
 pub mod shader;
 pub mod event;
 pub mod tween;
+pub mod r#macro;

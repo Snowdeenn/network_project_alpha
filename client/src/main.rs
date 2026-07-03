@@ -16,12 +16,14 @@ use shared::protocol::{ShopAction, ShopActionKind};
 use std::time::{Duration, Instant};
 use ui::context::UiContext;
 use ui::draw::DrawCommandBuffer;
+use ui::event::UIEvent;
 use ui::node::Anchor;
 use ui::node::LayoutProps;
 use ui::node::{VisualKind, VisualProps};
 use ui::shader::ShaderRegistry;
 use ui::texture::TextureRegistry;
-use ui::tween::{easing, TweenProperty, Tween};
+use ui::tween::{Tween, TweenProperty, easing};
+use ui::*;
 
 use crate::event::AppScreen;
 use crate::particle::ParticleSystem;
@@ -54,6 +56,12 @@ fn main() {
         .load_shader_from_memory(&renderer.thread, None, Some(shader_src));
     let shader_id = shader_registry.register(raw_shader);
 
+    let sh_pr_bar = include_str!("../../shader/progress_bar.frag");
+    let raw_sh = renderer
+        .rl
+        .load_shader_from_memory(&renderer.thread, None, Some(sh_pr_bar));
+    let sh_pr_id = shader_registry.register(raw_sh);
+
     let node_id = ui_ctx.add_node(
         ui_ctx.root,
         LayoutProps::new(
@@ -76,6 +84,27 @@ fn main() {
         easing: easing::ease_in_out_quad,
         done: false,
     });
+    let _label_id = text_label! {
+        ctx: ui_ctx,
+        parent: ui_ctx.root,
+        anchor: Anchor::BottomLeft,
+        offset: Vector2::new(20.0, 20.0),
+        size: Vector2::new(200.0, 30.0),
+        content: "Wave 1",
+        font_size: 24.0,
+        color: Color::WHITE,
+    };
+
+    let (_bg_id, fill_id) = progress_bar!(
+        ctx: ui_ctx,
+        parent: ui_ctx.root,
+        anchor: Anchor::BottomRight,
+        offset: Vector2::new(50.0, 50.0),
+        size: Vector2::new(200.0, 30.0),
+        bg: Color::GRAY,
+        fill_color: Color::GREEN,
+        shader: sh_pr_id,
+    );
 
     // tick réseau 20 Hz
     while !renderer.rl.window_should_close() {
@@ -149,11 +178,27 @@ fn main() {
                     // }
                 }
 
-                // réception à chaque frame, pas seulement au tick
                 while let Some(snap) = client.recv_snapshot() {
                     prev_snapshot = last_snapshot.take();
                     last_snapshot = Some(snap);
                     last_snap_time = Instant::now();
+                }
+
+                // après la boucle, lire depuis last_snapshot qui possède le snap
+                if let Some(snap) = &last_snapshot {
+                    if let Some(info) = &snap.player_info {
+                        let ratio = info.health / info.max_health;
+
+                        ui_ctx.send_event(UIEvent::SetSize {
+                            target: fill_id,
+                            size: Vector2::new(200.0 * ratio, 30.0),
+                        });
+
+                        if let Some(shader) = shader_registry.get_mut(sh_pr_id) {
+                            let loc = shader.get_shader_location("u_ratio");
+                            shader.set_shader_value(loc, ratio);
+                        }
+                    }
                 }
 
                 client_state.debug.cleared = false;

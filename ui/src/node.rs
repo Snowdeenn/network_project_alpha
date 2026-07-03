@@ -1,6 +1,6 @@
 use raylib::prelude::{Color, Vector2};
 
-use crate::arena::NodeId;
+use crate::{arena::NodeId, shader::ShaderId, texture::TextureId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Anchor {
@@ -31,7 +31,19 @@ impl LayoutProps {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum VisualKind {
+    Rect,
+    Texture { id: TextureId },
+    Shader { id: ShaderId },
+    ShaderTexture { 
+        shader_id: ShaderId, 
+        texture_id: TextureId 
+    },
+}
+
 pub struct VisualProps {
+    pub kind: VisualKind,
     pub color: Color,
     pub visible: bool,
     pub opacity: f32,
@@ -40,6 +52,7 @@ pub struct VisualProps {
 impl Default for VisualProps {
     fn default() -> Self {
         VisualProps {
+            kind: VisualKind::Rect,
             color: Color::WHITE,
             visible: true,
             opacity: 1.0,

@@ -95,3 +95,34 @@ macro_rules! progress_bar {
             }
     }
 }
+
+#[macro_export]
+macro_rules! bouton {
+    (ctx: $ctx:expr, parent: $parent:expr, anchor: $anchor:expr, offset: $offset:expr, 
+        size: $size:expr, normal: $normal:expr, hover: $hover:expr, pressed: $pressed:expr, $(,)?) => {
+        {
+            use ui::node::{LayoutProps, VisualProps, VisualKind, Anchor};
+            use ui::input::{Interact, InteractState, ButtonStyle};
+            
+            let _id = $ctx.add_node(
+                $parent,
+                LayoutProps::new($anchor, $offset, $size),
+                VisualProps {
+                    kind: VisualKind::Rect,
+                    color: $normal,
+                    opacity: 1.0,
+                    visible: true,
+                },
+            );
+            $ctx.set_interact(_id, Interact {
+                state: InteractState::Normal,
+                style: ButtonStyle {
+                    normal:  $normal,
+                    hover:   $hover,
+                    pressed: $pressed,
+                },
+            });
+            _id
+        } 
+    };
+}

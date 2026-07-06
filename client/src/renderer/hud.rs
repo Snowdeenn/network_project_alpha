@@ -37,6 +37,7 @@ pub fn render(
             s.font(0.015),
             Color::WHITE,
         );
+        
 
         d.draw_text(
             &format!("Or : {}", info.gold),

@@ -1,6 +1,7 @@
 use raylib::prelude::{Color, Vector2};
 
 use crate::{arena::NodeId, draw::NinePatchMargins, shader::ShaderId, texture::TextureId};
+use crate::input::{Interact};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Anchor {
@@ -89,6 +90,7 @@ impl Default for DirtyFlags {
 pub struct UiNode {
     pub layout: LayoutProps,
     pub visual: VisualProps,
+    pub interact: Option<Interact>,
     pub children: Vec<NodeId>,
     pub parent: Option<NodeId>,
     pub dirty: DirtyFlags,
@@ -102,6 +104,7 @@ impl UiNode {
             children: Vec::new(),
             parent: None,
             dirty: DirtyFlags::default(),
+            interact: None,
         }
     }
 }

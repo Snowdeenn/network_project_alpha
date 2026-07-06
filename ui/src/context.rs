@@ -1,16 +1,20 @@
 use std::collections::{HashSet, VecDeque};
 
 use raylib::math::Vector2;
+use raylib::prelude::Rectangle;
 
 use crate::draw::{DrawCommand, DrawCommandBuffer};
 use crate::event::UIEvent;
+use crate::input::InteractState;
 use crate::node::VisualKind;
+use crate::output::UIOutputEvent;
 use crate::tween::TweenEngine;
 use crate::{
     arena::{Arena, NodeId},
     layout::compute_anchor_pos,
     node::{Anchor, LayoutProps, UiNode, VisualProps},
 };
+use crate::input::Interact;
 
 pub struct UiContext {
     arena: Arena<UiNode>,
@@ -279,6 +283,76 @@ impl UiContext {
             node.dirty.visual_dirty = false;
         }
     }
+
+    pub fn process_input(
+        &mut self,
+        mouse_pos: Vector2,
+        mouse_pressed: bool,
+        mouse_released: bool,
+    ) -> Vec<UIOutputEvent> {
+        let mut output = Vec::new();
+        let order = self.build_traversal_order();
+
+        for id in order.iter().rev() {
+            let Some(node) = self.arena.get_mut(*id) else {
+                continue;
+            };
+            let Some(interact) = &mut node.interact else {
+                continue;
+            };
+
+            let bounds = Rectangle {
+                x: node.layout.computed_pos.x,
+                y: node.layout.computed_pos.y,
+                width: node.layout.computed_size.x,
+                height: node.layout.computed_size.y,
+            };
+
+            let hovered = bounds.check_collision_point_rec(mouse_pos);
+
+            let new_state = if hovered && mouse_pressed {
+                InteractState::Pressed
+            } else if hovered {
+                InteractState::Hover
+            } else {
+                InteractState::Normal
+            };
+
+            if new_state != interact.state {
+                let color = match new_state {
+                    InteractState::Normal => interact.style.normal,
+                    InteractState::Hover => interact.style.hover,
+                    InteractState::Pressed => interact.style.pressed,
+                };
+                node.visual.color = color;
+                node.dirty.visual_dirty = true;
+            }
+
+            match new_state {
+                InteractState::Pressed => output.push(UIOutputEvent::Clicked { id: *id }),
+                InteractState::Hover => output.push(UIOutputEvent::Hovered { id: *id }),
+                InteractState::Normal => {
+                    if interact.state == InteractState::Pressed && mouse_released {
+                        output.push(UIOutputEvent::Released { id: *id });
+                    }
+                }
+            }
+
+            interact.state = new_state;
+
+            if hovered {
+                break;
+            }
+        }
+
+        output
+    }
+
+    pub fn set_interact(&mut self, id: NodeId, interact: Interact) {
+    if let Some(node) = self.arena.get_mut(id) {
+        node.interact = Some(interact);
+    }
+}
 }
 
 #[cfg(test)]

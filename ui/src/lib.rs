@@ -8,3 +8,5 @@ pub mod shader;
 pub mod event;
 pub mod tween;
 pub mod r#macro;
+pub mod input;
+pub mod output;

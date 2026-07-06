@@ -17,9 +17,11 @@ use std::time::{Duration, Instant};
 use ui::context::UiContext;
 use ui::draw::DrawCommandBuffer;
 use ui::event::UIEvent;
+use ui::input::*;
 use ui::node::Anchor;
 use ui::node::LayoutProps;
 use ui::node::{VisualKind, VisualProps};
+use ui::output::UIOutputEvent;
 use ui::shader::ShaderRegistry;
 use ui::texture::TextureRegistry;
 use ui::tween::{Tween, TweenProperty, easing};
@@ -105,6 +107,17 @@ fn main() {
         fill_color: Color::GREEN,
         shader: sh_pr_id,
     );
+
+    let btn_id = bouton! {
+        ctx: ui_ctx,
+        parent: ui_ctx.root,
+        anchor: Anchor::Center,
+        offset: Vector2::zero(),
+        size: Vector2::new(200.0, 50.0),
+        normal:  Color::BLUE,
+        hover:   Color::SKYBLUE,
+        pressed: Color::DARKBLUE,
+    };
 
     // tick réseau 20 Hz
     while !renderer.rl.window_should_close() {
@@ -198,6 +211,23 @@ fn main() {
                             let loc = shader.get_shader_location("u_ratio");
                             shader.set_shader_value(loc, ratio);
                         }
+                    }
+                }
+
+                let mouse_pos = renderer.rl.get_mouse_position();
+                let pressed = renderer
+                    .rl
+                    .is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT);
+                let released = renderer
+                    .rl
+                    .is_mouse_button_released(MouseButton::MOUSE_BUTTON_LEFT);
+
+                let events = ui_ctx.process_input(mouse_pos, pressed, released);
+                for event in events {
+                    match event {
+                        UIOutputEvent::Clicked { id } if id == btn_id => println!("cliqué !"),
+                        UIOutputEvent::Hovered { id } if id == btn_id => println!("survol !"),
+                        _ => {}
                     }
                 }
 

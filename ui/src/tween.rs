@@ -1,6 +1,6 @@
 use raylib::{color::Color, math::Vector2};
 
-use crate::{arena::NodeId, event::UIEvent};
+use crate::{arena::NodeId, event::UIEvent, node::UiVec2};
 
 // ==================================
 // Fonction d'Easing
@@ -98,14 +98,14 @@ impl TweenEngine {
                     let offset = from + (to - from) * t_ease;
                     self.event.push(UIEvent::SetPosition {
                         target: tween.target,
-                        offset,
+                        offset: UiVec2::pixels(offset.x, offset.y),
                     });
                 }
                 TweenProperty::Size { from, to } => {
                     let size = from + (to - from) * t_ease;
                     self.event.push(UIEvent::SetSize {
                         target: tween.target,
-                        size,
+                        size: UiVec2::pixels(size.x, size.y),
                     });
                 }
                 TweenProperty::Opacity { from, to } => {

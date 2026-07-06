@@ -17,8 +17,7 @@ use std::time::{Duration, Instant};
 use ui::context::UiContext;
 use ui::draw::DrawCommandBuffer;
 use ui::event::UIEvent;
-use ui::input::*;
-use ui::node::Anchor;
+use ui::node::{Anchor, UiVec2};
 use ui::node::LayoutProps;
 use ui::node::{VisualKind, VisualProps};
 use ui::output::UIOutputEvent;
@@ -68,8 +67,8 @@ fn main() {
         ui_ctx.root,
         LayoutProps::new(
             Anchor::TopRight,
-            Vector2::new(20.0, 20.0),
-            Vector2::new(180.0, 40.0),
+            UiVec2::pixels(20.0, 20.0),
+            UiVec2::pixels(180.0, 40.0),
         ),
         VisualProps {
             kind: VisualKind::Shader { id: shader_id },
@@ -90,8 +89,8 @@ fn main() {
         ctx: ui_ctx,
         parent: ui_ctx.root,
         anchor: Anchor::BottomLeft,
-        offset: Vector2::new(20.0, 20.0),
-        size: Vector2::new(200.0, 30.0),
+        offset: UiVec2::pixels(20.0, 20.0),
+        size: UiVec2::pixels(200.0, 30.0),
         content: "Wave 1",
         font_size: 24.0,
         color: Color::WHITE,
@@ -101,8 +100,8 @@ fn main() {
         ctx: ui_ctx,
         parent: ui_ctx.root,
         anchor: Anchor::BottomRight,
-        offset: Vector2::new(50.0, 50.0),
-        size: Vector2::new(200.0, 30.0),
+        offset: UiVec2::pixels(50.0, 50.0),
+        size: UiVec2::pixels(200.0, 30.0),
         bg: Color::GRAY,
         fill_color: Color::GREEN,
         shader: sh_pr_id,
@@ -112,8 +111,8 @@ fn main() {
         ctx: ui_ctx,
         parent: ui_ctx.root,
         anchor: Anchor::Center,
-        offset: Vector2::zero(),
-        size: Vector2::new(200.0, 50.0),
+        offset: UiVec2::pixels(0.0, 0.0),
+        size: UiVec2::pixels(200.0, 50.0),
         normal:  Color::BLUE,
         hover:   Color::SKYBLUE,
         pressed: Color::DARKBLUE,
@@ -204,7 +203,7 @@ fn main() {
 
                         ui_ctx.send_event(UIEvent::SetSize {
                             target: fill_id,
-                            size: Vector2::new(200.0 * ratio, 30.0),
+                            size: UiVec2::pixels(200.0 * ratio, 30.0),
                         });
 
                         if let Some(shader) = shader_registry.get_mut(sh_pr_id) {

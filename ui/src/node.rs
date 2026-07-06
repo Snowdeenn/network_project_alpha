@@ -14,14 +14,14 @@ pub enum Anchor {
 
 pub struct LayoutProps {
     pub anchor: Anchor,
-    pub offset: Vector2,
-    pub size: Vector2,
+    pub offset: UiVec2,
+    pub size: UiVec2,
     pub(crate) computed_pos: Vector2,
     pub(crate) computed_size: Vector2,
 }
 
 impl LayoutProps {
-    pub fn new(anchor: Anchor, offset: Vector2, size: Vector2) -> Self {
+    pub fn new(anchor: Anchor, offset: UiVec2, size: UiVec2) -> Self {
         LayoutProps {
             anchor,
             offset,
@@ -97,7 +97,7 @@ pub struct UiNode {
 }
 
 impl UiNode {
-    pub fn new(anchor: Anchor, offset: Vector2, size: Vector2) -> Self {
+    pub fn new(anchor: Anchor, offset: UiVec2, size: UiVec2) -> Self {
         Self {
             layout: LayoutProps::new(anchor, offset, size),
             visual: VisualProps::default(),
@@ -105,6 +105,37 @@ impl UiNode {
             parent: None,
             dirty: DirtyFlags::default(),
             interact: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum UiUnit {
+    Pixels(f32),          // valeur fixe en pixels
+    ScreenWidth(f32),     // ratio de la largeur de l'écran  (0.1 = 10% de screen_w)
+    ScreenHeight(f32),    // ratio de la hauteur de l'écran  (0.1 = 10% de screen_h)
+    ParentPercent(f32),   // ratio de la dimension du parent (0.5 = 50% du parent)
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct UiVec2 {
+    pub x: UiUnit,
+    pub y: UiUnit,
+}
+
+impl UiVec2 {
+    pub fn new(x: UiUnit, y: UiUnit) -> Self {
+        Self { x, y }
+    }
+
+    pub fn pixels(x: f32, y: f32) -> Self {
+        Self { x: UiUnit::Pixels(x), y: UiUnit::Pixels(y) }
+    }
+    
+    pub fn screen(x: f32, y: f32) -> Self {
+        Self { 
+            x: UiUnit::ScreenWidth(x), 
+            y: UiUnit::ScreenHeight(y) 
         }
     }
 }

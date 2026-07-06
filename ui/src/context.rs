@@ -5,8 +5,9 @@ use raylib::prelude::Rectangle;
 
 use crate::draw::{DrawCommand, DrawCommandBuffer};
 use crate::event::UIEvent;
+use crate::input::Interact;
 use crate::input::InteractState;
-use crate::node::VisualKind;
+use crate::node::{UiVec2, VisualKind};
 use crate::output::UIOutputEvent;
 use crate::tween::TweenEngine;
 use crate::{
@@ -14,13 +15,14 @@ use crate::{
     layout::compute_anchor_pos,
     node::{Anchor, LayoutProps, UiNode, VisualProps},
 };
-use crate::input::Interact;
 
 pub struct UiContext {
     arena: Arena<UiNode>,
     pub root: NodeId,
     events: VecDeque<UIEvent>,
     pub tween: TweenEngine,
+    screen_w: f32,
+    screen_h: f32,
 }
 
 impl UiContext {
@@ -28,8 +30,8 @@ impl UiContext {
         let mut arena: Arena<UiNode> = Arena::new();
         let root_id = arena.insert(UiNode::new(
             Anchor::Center,
-            Vector2::zero(),
-            Vector2::new(screen_w, screen_h),
+            UiVec2::pixels(0.0, 0.0),
+            UiVec2::pixels(screen_w, screen_h),
         ));
 
         if let Some(root_node) = arena.get_mut(root_id) {
@@ -43,6 +45,8 @@ impl UiContext {
             root: root_id,
             events: VecDeque::new(),
             tween: TweenEngine::default(),
+            screen_h,
+            screen_w,
         }
     }
 
@@ -116,7 +120,15 @@ impl UiContext {
                 continue;
             };
 
-            let new_pos = compute_anchor_pos(anchor, offset, size, parent_pos, parent_size);
+            let (new_pos, size) = compute_anchor_pos(
+                anchor,
+                offset,
+                size,
+                parent_pos,
+                parent_size,
+                self.screen_w,
+                self.screen_h,
+            );
             if let Some(node) = self.arena.get_mut(*id) {
                 node.layout.computed_pos = new_pos;
                 node.layout.computed_size = size;
@@ -349,10 +361,10 @@ impl UiContext {
     }
 
     pub fn set_interact(&mut self, id: NodeId, interact: Interact) {
-    if let Some(node) = self.arena.get_mut(id) {
-        node.interact = Some(interact);
+        if let Some(node) = self.arena.get_mut(id) {
+            node.interact = Some(interact);
+        }
     }
-}
 }
 
 #[cfg(test)]
@@ -367,8 +379,8 @@ mod test {
             UiContext::new(1920.0, 1080.0),
             LayoutProps::new(
                 Anchor::Center,
-                Vector2::new(20.0, 20.0),
-                Vector2::new(180.0, 40.0),
+                UiVec2::pixels(20.0, 20.0),
+                UiVec2::pixels(180.0, 40.0),
             ),
             VisualProps::default(),
         )
@@ -405,8 +417,8 @@ mod test {
         let mut ui_ctx = UiContext::new(1920.0, 1080.0);
         let layout = LayoutProps::new(
             Anchor::TopRight,
-            Vector2::new(20.0, 20.0),
-            Vector2::new(180.0, 40.0),
+            UiVec2::pixels(20.0, 20.0),
+            UiVec2::pixels(180.0, 40.0),
         );
         let node_id = ui_ctx.add_node(ui_ctx.root, layout, VisualProps::default());
         ui_ctx.resolve_layout();

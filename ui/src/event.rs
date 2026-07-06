@@ -1,5 +1,6 @@
 use crate::arena::NodeId;
-use raylib::prelude::{Color, Vector2};
+use crate::node::UiVec2;
+use raylib::prelude::{Color};
 use crate::texture::TextureId;
 use crate::shader::ShaderId;
 
@@ -8,8 +9,8 @@ pub enum UIEvent {
     SetOpacity { target: NodeId, opacity: f32 },
     SetVisible { target: NodeId, visible: bool },
     
-    SetPosition { target: NodeId, offset: Vector2 },
-    SetSize     { target: NodeId, size: Vector2 },
+    SetPosition { target: NodeId, offset: UiVec2 },
+    SetSize     { target: NodeId, size: UiVec2 },
     
     SetTexture  { target: NodeId, id: TextureId },
     SetShader   { target: NodeId, id: ShaderId },

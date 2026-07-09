@@ -7,18 +7,21 @@ mod particle;
 mod renderer;
 mod screens;
 
+use crate::particle::Particle;
+use crate::renderer::types::{FrameState, RenderContext};
 use net::client::GameNetClient;
 use raylib::ffi::{KeyboardKey, MouseButton};
 use raylib::prelude::*;
 use renderer::Renderer;
+use shared::protocol::EntityKind;
 use shared::protocol::StateSnapshot;
 use shared::protocol::{ShopAction, ShopActionKind};
 use std::time::{Duration, Instant};
 use ui::context::UiContext;
 use ui::draw::DrawCommandBuffer;
 use ui::event::UIEvent;
-use ui::node::{Anchor, UiVec2};
 use ui::node::LayoutProps;
+use ui::node::{Anchor, UiVec2};
 use ui::node::{VisualKind, VisualProps};
 use ui::output::UIOutputEvent;
 use ui::shader::ShaderRegistry;
@@ -178,6 +181,7 @@ fn main() {
                 screens::lobby::render(&mut d, state, &renderer.screen_scale);
             }
             AppScreen::InGame(client_state) => {
+                let dt = renderer.rl.get_frame_time();
                 let client = client.as_mut().expect("InGame sans client réseau");
                 if renderer.rl.is_key_pressed(KeyboardKey::KEY_F2) {
                     client_state.debug.cycle();
@@ -209,6 +213,50 @@ fn main() {
                         if let Some(shader) = shader_registry.get_mut(sh_pr_id) {
                             let loc = shader.get_shader_location("u_ratio");
                             shader.set_shader_value(loc, ratio);
+                        }
+                    }
+
+                    // Spawn Particle
+                    for entity in &snap.entities {
+                        let prev_entity = prev_snapshot.as_ref().and_then(|p| {
+                            p.entities.iter().find(|e| e.entity_id == entity.entity_id)
+                        });
+
+                        let t = (last_snap_time.elapsed().as_secs_f32()
+                            / TICK_DURATION.as_secs_f32())
+                        .clamp(0.0, 1.0);
+
+                        let (x, y) = match prev_entity {
+                            Some(prev) => (
+                                lerp(prev.position[0], entity.position[0], t),
+                                lerp(prev.position[1], entity.position[1], t),
+                            ),
+                            None => (entity.position[0], entity.position[1]),
+                        };
+                        if matches!(entity.entity_kind, EntityKind::Player) {
+                            if let Some(prev) = prev_entity {
+                                let dx = entity.position[0] - prev.position[0];
+                                let dy = entity.position[1] - prev.position[1];
+                                if dx.abs() > 0.05 || dy.abs() > 0.05 {
+                                    let lifetime = rand::random_range(0.18..0.32f32);
+                                    particle_system.spawn(Particle {
+                                        pos: Vector2 {
+                                            x: x + rand::random_range(-20.0..20.0),
+                                            y: y + 20.0,
+                                        },
+                                        velocity: Vector2 {
+                                            x: (-dx * 4.0) + rand::random_range(-20.0..20.0),
+                                            y: rand::random_range(-50.0..-20.0),
+                                        },
+                                        friction: 4.5,
+                                        lifetime,
+                                        lt_max: lifetime,
+                                        scale: 0.1,
+                                        growth: 6.5,
+                                        color: Color::LIGHTGRAY,
+                                    });
+                                }
+                            }
                         }
                     }
                 }
@@ -282,6 +330,12 @@ fn main() {
                     tick_id += 1;
                 }
 
+                // Maj logique
+                {
+                    client_state.update_timers(dt);
+                    particle_system.update(dt);
+                }
+
                 // caméra
                 if let Some(curr) = &last_snapshot {
                     let t = (last_snap_time.elapsed().as_secs_f32() / TICK_DURATION.as_secs_f32())
@@ -292,15 +346,19 @@ fn main() {
                 ui_ctx.update(frame_delta.as_secs_f32());
                 // rendu 60 Hz
                 renderer.render_frame(
-                    prev_snapshot.as_ref(),
-                    last_snapshot.as_ref(),
-                    last_snap_time,
+                    FrameState {
+                        current: last_snapshot.as_ref(),
+                        prev: prev_snapshot.as_ref(),
+                        last_snap_time,
+                    },
                     client_state,
-                    &mut particle_system,
-                    &mut draw_buffer,
-                    &tex_registry,
-                    &mut shader_registry,
-                    &mut ui_ctx,
+                    &particle_system,
+                    &mut RenderContext {
+                        buffer: &mut draw_buffer,
+                        tex_registry: &tex_registry,
+                        shader_registry: &mut shader_registry,
+                        ui_ctx: &mut ui_ctx,
+                    }
                 );
             }
         }

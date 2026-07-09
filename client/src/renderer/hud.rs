@@ -55,7 +55,7 @@ fn with_alpha(c: Color, alpha: u8) -> Color {
     Color::new(c.r, c.g, c.b, alpha)
 }
 
-pub fn render_shop(d: &mut RaylibDrawHandle, state: &mut ClientState, s: &ScreenScale) {
+pub fn render_shop(d: &mut RaylibDrawHandle, state: &ClientState, s: &ScreenScale) {
     if !state.phase.can_show_shop() {
         return;
     }

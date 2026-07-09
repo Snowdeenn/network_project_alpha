@@ -1,24 +1,20 @@
 pub mod animation;
 pub mod debug_ui;
 pub mod hud;
+pub mod pipeline;
 pub mod texture;
+pub mod types;
 
-use crate::TICK_DURATION;
 use crate::config::*;
 use crate::event::ClientState;
-use crate::event::GamePhase;
-use crate::particle::{Particle, ParticleSystem};
+use crate::particle::ParticleSystem;
 use crate::renderer::animation::AnimEntity;
 use crate::renderer::texture::{BossState, EnemyState, PlayerState, TextureId, TextureManager};
+use crate::renderer::types::*;
 use raylib::prelude::*;
 use raylib_imgui::RaylibGui;
 use shared::protocol::{EntityKind, EntityState, StateSnapshot};
-use ui::context::UiContext;
-use ui::shader::ShaderRegistry;
-use ui::texture::TextureRegistry;
 use std::collections::HashMap;
-use std::time::Instant;
-use ui::draw::{DrawCommandBuffer};
 
 #[derive(Clone, Copy)]
 pub struct ScreenScale {
@@ -110,109 +106,39 @@ impl Renderer {
 
     pub fn render_frame(
         &mut self,
-        prev: Option<&StateSnapshot>,
-        current: Option<&StateSnapshot>,
-        last_snap_time: Instant,
+        frame: FrameState,
         client_state: &mut ClientState,
-        particle_system: &mut ParticleSystem,
-        buffer: &mut DrawCommandBuffer,
-        tex_registry: &TextureRegistry,
-        shader_registry: &mut ShaderRegistry,
-        ui_ctx: &mut UiContext,
+        particle_system: &ParticleSystem,
+        ctx: &mut RenderContext,
     ) {
-        let t =
-            (last_snap_time.elapsed().as_secs_f32() / TICK_DURATION.as_secs_f32()).clamp(0.0, 1.0);
-        let s = &self.screen_scale;
-
-        let ui = { self.imgui.begin(&mut self.rl) };
-        let mut d = { self.rl.begin_drawing(&self.thread) };
-
-        let dt = d.get_frame_time();
-        client_state.update_timers(dt);
-        particle_system.update(dt);
-
+        let ui = self.imgui.begin(&mut self.rl);
+        let mut d = self.rl.begin_drawing(&self.thread);
         d.clear_background(Color::BLACK);
 
-        {
-            let mut d2 = d.begin_mode2D(self.cam);
-            match current {
-                None => {
-                    d2.draw_text("Connexion...", -80, -10, 20, Color::WHITE);
-                }
-                Some(curr) => match client_state.phase {
-                    GamePhase::Dead => {
-                        let text = " YOU'RE DEAD";
-                        d2.draw_text(
-                            text,
-                            s.x(750.0 / 1920.0),
-                            s.y(500.0 / 1080.0),
-                            s.font(120.0 / 1920.0),
-                            Color::RED,
-                        );
-                    }
-                    _ => render_world(
-                        &mut d2,
-                        particle_system,
-                        &self.texture,
-                        &mut self.anim_entities,
-                        prev,
-                        curr,
-                        t,
-                        dt,
-                    ),
-                },
-            }
-        }
+        let dt = d.get_frame_time();
 
-        if let Some(snap) = current {
-            hud::render(&mut d, snap, s);
-        }
-
-        {
-            match client_state.phase {
-                GamePhase::BetweenWave { time_remaining, .. } => {
-                    let remaining = format!(
-                        " Temps avant la prochaine vague {}s",
-                        time_remaining.as_secs()
-                    );
-                    d.draw_text(
-                        &remaining,
-                        s.x(WAVE_TIMER_X),
-                        s.y(WAVE_TIMER_Y),
-                        s.font(WAVE_TIMER_FONT),
-                        Color::RED,
-                    );
-
-                    if client_state.phase.can_show_shop() {
-                        d.draw_text(
-                            "Shop disponible — appuie sur G",
-                            s.x(HUD_SHOP_NOTIF_X),
-                            s.y(HUD_SHOP_NOTIF_Y),
-                            s.font(HUD_SHOP_NOTIF_FONT),
-                            Color::GOLD,
-                        );
-                    }
-                }
-                _ => (),
-            }
-        }
-
-        ui_ctx.collect(buffer);
-        buffer.sort();
-        buffer.flush(&mut d, tex_registry, shader_registry);
-        buffer.clear();
+        Self::render_game_world(
+            &mut d,
+            &frame,
+            client_state,
+            particle_system,
+            dt,
+            self.cam,
+            &self.screen_scale,
+            &self.texture,
+            &mut self.anim_entities,
+        );
+        Self::render_game_hud(&mut d, &frame, client_state, &self.screen_scale);
+        Self::render_ui_frameworks(&mut d, ctx, ui, client_state, &self.cam);
         
-        hud::render_shop(&mut d, client_state, s);
-        debug_ui::process_debug(ui, &mut d, &self.cam, client_state);
         self.imgui.end();
-
         d.draw_fps(self.screen_w - 100, 20);
     }
 }
 
 fn render_world(
     d: &mut RaylibMode2D<RaylibDrawHandle>,
-    particle_system: &mut ParticleSystem,
+    particle_system: &ParticleSystem,
     textures: &TextureManager,
     anim_entities: &mut HashMap<u64, AnimEntity>,
     prev: Option<&StateSnapshot>,
@@ -253,42 +179,9 @@ fn render_world(
 
             let origin = Vector2::new(scaled_w / 2.0, scaled_h / 2.0);
 
-            d.draw_texture_pro(
-                &tex,
-                source_rec,
-                dest_rec,
-                origin,
-                0.0,
-                Color::WHITE,
-            );
+            d.draw_texture_pro(&tex, source_rec, dest_rec, origin, 0.0, Color::WHITE);
         } else {
             draw_fallback(d, &entity.entity_kind, x, y, entity);
-        }
-
-        if matches!(entity.entity_kind, EntityKind::Player) {
-            if let Some(prev) = prev_entity {
-                let dx = entity.position[0] - prev.position[0];
-                let dy = entity.position[1] - prev.position[1];
-                if dx.abs() > 0.05 || dy.abs() > 0.05 {
-                    let lifetime = rand::random_range(0.18..0.32f32);
-                    particle_system.spawn(Particle {
-                        pos: Vector2 {
-                            x: x + rand::random_range(-20.0..20.0),
-                            y: y + 20.0,
-                        },
-                        velocity: Vector2 {
-                            x: (-dx * 4.0) + rand::random_range(-20.0..20.0),
-                            y: rand::random_range(-50.0..-20.0),
-                        },
-                        friction: 4.5,
-                        lifetime,
-                        lt_max: lifetime,
-                        scale: 0.1,
-                        growth: 6.5,
-                        color: Color::LIGHTGRAY,
-                    });
-                }
-            }
         }
     }
 

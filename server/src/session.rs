@@ -34,9 +34,6 @@ impl SessionState {
 
     /// Retourne le slot_index attribué, ou None si la session est pleine ou InGame
     pub fn add_slot(&mut self, client_id: u64, game_cfg: &GameConfig) -> Option<u8> {
-        if matches!(self.phase, LobbyPhase::InGame) {
-            return None;
-        }
 
         let slot_index = self.slots.iter().position(|s| s.is_none())?;
         if slot_index >= game_cfg.max_players as usize {

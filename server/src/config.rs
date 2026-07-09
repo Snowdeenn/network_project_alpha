@@ -18,3 +18,15 @@ pub struct PhysicsConfig {
     pub dash_duration_ms: u32, 
     pub dash_cooldown_secs: f64, 
 }
+
+#[derive(Debug)]
+pub struct SharedLives {
+    pub remaining: u32,
+    pub max: u32,
+}
+
+impl SharedLives {
+    pub fn new(max: u32) -> Self {
+        Self { remaining: max, max }
+    }
+}

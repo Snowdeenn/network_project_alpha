@@ -62,3 +62,8 @@ pub const SOLD_ANIM_DURATION: f32 = 1.5;
 pub const WAVE_TIMER_X: f32 = 690.0 / 1920.0;
 pub const WAVE_TIMER_Y: f32 = 60.0 / 1080.0;
 pub const WAVE_TIMER_FONT: f32 = 30.0 / 1080.0;
+
+// --- Shared Lives ---
+pub const SHARED_LIVES_X: f32 = 1750.0 / 1920.0;
+pub const SHARED_LIVES_Y: f32 = 60.0 / 1080.0;
+pub const SHARED_LIVES_FONT: f32 = 30.0 / 1080.0;

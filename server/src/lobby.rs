@@ -1,15 +1,17 @@
 use crate::EntityToClient;
+use crate::config::SharedLives;
 use crate::net::server::GameNetServer;
 use crate::next_id;
 use crate::session::{LobbyPhase, SessionState};
 use crate::simulation::components::Position;
+use crate::simulation::event::GameEventQueue;
 use crate::simulation::systems::spawn::spawn_player;
 use crate::simulation::wave::{WaveManager, WaveState};
 use legion::Entity;
 use legion::Resources;
 use legion::World;
 use shared::config::{ClassRegistery, GameConfig};
-use shared::protocol::{LobbyMessage, SessionErrorKind};
+use shared::protocol::{GameEvent, LobbyMessage, SessionErrorKind, GameEventKind};
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -113,6 +115,14 @@ fn start_game(session: &mut SessionState, world: &mut World, resources: &mut Res
     // Débloquer le WaveManager
     if let Some(mut wm) = resources.get_mut::<WaveManager>() {
         wm.wave_state = WaveState::InProgress;
+    }
+
+    if let Some(lives) = resources.get::<SharedLives>() {
+        if let Some(mut event_queue) = resources.get_mut::<GameEventQueue>() {
+            event_queue.0.push(GameEvent {
+                kind: GameEventKind::SharedLivesUpdate { remaining: lives.remaining, max: lives.max }
+            });
+        }
     }
 }
 

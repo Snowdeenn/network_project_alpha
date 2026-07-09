@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 shared  = { path = "../shared" }
+ui = { path = "../ui" }
 serde = { version = "1.0", feature = [ "derive" ] }
 serde_json = "1.0"
 renet   = "2.0.0"

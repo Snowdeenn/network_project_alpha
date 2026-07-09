@@ -165,6 +165,13 @@ Style hand-painted minimaliste : formes simples, brosses texturées, palette pas
 - [ ] Shader post-process bloom (GLSL, optionnel)
 - [ ] Lumières douces sur les projectiles ennemis
 
+## Renderer / Engine
+- [ ] ShaderManager global : gestion unifiée de tous les shaders du jeu
+       (monde, post-process, UI), API pour set_uniform, hot-reload GLSL,
+       évite d'avoir ShaderRegistry UI et les shaders renderer en silos séparés
+- [ ] TextureManager refactor : aligner avec le pattern handle-based du framework UI
+       (TextureId générationnel, registry centralisé)
+
 ---
 
 ## Phase 6 — Boss & équilibrage ⏳

@@ -1,3 +1,5 @@
+use std::ops::{Add, Div, Mul, Sub};
+
 use raylib::prelude::{Color, Vector2};
 
 use crate::{arena::NodeId, draw::NinePatchMargins, shader::ShaderId, texture::TextureId};
@@ -115,6 +117,78 @@ pub enum UiUnit {
     ScreenWidth(f32),     // ratio de la largeur de l'écran  (0.1 = 10% de screen_w)
     ScreenHeight(f32),    // ratio de la hauteur de l'écran  (0.1 = 10% de screen_h)
     ParentPercent(f32),   // ratio de la dimension du parent (0.5 = 50% du parent)
+}
+
+
+impl Mul<f32> for UiUnit {
+    type Output = Self;
+
+    fn mul(self, rhs: f32) -> Self::Output {
+        match self {
+            UiUnit::Pixels(x) => UiUnit::Pixels(x * rhs),
+            UiUnit::ScreenWidth(x) => UiUnit::ScreenWidth(x * rhs),
+            UiUnit::ScreenHeight(x) => UiUnit::ScreenHeight(x * rhs),
+            UiUnit::ParentPercent(x) => UiUnit::ParentPercent(x * rhs),
+        }
+    }
+}
+
+
+impl Sub<UiUnit> for f32 {
+    type Output = UiUnit;
+
+    fn sub(self, rhs: UiUnit) -> Self::Output {
+        match rhs {
+            UiUnit::Pixels(x) => UiUnit::Pixels(self - x),
+            UiUnit::ScreenWidth(x) => UiUnit::ScreenWidth(self - x),
+            UiUnit::ScreenHeight(x) => UiUnit::ScreenHeight(self - x),
+            UiUnit::ParentPercent(x) => UiUnit::ParentPercent(self - x),
+        }
+    }
+}
+
+
+impl Div<f32> for UiUnit {
+    type Output = Self;
+
+    fn div(self, rhs: f32) -> Self::Output {
+        match self {
+            UiUnit::Pixels(x) => UiUnit::Pixels(x / rhs),
+            UiUnit::ScreenWidth(x) => UiUnit::ScreenWidth(x / rhs),
+            UiUnit::ScreenHeight(x) => UiUnit::ScreenHeight(x / rhs),
+            UiUnit::ParentPercent(x) => UiUnit::ParentPercent(x / rhs),
+        }
+    }
+}
+
+impl Add<UiUnit> for UiUnit {
+    type Output = Self;
+
+    fn add(self, rhs: UiUnit) -> Self::Output {
+        match (self, rhs) {
+            (UiUnit::Pixels(a), UiUnit::Pixels(b)) => UiUnit::Pixels(a + b),
+            (UiUnit::ScreenWidth(a), UiUnit::ScreenWidth(b)) => UiUnit::ScreenWidth(a + b),
+            (UiUnit::ScreenHeight(a), UiUnit::ScreenHeight(b)) => UiUnit::ScreenHeight(a + b),
+            (UiUnit::ParentPercent(a), UiUnit::ParentPercent(b)) => UiUnit::ParentPercent(a + b),
+
+            _ => panic!("Opération Add impossible entre des UiUnit de types différents directement. Attendez la résolution du Layout."),
+        }
+    }
+}
+
+impl Sub<UiUnit> for UiUnit {
+    type Output = Self;
+
+    fn sub(self, rhs: UiUnit) -> Self::Output {
+        match (self, rhs) {
+            (UiUnit::Pixels(a), UiUnit::Pixels(b)) => UiUnit::Pixels(a - b),
+            (UiUnit::ScreenWidth(a), UiUnit::ScreenWidth(b)) => UiUnit::ScreenWidth(a - b),
+            (UiUnit::ScreenHeight(a), UiUnit::ScreenHeight(b)) => UiUnit::ScreenHeight(a - b),
+            (UiUnit::ParentPercent(a), UiUnit::ParentPercent(b)) => UiUnit::ParentPercent(a - b),
+
+            _ => panic!("Opération Sub impossible entre des UiUnit de types différents directement. Attendez la résolution du Layout."),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

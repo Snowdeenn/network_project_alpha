@@ -1,14 +1,14 @@
 use std::time::Duration;
 
 use crate::config::SOLD_ANIM_DURATION;
+use crate::hud::ShopHudIds;
 use shared::{
     config::PlayerClass,
     protocol::{GameEvent, GameEventKind, LobbyPhaseInfo, LobbySlotInfo, ShopItem},
 };
-
-// ===================================================
-// GamePhase
-// ====================================================
+use ui::prelude::*;
+use raylib::prelude::Color;
+use shared::protocol::EffectType;
 
 pub enum GamePhase {
     Wave,
@@ -150,6 +150,7 @@ impl DebugState {
 
     pub fn add_collider(&mut self, x: f32, y: f32) {
         self.collider.push(DebugCollider { x, y });
+        self.collider.push(DebugCollider { x, y });
     }
 
     pub fn set_hit_anim(&mut self, pos: [f32; 2]) {
@@ -232,6 +233,8 @@ impl ClientState {
                 self.debug.set_hit_anim(pos);
             }
             GameEventKind::DebugCollider { x, y } => {
+            }
+            GameEventKind::DebugCollider { x, y } => {
                 if !self.debug.cleared {
                     self.debug.collider.clear();
                     self.debug.cleared = true;
@@ -265,9 +268,100 @@ impl ClientState {
     }
 }
 
-// ===================================================
-// AppScreen
-// ====================================================
+pub fn handle_shop_ui_event(event: &GameEvent, ui_ctx: &mut UiContext, shop_ids: &ShopHudIds) {
+    match &event.kind {
+        GameEventKind::ShopOpened { inventory } => {
+            // afficher le shop
+            ui_ctx.send_event(UIEvent::SetVisible {
+                target: shop_ids.root,
+                visible: true,
+            });
+
+            // mettre à jour les 3 cartes
+            for (slot, item_opt) in inventory.iter().enumerate() {
+                if let Some(item) = item_opt {
+                    let border_color = match item.effect_type {
+                        EffectType::Health => Color::DARKGREEN,
+                        EffectType::Damage => Color::MAROON,
+                        EffectType::Speed => Color::DARKBLUE,
+                        EffectType::Gold => Color::GOLD,
+                    };
+                    ui_ctx.send_event(UIEvent::SetColor {
+                        target: shop_ids.cards[slot].root,
+                        color: border_color,
+                    });
+                }
+                match item_opt {
+                    Some(item) => {
+                        ui_ctx.send_event(UIEvent::SetText {
+                            target: shop_ids.cards[slot].name,
+                            content: item.name.clone(),
+                        });
+                        ui_ctx.send_event(UIEvent::SetText {
+                            target: shop_ids.cards[slot].desc,
+                            content: item.description.clone(),
+                        });
+                        ui_ctx.send_event(UIEvent::SetText {
+                            target: shop_ids.cards[slot].price,
+                            content: format!("PRIX: {} OR", item.price),
+                        });
+                        ui_ctx.send_event(UIEvent::SetVisible {
+                            target: shop_ids.cards[slot].sold_overlay,
+                            visible: false,
+                        });
+                    }
+                    None => {
+                        ui_ctx.send_event(UIEvent::SetVisible {
+                            target: shop_ids.cards[slot].sold_overlay,
+                            visible: true,
+                        });
+                    }
+                }
+            }
+        }
+
+        GameEventKind::WaveStart { .. } => {
+            ui_ctx.send_event(UIEvent::SetVisible {
+                target: shop_ids.root,
+                visible: false,
+            });
+        }
+
+        GameEventKind::ItemBought { slot } => {
+            // tween fade sur sold_overlay
+            ui_ctx.tween.add(Tween {
+                target: shop_ids.cards[*slot].sold_overlay,
+                property: TweenProperty::Opacity { from: 0.0, to: 1.0 },
+                duration: SOLD_ANIM_DURATION,
+                elapsed: 0.0,
+                easing: easing::ease_in_out_quad,
+                done: false,
+            });
+            ui_ctx.send_event(UIEvent::SetVisible {
+                target: shop_ids.cards[*slot].sold_overlay,
+                visible: true,
+            });
+        }
+
+        GameEventKind::PurchaseFailed { slot } => {
+            // tween flash rouge
+            ui_ctx.tween.add(Tween {
+                target: shop_ids.cards[*slot].error_overlay,
+                property: TweenProperty::Opacity { from: 0.7, to: 0.0 },
+                duration: 1.5,
+                elapsed: 0.0,
+                easing: easing::ease_out_quad,
+                done: false,
+            });
+            ui_ctx.send_event(UIEvent::SetVisible {
+                target: shop_ids.cards[*slot].error_overlay,
+                visible: true,
+            });
+        }
+        GameEventKind::WaveEnd { time_between_wave } => {}
+        _ => {}
+    }
+}
 
 pub enum AppScreen {
     MainMenu,

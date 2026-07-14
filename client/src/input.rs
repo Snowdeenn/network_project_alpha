@@ -3,6 +3,7 @@ use crate::net::client::GameNetClient;
 use raylib::prelude::*;
 use shared::protocol::InputPacket;
 use shared::protocol::{ShopAction, ShopActionKind};
+use ui::prelude::*;
 
 pub fn read_input(rl: &RaylibHandle, tick_id: u64, screen_w: i32, screen_h: i32) -> InputPacket {
     let move_dir = {
@@ -52,23 +53,35 @@ pub fn read_input(rl: &RaylibHandle, tick_id: u64, screen_w: i32, screen_h: i32)
     }
 }
 
-pub fn handle_shop_input(rl: &RaylibHandle, client: &mut GameNetClient, state: &mut ClientState) {
+pub enum ShopInputAction {
+    Open,
+    Close,
+    None,
+}
+
+pub fn handle_shop_input(
+    rl: &RaylibHandle,
+    client: &mut GameNetClient,
+    state: &mut ClientState,
+) -> ShopInputAction {
     if !rl.is_key_pressed(KeyboardKey::KEY_G) {
-        return;
+        return ShopInputAction::None;
     }
-
-
 
     if state.phase.can_show_shop() && !state.shop_ui.is_open() {
         client.send_shop_action(&ShopAction {
             kind: ShopActionKind::Open,
             slot: 0,
         });
+        ShopInputAction::Open
     } else if state.shop_ui.is_open() {
         client.send_shop_action(&ShopAction {
             kind: ShopActionKind::Close,
             slot: 0,
         });
         state.close_shop();
+        ShopInputAction::Close
+    } else {
+        ShopInputAction::None
     }
 }

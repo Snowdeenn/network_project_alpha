@@ -200,7 +200,7 @@ impl Renderer {
             &self.texture,
             &mut self.anim_entities,
         );
-        Self::render_game_hud(&mut d, &frame, client_state, &self.screen_scale);
+        Self::render_game_hud(&mut d, client_state, &self.screen_scale);
         Self::render_ui_frameworks(&mut d, ctx, ui, client_state, &self.cam);
         
         self.imgui.end();

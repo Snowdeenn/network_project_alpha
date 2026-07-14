@@ -1087,6 +1087,7 @@ name = "ui"
 version = "0.1.0"
 dependencies = [
  "raylib",
+ "shared",
 ]
 
 [[package]]

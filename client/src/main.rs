@@ -7,7 +7,9 @@ mod particle;
 mod renderer;
 mod screens;
 
+use crate::input::ShopInputAction;
 use crate::particle::Particle;
+use crate::renderer::hud;
 use crate::renderer::types::{FrameState, RenderContext};
 use net::client::GameNetClient;
 use raylib::ffi::{KeyboardKey, MouseButton};
@@ -20,16 +22,12 @@ use std::time::{Duration, Instant};
 use ui::context::UiContext;
 use ui::draw::DrawCommandBuffer;
 use ui::event::UIEvent;
-use ui::node::LayoutProps;
-use ui::node::{Anchor, UiVec2};
-use ui::node::{VisualKind, VisualProps};
-use ui::output::UIOutputEvent;
+use ui::node::UiUnit;
+use ui::node::UiVec2;
 use ui::shader::ShaderRegistry;
 use ui::texture::TextureRegistry;
-use ui::tween::{Tween, TweenProperty, easing};
-use ui::*;
 
-use crate::event::AppScreen;
+use crate::event::{AppScreen, handle_shop_ui_event};
 use crate::particle::ParticleSystem;
 use crate::screens::main_menu::MenuAction;
 
@@ -58,7 +56,7 @@ fn main() {
     let raw_shader = renderer
         .rl
         .load_shader_from_memory(&renderer.thread, None, Some(shader_src));
-    let shader_id = shader_registry.register(raw_shader);
+    let _shader_id = shader_registry.register(raw_shader);
 
     let sh_pr_bar = include_str!("../../shader/progress_bar.frag");
     let raw_sh = renderer
@@ -66,60 +64,8 @@ fn main() {
         .load_shader_from_memory(&renderer.thread, None, Some(sh_pr_bar));
     let sh_pr_id = shader_registry.register(raw_sh);
 
-    let node_id = ui_ctx.add_node(
-        ui_ctx.root,
-        LayoutProps::new(
-            Anchor::TopRight,
-            UiVec2::pixels(20.0, 20.0),
-            UiVec2::pixels(180.0, 40.0),
-        ),
-        VisualProps {
-            kind: VisualKind::Shader { id: shader_id },
-            color: Color::RED,
-            visible: true,
-            opacity: 1.0,
-        },
-    );
-    ui_ctx.tween.add(Tween {
-        target: node_id,
-        property: TweenProperty::Opacity { from: 0.0, to: 1.0 },
-        duration: 2.0,
-        elapsed: 0.0,
-        easing: easing::ease_in_out_quad,
-        done: false,
-    });
-    let _label_id = text_label! {
-        ctx: ui_ctx,
-        parent: ui_ctx.root,
-        anchor: Anchor::BottomLeft,
-        offset: UiVec2::pixels(20.0, 20.0),
-        size: UiVec2::pixels(200.0, 30.0),
-        content: "Wave 1",
-        font_size: 24.0,
-        color: Color::WHITE,
-    };
-
-    let (_bg_id, fill_id) = progress_bar!(
-        ctx: ui_ctx,
-        parent: ui_ctx.root,
-        anchor: Anchor::BottomRight,
-        offset: UiVec2::pixels(50.0, 50.0),
-        size: UiVec2::pixels(200.0, 30.0),
-        bg: Color::GRAY,
-        fill_color: Color::GREEN,
-        shader: sh_pr_id,
-    );
-
-    let btn_id = bouton! {
-        ctx: ui_ctx,
-        parent: ui_ctx.root,
-        anchor: Anchor::Center,
-        offset: UiVec2::pixels(0.0, 0.0),
-        size: UiVec2::pixels(200.0, 50.0),
-        normal:  Color::BLUE,
-        hover:   Color::SKYBLUE,
-        pressed: Color::DARKBLUE,
-    };
+    let hud_node_id = hud::init_hud(&mut ui_ctx, sh_pr_id);
+    let shop_ids = hud::init_shop(&mut ui_ctx);
 
     // tick réseau 20 Hz
     while !renderer.rl.window_should_close() {
@@ -200,20 +146,43 @@ fn main() {
                     last_snap_time = Instant::now();
                 }
 
-                // après la boucle, lire depuis last_snapshot qui possède le snap
                 if let Some(snap) = &last_snapshot {
+                    // MAJ HUD
+                    // TODO: A terme avoir une fonction libre qui update les elements du HUD (une par element ou une global)
                     if let Some(info) = &snap.player_info {
                         let ratio = info.health / info.max_health;
 
                         ui_ctx.send_event(UIEvent::SetSize {
-                            target: fill_id,
-                            size: UiVec2::pixels(200.0 * ratio, 30.0),
+                            target: hud_node_id.hp_fill_id,
+                            size: UiVec2::new(
+                                UiUnit::ParentPercent(ratio),
+                                UiUnit::ParentPercent(1.0),
+                            ),
+                        });
+                        ui_ctx.send_event(UIEvent::SetText {
+                            target: hud_node_id.hp_text_id,
+                            content: format!("{} / {}", info.health, info.max_health),
+                        });
+                        ui_ctx.send_event(UIEvent::SetText {
+                            target: hud_node_id.gold_label_id,
+                            content: format!("Or {}", info.gold),
                         });
 
                         if let Some(shader) = shader_registry.get_mut(sh_pr_id) {
                             let loc = shader.get_shader_location("u_ratio");
                             shader.set_shader_value(loc, ratio);
                         }
+                    }
+
+                    {
+                        let wave_info = &snap.wave_info;
+                        ui_ctx.send_event(UIEvent::SetText {
+                            target: hud_node_id.wave_label_id,
+                            content: format!(
+                                "Vague {} | Enemis {}",
+                                wave_info.wave_number, wave_info.enemy_remaining
+                            ),
+                        });
                     }
 
                     // Spawn Particle
@@ -272,18 +241,27 @@ fn main() {
                 let events = ui_ctx.process_input(mouse_pos, pressed, released);
                 for event in events {
                     match event {
-                        UIOutputEvent::Clicked { id } if id == btn_id => println!("cliqué !"),
-                        UIOutputEvent::Hovered { id } if id == btn_id => println!("survol !"),
                         _ => {}
                     }
                 }
 
                 client_state.debug.cleared = false;
                 while let Some(event) = client.recv_event() {
+                    handle_shop_ui_event(&event, &mut ui_ctx, &shop_ids);
                     client_state.handle_event(event);
                 }
 
-                input::handle_shop_input(&renderer.rl, client, client_state);
+                match input::handle_shop_input(&renderer.rl, client, client_state) {
+                    ShopInputAction::Close => {
+                        ui_ctx.send_event(UIEvent::SetVisible {
+                            target: shop_ids.root,
+                            visible: false,
+                        });
+                        client_state.close_shop();
+                    }
+                    ShopInputAction::Open => {}
+                    ShopInputAction::None => {}
+                }
 
                 if client_state.phase.can_show_shop()
                     && renderer
@@ -358,7 +336,7 @@ fn main() {
                         tex_registry: &tex_registry,
                         shader_registry: &mut shader_registry,
                         ui_ctx: &mut ui_ctx,
-                    }
+                    },
                 );
             }
         }

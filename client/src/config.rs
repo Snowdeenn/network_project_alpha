@@ -48,7 +48,7 @@ pub const HUD_BAR_Y: f32        = 60.0  / 1080.0;
 pub const HUD_BAR_W: f32        = 200.0 / 1920.0;
 pub const HUD_BAR_H: f32        = 20.0  / 1080.0;
 
-pub const HUD_GOLD_Y: f32       = 90.0  / 1080.0;
+pub const HUD_GOLD_Y: f32       = 100.0  / 1080.0;
 pub const HUD_GOLD_FONT: f32    = 24.0  / 1080.0;
 
 pub const HUD_SHOP_NOTIF_X: f32 = 775.0 / 1920.0;

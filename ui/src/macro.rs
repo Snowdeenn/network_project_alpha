@@ -51,7 +51,7 @@ macro_rules! progress_bar {
                 );
                 let fill_id = $ctx.add_node(
                     bg_id,
-                    LayoutProps::new(Anchor::TopLeft, Vector2::zero(), $size),
+                    LayoutProps::new(Anchor::TopLeft, UiVec2::pixels(0.0, 0.0), UiVec2::new(UiUnit::ParentPercent(1.0), UiUnit::ParentPercent(1.0))),
                     VisualProps {
                         kind: VisualKind::Rect,
                         color: $fill,

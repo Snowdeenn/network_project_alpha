@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use super::{
-    Renderer, debug_ui, hud, render_world,
+    Renderer, debug_ui,render_world,
     types::{FrameState, RenderContext},
 };
 use crate::TICK_DURATION;
@@ -61,16 +61,10 @@ impl Renderer {
 
     pub(super) fn render_game_hud(
         d: &mut RaylibDrawHandle,
-        frame: &FrameState,
         client_state: &ClientState,
         screen_scale: &ScreenScale,
     ) {
         let s = screen_scale;
-
-        if let Some(snap) = frame.current {
-            hud::render(d, snap, s);
-        }
-
         if let GamePhase::BetweenWave { time_remaining, .. } = client_state.phase {
             let remaining = format!(
                 " Temps avant la prochaine vague {}s",
@@ -95,7 +89,7 @@ impl Renderer {
             }
         }
 
-        hud::render_shop(d, client_state, s);
+        //hud::render_shop(d, client_state, s);
     }
 
     pub(super) fn render_ui_frameworks(

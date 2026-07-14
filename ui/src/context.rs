@@ -10,11 +10,11 @@ use crate::input::InteractState;
 use crate::node::{UiVec2, VisualKind};
 use crate::output::UIOutputEvent;
 use crate::tween::TweenEngine;
-use crate::{
-    arena::{Arena, NodeId},
+use crate::{NodeId,
     layout::compute_anchor_pos,
     node::{Anchor, LayoutProps, UiNode, VisualProps},
 };
+use shared::arena::*;
 
 pub struct UiContext {
     arena: Arena<UiNode>,

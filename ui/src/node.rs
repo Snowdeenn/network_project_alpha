@@ -2,8 +2,10 @@ use std::ops::{Add, Div, Mul, Sub};
 
 use raylib::prelude::{Color, Vector2};
 
-use crate::{arena::NodeId, draw::NinePatchMargins, shader::ShaderId, texture::TextureId};
+use crate::{draw::NinePatchMargins};
 use crate::input::{Interact};
+use crate::NodeId;
+use shared::ids::{ShaderId, TextureId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Anchor {

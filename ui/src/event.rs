@@ -1,8 +1,7 @@
-use crate::arena::NodeId;
+use crate::NodeId;
 use crate::node::UiVec2;
 use raylib::prelude::{Color};
-use crate::texture::TextureId;
-use crate::shader::ShaderId;
+use shared::ids::{ShaderId, TextureId};
 
 #[derive(Clone)]
 pub enum UIEvent {

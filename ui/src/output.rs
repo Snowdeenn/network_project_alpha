@@ -1,4 +1,4 @@
-use crate::arena::NodeId;
+use crate::NodeId;
 
 pub enum UIOutputEvent {
     Clicked  { id: NodeId },

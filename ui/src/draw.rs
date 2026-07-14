@@ -1,6 +1,7 @@
-use crate::shader::{ShaderId, ShaderRegistry};
-use crate::texture::{TextureId, TextureRegistry};
+use shared::ids::{ShaderId, TextureId};
+use crate::provider::{ShaderProvider, TextureProvider};
 use raylib::prelude::*;
+
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct NinePatchMargins {
@@ -90,11 +91,11 @@ impl DrawCommandBuffer {
         self.buffer.sort_unstable_by_key(|cmd| sort_key(cmd));
     }
 
-    pub fn flush(
+    pub fn flush<S: ShaderProvider, T: TextureProvider>(
         &self,
         d: &mut RaylibDrawHandle,
-        tex_reg: &TextureRegistry,
-        shader_reg: &mut ShaderRegistry,
+        tex_reg: &T,
+        shader_reg: &mut S,
     ) {
         let mut i = 0;
         while i < self.buffer.len() {
@@ -116,7 +117,7 @@ impl DrawCommandBuffer {
                         }
                     }
 
-                    if let Some(shader) = shader_reg.get_mut(current_shader_id) {
+                    if let Some(shader) = shader_reg.get_shader_mut(current_shader_id) {
                         let mut shader_mode = d.begin_shader_mode(shader);
 
                         for cmd in &self.buffer[i..j] {
@@ -133,7 +134,7 @@ impl DrawCommandBuffer {
                                     tint,
                                     ..
                                 } => {
-                                    if let Some(texture) = tex_reg.get(*texture_id) {
+                                    if let Some(texture) = tex_reg.get_texture(*texture_id) {
                                         let source = Rectangle {
                                             x: 0.0,
                                             y: 0.0,
@@ -177,7 +178,7 @@ impl DrawCommandBuffer {
                     tint,
                     ..
                 } => {
-                    if let Some(texture) = tex_reg.get(*texture_id) {
+                    if let Some(texture) = tex_reg.get_texture(*texture_id) {
                         let source = Rectangle {
                             x: 0.0,
                             y: 0.0,
@@ -202,7 +203,7 @@ impl DrawCommandBuffer {
                     tint,
                     ..
                 } => {
-                    if let Some(texture) = tex_reg.get(*texture_id) {
+                    if let Some(texture) = tex_reg.get_texture(*texture_id) {
                         let source = Rectangle {
                             x: 0.0,
                             y: 0.0,
@@ -255,19 +256,19 @@ fn sort_key(command: &DrawCommand) -> (u8, u16, u16) {
         DrawCommand::Rect { layer, .. } => (*layer, 0, 0),
         DrawCommand::Texture {
             layer, texture_id, ..
-        } => (*layer, texture_id.value(), 0),
+        } => (*layer, texture_id.index as u16, 0),
         DrawCommand::Shader {
             layer, shader_id, ..
-        } => (*layer, 0, shader_id.value()),
+        } => (*layer, 0, shader_id.index as u16),
         DrawCommand::ShaderTexture {
             layer,
             shader_id,
             texture_id,
             ..
-        } => (*layer, texture_id.value(), shader_id.value()),
+        } => (*layer, texture_id.index as u16, shader_id.index as u16),
         DrawCommand::NinePatch {
             texture_id, layer, ..
-        } => (*layer, texture_id.value(), 0),
+        } => (*layer, texture_id.index as u16, 0),
         DrawCommand::Text { layer, .. } => (*layer, 0, 0),
     }
 }

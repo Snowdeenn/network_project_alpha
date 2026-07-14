@@ -1,10 +1,9 @@
-use std::fmt::DebugStruct;
-
 use raylib::prelude::*;
 
 use crate::config::*;
 use ui::prelude::*;
 use ui::*;
+use shared::ids::ShaderId;
 
 pub struct HudIds {
     pub wave_label_id: NodeId,

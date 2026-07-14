@@ -2,14 +2,16 @@ pub mod animation;
 pub mod debug_ui;
 pub mod hud;
 pub mod pipeline;
-pub mod texture;
+pub mod animation_manager;
 pub mod types;
+pub mod shader_manager;
+pub mod texture_manager;
 
 use crate::config::*;
 use crate::event::ClientState;
 use crate::particle::ParticleSystem;
 use crate::renderer::animation::AnimEntity;
-use crate::renderer::texture::{BossState, EnemyState, PlayerState, TextureId, TextureManager};
+use crate::renderer::animation_manager::{BossState, EnemyState, PlayerState, AnimId, AnimationManager};
 use crate::renderer::types::*;
 use raylib::prelude::*;
 use raylib_imgui::RaylibGui;
@@ -55,7 +57,7 @@ pub struct Renderer {
     pub screen_h: i32,
     pub screen_scale: ScreenScale,
     pub imgui: RaylibGui,
-    texture: TextureManager,
+    texture: AnimationManager,
     anim_entities: HashMap<u64, AnimEntity>,
 }
 
@@ -88,7 +90,7 @@ impl Renderer {
             zoom,
         };
 
-        let texture = TextureManager::load_texture(&mut rl, &thread);
+        let texture = AnimationManager::load_texture(&mut rl, &thread);
 
         let imgui = RaylibGui::new(&mut rl, &thread);
         Self {
@@ -139,7 +141,7 @@ impl Renderer {
 fn render_world(
     d: &mut RaylibMode2D<RaylibDrawHandle>,
     particle_system: &ParticleSystem,
-    textures: &TextureManager,
+    textures: &AnimationManager,
     anim_entities: &mut HashMap<u64, AnimEntity>,
     prev: Option<&StateSnapshot>,
     curr: &StateSnapshot,
@@ -223,11 +225,11 @@ fn lerp(a: f32, b: f32, t: f32) -> f32 {
     a + (b - a) * t
 }
 
-fn resolve_anim(kind: &EntityKind, prev: Option<&EntityState>, curr: &EntityState) -> TextureId {
+fn resolve_anim(kind: &EntityKind, prev: Option<&EntityState>, curr: &EntityState) -> AnimId {
     match kind {
         EntityKind::Player => {
             let moving = prev.map(|p| p.position != curr.position).unwrap_or(false);
-            TextureId::Player(if moving {
+            AnimId::Player(if moving {
                 PlayerState::Run
             } else {
                 PlayerState::Idle
@@ -235,14 +237,14 @@ fn resolve_anim(kind: &EntityKind, prev: Option<&EntityState>, curr: &EntityStat
         }
         EntityKind::Enemy => {
             let moving = prev.map(|p| p.position != curr.position).unwrap_or(false);
-            TextureId::Enemy(if moving {
+            AnimId::Enemy(if moving {
                 EnemyState::Run
             } else {
                 EnemyState::Idle
             })
         }
-        EntityKind::Boss(b) => TextureId::Boss(b.clone(), BossState::Idle),
-        EntityKind::Coin => TextureId::Coin,
-        EntityKind::Projectile => TextureId::Projectile,
+        EntityKind::Boss(b) => AnimId::Boss(b.clone(), BossState::Idle),
+        EntityKind::Coin => AnimId::Coin,
+        EntityKind::Projectile => AnimId::Projectile,
     }
 }

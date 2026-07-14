@@ -11,7 +11,7 @@ use crate::event::GamePhase;
 use crate::particle::ParticleSystem;
 use crate::renderer::ScreenScale;
 use crate::renderer::animation::AnimEntity;
-use crate::renderer::texture::TextureManager;
+use crate::renderer::animation_manager::AnimationManager;
 use raylib::prelude::*;
 
 impl Renderer {
@@ -23,7 +23,7 @@ impl Renderer {
         dt: f32,
         cam: Camera2D,
         screen_scale: &ScreenScale,
-        texture: &TextureManager, // ajuste le chemin si besoin
+        texture: &AnimationManager, // ajuste le chemin si besoin
         anim_entities: &mut HashMap<u64, AnimEntity>, // ajuste selon ton type réel
     ) {
         let mut d2 = d.begin_mode2D(cam);
@@ -101,7 +101,7 @@ impl Renderer {
     ) {
         ctx.ui_ctx.collect(ctx.buffer);
         ctx.buffer.sort();
-        ctx.buffer.flush(d, ctx.tex_registry, ctx.shader_registry);
+        ctx.buffer.flush(d, ctx.texture_manager, ctx.shader_manager);
         ctx.buffer.clear();
 
         debug_ui::process_debug(ui, d, cam, client_state);

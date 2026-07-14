@@ -3,6 +3,7 @@ use legion::world::SubWorld;
 use crate::simulation::components::*;
 use crate::simulation::event::*;
 use shared::protocol::{GameEvent, GameEventKind};
+use crate::config::SharedLives;
 
 #[system]
 #[write_component(Health)]
@@ -14,6 +15,7 @@ pub fn health(
     world: &mut SubWorld,
     #[resource] enemy_die_queue: &mut EnemyDiedQueue,
     #[resource] game_event_queue: &mut GameEventQueue,
+    #[resource] shared_lives: &mut SharedLives,
 ) {
     let dead: Vec<Entity> = <(Entity, &mut Health, &Active)>::query()
         .iter_mut(world)
@@ -32,10 +34,29 @@ pub fn health(
             if entry.get_component::<Player>().is_ok() {
                 let id = entry
                     .get_component::<EntityId>()
-                    .expect("[Heatlh System] Le joueur n'as pas le composant EntityId");
+                    .expect("[Health System] Joueur sans EntityId");
+
+                shared_lives.remaining = shared_lives.remaining.saturating_sub(1);
+
+                // Toujours envoyer PlayerDied au client concerné
                 game_event_queue.0.push(GameEvent {
                     kind: GameEventKind::PlayerDied { entity_id: id.0 },
                 });
+
+                // Broadcast vies restantes
+                game_event_queue.0.push(GameEvent {
+                    kind: GameEventKind::SharedLivesUpdate {
+                        remaining: shared_lives.remaining,
+                        max: shared_lives.max,
+                    },
+                });
+
+                // Game over si plus de vies
+                if shared_lives.remaining == 0 {
+                    game_event_queue.0.push(GameEvent {
+                        kind: GameEventKind::GameOver,
+                    });
+                }
             }
         }
     }

@@ -115,7 +115,79 @@ impl Renderer {
         let mut d = self.rl.begin_drawing(&self.thread);
         d.clear_background(Color::BLACK);
 
-        let dt = d.get_frame_time();
+        {
+            let mut d2 = d.begin_mode2D(self.cam);
+            match current {
+                None => {
+                    d2.draw_text("Connexion...", -80, -10, 20, Color::WHITE);
+                }
+                Some(curr) => match client_state.phase {
+                    GamePhase::Dead => {
+                        let text = " YOU'RE DEAD";
+                        d2.draw_text(
+                            text,
+                            s.x(750.0 / 1920.0),
+                            s.y(500.0 / 1080.0),
+                            s.font(120.0 / 1920.0),
+                            Color::RED,
+                        );
+                    }
+                    GamePhase::GameOver => {
+                        d2.draw_text("GAME OVER", s.x(0.32), s.y(0.42), s.font(0.12), Color::RED);
+                        d2.draw_text(
+                            "Toutes les vies sont épuisées",
+                            s.x(0.35),
+                            s.y(0.58),
+                            s.font(0.03),
+                            Color::LIGHTGRAY,
+                        );
+                    }
+                    _ => render_world(
+                        &mut d2,
+                        particle_system,
+                        &self.texture,
+                        &mut self.anim_entities,
+                        prev,
+                        curr,
+                        t,
+                        dt,
+                    ),
+                },
+            }
+        }
+
+        if let Some(snap) = current {
+            hud::render(&mut d, snap, s, client_state);
+        }
+
+        {
+            match client_state.phase {
+                GamePhase::BetweenWave { time_remaining, .. } => {
+                    let remaining = format!(
+                        " Temps avant la prochaine vague {}s",
+                        time_remaining.as_secs()
+                    );
+                    d.draw_text(
+                        &remaining,
+                        s.x(WAVE_TIMER_X),
+                        s.y(WAVE_TIMER_Y),
+                        s.font(WAVE_TIMER_FONT),
+                        Color::RED,
+                    );
+
+                    if client_state.phase.can_show_shop() {
+                        d.draw_text(
+                            "Shop disponible — appuie sur G",
+                            s.x(HUD_SHOP_NOTIF_X),
+                            s.y(HUD_SHOP_NOTIF_Y),
+                            s.font(HUD_SHOP_NOTIF_FONT),
+                            Color::GOLD,
+                        );
+                    }
+                }
+                _ => (),
+            }
+        }
 
         Self::render_game_world(
             &mut d,

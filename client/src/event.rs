@@ -17,6 +17,7 @@ pub enum GamePhase {
         shop_available: bool,
     },
     Dead,
+    GameOver,
 }
 
 impl GamePhase {
@@ -38,6 +39,10 @@ impl GamePhase {
         }
     }
 }
+
+// ===================================================
+// ShopUiState
+// ====================================================
 
 #[derive(Debug, Default)]
 pub struct ShopUiState {
@@ -95,6 +100,10 @@ impl ShopUiState {
     }
 }
 
+// ===================================================
+// Debug State
+// ====================================================
+
 #[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub enum DebugMode {
     #[default]
@@ -141,6 +150,7 @@ impl DebugState {
 
     pub fn add_collider(&mut self, x: f32, y: f32) {
         self.collider.push(DebugCollider { x, y });
+        self.collider.push(DebugCollider { x, y });
     }
 
     pub fn set_hit_anim(&mut self, pos: [f32; 2]) {
@@ -163,10 +173,15 @@ impl DebugState {
     }
 }
 
+// ====================================================
+// Client State
+// ====================================================
+
 pub struct ClientState {
     pub phase: GamePhase,
     pub shop_ui: ShopUiState,
     pub debug: DebugState,
+    pub ui: UiState
 }
 
 impl ClientState {
@@ -175,6 +190,7 @@ impl ClientState {
             phase: GamePhase::Wave,
             shop_ui: ShopUiState::default(),
             debug: DebugState::default(),
+            ui: UiState::default(),
         }
     }
 
@@ -196,6 +212,7 @@ impl ClientState {
             GameEventKind::BossSpawn { .. } => {}
             GameEventKind::PlayerDied { .. } => {
                 self.phase = GamePhase::Dead;
+                self.ui.spectator_mode = Some(SpectatorMode::Free);
             }
             GameEventKind::ItemBought { slot } => {
                 self.shop_ui.item_bought(slot as usize);
@@ -216,12 +233,20 @@ impl ClientState {
                 self.debug.set_hit_anim(pos);
             }
             GameEventKind::DebugCollider { x, y } => {
+            }
+            GameEventKind::DebugCollider { x, y } => {
                 if !self.debug.cleared {
                     self.debug.collider.clear();
                     self.debug.cleared = true;
                 }
                 self.debug.add_collider(x, y);
-            }
+            },
+            GameEventKind::SharedLivesUpdate { remaining, max } => {
+                println!("SharedLivesUpdate reçu");
+                self.ui.shared_lives.current = remaining;
+                self.ui.shared_lives.max = max;
+            },
+            GameEventKind::GameOver => {},
         }
     }
 
@@ -229,6 +254,13 @@ impl ClientState {
         self.shop_ui.update(dt);
         self.phase.update(dt);
         self.debug.update(dt);
+
+        if let Some(ref mut timer) = self.ui.respawn_timer {
+            *timer = (*timer - dt).max(0.0);
+            if *timer == 0.0 {
+                self.ui.respawn_timer = None;
+            }
+        }
     }
 
     pub fn close_shop(&mut self) {
@@ -345,4 +377,34 @@ pub struct LobbyScreenState {
     pub ready: bool,
     pub is_solo: bool,
     pub phase: LobbyPhaseInfo,
+}
+
+// ===================================================
+// Ui State
+// ====================================================
+
+pub struct SharedLivesDisplay {
+    pub current: u32,
+    pub max: u32,
+}
+
+pub enum SpectatorMode {
+    Free,
+    Follow { target_id: u64 },
+}
+
+pub struct UiState {
+    pub shared_lives: SharedLivesDisplay,
+    pub respawn_timer: Option<f32>,
+    pub spectator_mode: Option<SpectatorMode>,
+}
+
+impl Default for UiState {
+    fn default() -> Self {
+        UiState {
+            shared_lives: SharedLivesDisplay { current: 0, max: 0 },
+            respawn_timer: None,
+            spectator_mode: None,
+        }
+    }
 }

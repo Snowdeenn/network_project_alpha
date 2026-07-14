@@ -10,6 +10,8 @@ mod screens;
 use crate::input::ShopInputAction;
 use crate::particle::Particle;
 use crate::renderer::hud;
+use crate::renderer::shader_manager::ShaderManager;
+use crate::renderer::texture_manager::TextureManager;
 use crate::renderer::types::{FrameState, RenderContext};
 use net::client::GameNetClient;
 use raylib::ffi::{KeyboardKey, MouseButton};
@@ -24,8 +26,6 @@ use ui::draw::DrawCommandBuffer;
 use ui::event::UIEvent;
 use ui::node::UiUnit;
 use ui::node::UiVec2;
-use ui::shader::ShaderRegistry;
-use ui::texture::TextureRegistry;
 
 use crate::event::{AppScreen, handle_shop_ui_event};
 use crate::particle::ParticleSystem;
@@ -39,9 +39,9 @@ fn main() {
     let mut client: Option<GameNetClient> = None;
     let mut screen = AppScreen::MainMenu;
     let mut draw_buffer = DrawCommandBuffer::new(4046);
-    let tex_registry = TextureRegistry::new();
-    let mut shader_registry = ShaderRegistry::new();
     let mut ui_ctx = UiContext::new(renderer.screen_w as f32, renderer.screen_h as f32);
+    let mut shader_manager = ShaderManager::new();
+    let mut texture_manager = TextureManager::new();
 
     let mut last_tick = Instant::now();
     let mut last_frame = Instant::now();
@@ -57,7 +57,7 @@ fn main() {
     let raw_sh = renderer
         .rl
         .load_shader_from_memory(&renderer.thread, None, Some(sh_pr_bar));
-    let sh_pr_id = shader_registry.register(raw_sh);
+    let sh_pr_id = shader_manager.register(raw_sh);
 
     let hud_node_id = hud::init_hud(&mut ui_ctx, sh_pr_id);
     let shop_ids = hud::init_shop(&mut ui_ctx);
@@ -163,7 +163,7 @@ fn main() {
                             content: format!("Or {}", info.gold),
                         });
 
-                        if let Some(shader) = shader_registry.get_mut(sh_pr_id) {
+                        if let Some(shader) = shader_manager.get_mut(sh_pr_id) {
                             let loc = shader.get_shader_location("u_ratio");
                             shader.set_shader_value(loc, ratio);
                         }
@@ -328,8 +328,8 @@ fn main() {
                     &particle_system,
                     &mut RenderContext {
                         buffer: &mut draw_buffer,
-                        tex_registry: &tex_registry,
-                        shader_registry: &mut shader_registry,
+                        texture_manager: &texture_manager,
+                        shader_manager: &mut shader_manager,
                         ui_ctx: &mut ui_ctx,
                     },
                 );

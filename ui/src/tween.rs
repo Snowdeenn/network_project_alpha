@@ -1,6 +1,6 @@
 use raylib::{color::Color, math::Vector2};
 
-use crate::{arena::NodeId, event::UIEvent, node::UiVec2};
+use crate::{NodeId, event::UIEvent, node::UiVec2};
 
 // ==================================
 // Fonction d'Easing
@@ -21,7 +21,7 @@ pub mod easing {
         t * (2.0 - t)
     }
 
-    pub  fn ease_in_out_quad(t: f32) -> f32 {
+    pub fn ease_in_out_quad(t: f32) -> f32 {
         if t < 0.5 {
             2.0 * t * t
         } else {
@@ -68,7 +68,7 @@ pub struct Tween {
     pub easing: easing::EasingFn,
     pub target: NodeId,
     pub done: bool,
-    pub on_complete : Vec<UIEvent>,
+    pub on_complete: Vec<UIEvent>,
 }
 
 #[derive(Default)]

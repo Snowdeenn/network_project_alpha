@@ -52,11 +52,6 @@ fn main() {
     let mut particle_system = ParticleSystem::new();
     let mut is_solo: bool = false;
 
-    let shader_src = include_str!("../../shader/test.frag");
-    let raw_shader = renderer
-        .rl
-        .load_shader_from_memory(&renderer.thread, None, Some(shader_src));
-    let _shader_id = shader_registry.register(raw_shader);
 
     let sh_pr_bar = include_str!("../../shader/progress_bar.frag");
     let raw_sh = renderer

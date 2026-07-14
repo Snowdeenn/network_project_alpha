@@ -68,6 +68,7 @@ pub struct Tween {
     pub easing: easing::EasingFn,
     pub target: NodeId,
     pub done: bool,
+    pub on_complete : Vec<UIEvent>,
 }
 
 #[derive(Default)]
@@ -91,6 +92,7 @@ impl TweenEngine {
             let t_ease = (tween.easing)(t);
             if tween.elapsed >= tween.duration {
                 tween.done = true;
+                self.event.extend(tween.on_complete.drain(..));
             }
 
             match tween.property {

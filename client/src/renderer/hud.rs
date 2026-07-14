@@ -1,3 +1,5 @@
+use std::fmt::DebugStruct;
+
 use raylib::prelude::*;
 
 use crate::config::*;
@@ -74,8 +76,8 @@ pub struct ShopCardIds {
     pub price: NodeId,
     pub sold_overlay: NodeId,
     pub error_overlay: NodeId,
+    pub sold_text: NodeId,
 }
-
 
 pub struct ShopHudIds {
     pub root: NodeId,
@@ -219,6 +221,17 @@ pub fn init_shop(ui_ctx: &mut UiContext) -> ShopHudIds {
             },
         );
 
+        let sold_text_id = text_label! {
+            ctx: ui_ctx,
+            parent: sold_overlay_id,
+            anchor: Anchor::Center,
+            offset: UiVec2::pixels(30.0, 0.0),
+            size: UiVec2::screen(0.1, 0.03), 
+            content: "",
+            font_size: 35.0,
+            color: Color::WHITE,
+        };
+
         let error_overlay_id = ui_ctx.add_node(
             card_inner,
             LayoutProps::new(
@@ -242,6 +255,7 @@ pub fn init_shop(ui_ctx: &mut UiContext) -> ShopHudIds {
             price: price_id,
             sold_overlay: sold_overlay_id,
             error_overlay: error_overlay_id,
+            sold_text: sold_text_id,
         });
     }
 

@@ -2,13 +2,13 @@ use std::time::Duration;
 
 use crate::config::SOLD_ANIM_DURATION;
 use crate::hud::ShopHudIds;
+use raylib::prelude::Color;
+use shared::protocol::EffectType;
 use shared::{
     config::PlayerClass,
     protocol::{GameEvent, GameEventKind, LobbyPhaseInfo, LobbySlotInfo, ShopItem},
 };
 use ui::prelude::*;
-use raylib::prelude::Color;
-use shared::protocol::EffectType;
 
 pub enum GamePhase {
     Wave,
@@ -181,7 +181,7 @@ pub struct ClientState {
     pub phase: GamePhase,
     pub shop_ui: ShopUiState,
     pub debug: DebugState,
-    pub ui: UiState
+    pub ui: UiState,
 }
 
 impl ClientState {
@@ -233,20 +233,18 @@ impl ClientState {
                 self.debug.set_hit_anim(pos);
             }
             GameEventKind::DebugCollider { x, y } => {
-            }
-            GameEventKind::DebugCollider { x, y } => {
                 if !self.debug.cleared {
                     self.debug.collider.clear();
                     self.debug.cleared = true;
                 }
                 self.debug.add_collider(x, y);
-            },
+            }
             GameEventKind::SharedLivesUpdate { remaining, max } => {
                 println!("SharedLivesUpdate reçu");
                 self.ui.shared_lives.current = remaining;
                 self.ui.shared_lives.max = max;
-            },
-            GameEventKind::GameOver => {},
+            }
+            GameEventKind::GameOver => {}
         }
     }
 
@@ -336,6 +334,24 @@ pub fn handle_shop_ui_event(event: &GameEvent, ui_ctx: &mut UiContext, shop_ids:
                 elapsed: 0.0,
                 easing: easing::ease_in_out_quad,
                 done: false,
+                on_complete: vec![
+                    UIEvent::SetColor {
+                        target: shop_ids.cards[*slot].sold_overlay,
+                        color: Color::new(40, 40, 40, 255),
+                    },
+                    UIEvent::SetOpacity {
+                        target: shop_ids.cards[*slot].sold_overlay,
+                        opacity: 1.0,
+                    },
+                    UIEvent::SetText {
+                        target: shop_ids.cards[*slot].sold_text,
+                        content: "VENDU".to_string(),
+                    },
+                    UIEvent::SetVisible {
+                        target: shop_ids.cards[*slot].sold_text,
+                        visible: true,
+                    },
+                ],
             });
             ui_ctx.send_event(UIEvent::SetVisible {
                 target: shop_ids.cards[*slot].sold_overlay,
@@ -352,13 +368,21 @@ pub fn handle_shop_ui_event(event: &GameEvent, ui_ctx: &mut UiContext, shop_ids:
                 elapsed: 0.0,
                 easing: easing::ease_out_quad,
                 done: false,
+                on_complete: vec![UIEvent::SetVisible {
+                    target: shop_ids.cards[*slot].error_overlay,
+                    visible: false,
+                }],
             });
             ui_ctx.send_event(UIEvent::SetVisible {
                 target: shop_ids.cards[*slot].error_overlay,
                 visible: true,
             });
+            ui_ctx.send_event(UIEvent::SetOpacity {
+                target: shop_ids.cards[*slot].error_overlay,
+                opacity: 0.7,
+            });
         }
-        GameEventKind::WaveEnd { time_between_wave } => {}
+        GameEventKind::WaveEnd { .. } => {}
         _ => {}
     }
 }

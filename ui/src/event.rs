@@ -4,6 +4,7 @@ use raylib::prelude::{Color};
 use crate::texture::TextureId;
 use crate::shader::ShaderId;
 
+#[derive(Clone)]
 pub enum UIEvent {
     SetColor   { target: NodeId, color: Color },
     SetOpacity { target: NodeId, opacity: f32 },

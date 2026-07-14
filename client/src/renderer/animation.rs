@@ -1,14 +1,14 @@
-use crate::renderer::texture::{self, AnimData};
+use crate::renderer::animation_manager::{self, AnimData};
 use raylib::texture::Texture2D;
 #[derive(Debug)]
 pub struct AnimEntity {
-    current_id: texture::TextureId,
+    current_id: animation_manager::AnimId,
     current_frame: usize,
     timer: f32,
 }
 
 impl AnimEntity {
-    pub fn new(id: &texture::TextureId) -> Self {
+    pub fn new(id: &animation_manager::AnimId) -> Self {
         Self {
             current_id: *id,
             current_frame: 0,
@@ -16,7 +16,7 @@ impl AnimEntity {
         }
     }
 
-    pub fn set(&mut self, id: texture::TextureId) {
+    pub fn set(&mut self, id: animation_manager::AnimId) {
         if self.current_id != id {
             self.current_id = id;
             self.current_frame = 0;

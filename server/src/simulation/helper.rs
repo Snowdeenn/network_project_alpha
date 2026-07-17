@@ -1,12 +1,10 @@
 use legion::EntityStore;
 use legion::{Entity, world::SubWorld};
+use legion::systems::Resources;
 
 use crate::simulation::components::{Collider, Position, Velocity, Geometry};
-use crate::EnemyDiedQueue;
-use crate::InputQueue;
-use crate::DamageQueue;
-use crate::CoinSpawnQueue;
-use crate::PickupQueue;
+use crate::Queue;
+use crate::{DamageEvent, CoinEvent, EnemyDied, GameEvent};
 
 #[derive(Debug)]
 pub struct Resolution {
@@ -18,19 +16,6 @@ pub struct Resolution {
     pub dir_y: f64,
     pub axis: bool,
 }
-
-#[derive(Debug)]
-pub struct PlayerPos {
-    pub x: f64,
-    pub y: f64,
-}
-
-#[derive(Debug)]
-pub struct PlayerHp {
-    pub hp: f64,
-    pub max_hp: f64,
-}
-
 
 pub fn aabb_overlap(
     pos_a: &Position,
@@ -162,20 +147,10 @@ pub fn apply_resolution(world: &mut SubWorld, res: &Resolution) {
     }
 }
 
-pub fn clear_resource_queues(resources: &mut legion::Resources) {
-    if let Some(mut queue) = resources.get_mut::<InputQueue>() {
-        queue.0.clear();
-    }
-    if let Some(mut queue) = resources.get_mut::<DamageQueue>() {
-        queue.0.clear();
-    }
-    if let Some(mut queue) = resources.get_mut::<EnemyDiedQueue>() {
-        queue.0.clear();
-    }
-    if let Some(mut queue) = resources.get_mut::<CoinSpawnQueue>() {
-        queue.0.clear();
-    }
-    if let Some(mut queue) = resources.get_mut::<PickupQueue>() {
-        queue.0.clear();
-    }
+pub fn clear_resource_queues(resources: &mut Resources) {
+    resources.get_mut::<Queue<DamageEvent>>().unwrap().data.clear();
+    resources.get_mut::<Queue<EnemyDied>>().unwrap().data.clear();
+    resources.get_mut::<Queue<CoinEvent>>().unwrap().data.clear();
+    resources.get_mut::<Queue<(Entity, Entity)>>().unwrap().data.clear();
+    resources.get_mut::<Queue<GameEvent>>().unwrap().data.clear();
 }

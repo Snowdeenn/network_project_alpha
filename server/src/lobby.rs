@@ -4,7 +4,7 @@ use crate::net::server::GameNetServer;
 use crate::next_id;
 use crate::session::{LobbyPhase, SessionState};
 use crate::simulation::components::Position;
-use crate::simulation::event::GameEventQueue;
+use crate::Queue;
 use crate::simulation::systems::spawn::spawn_player;
 use crate::simulation::wave::{WaveManager, WaveState};
 use legion::Entity;
@@ -118,8 +118,8 @@ fn start_game(session: &mut SessionState, world: &mut World, resources: &mut Res
     }
 
     if let Some(lives) = resources.get::<SharedLives>() {
-        if let Some(mut event_queue) = resources.get_mut::<GameEventQueue>() {
-            event_queue.0.push(GameEvent {
+        if let Some(mut event_queue) = resources.get_mut::<Queue<GameEvent>>() {
+            event_queue.data.push(GameEvent {
                 kind: GameEventKind::SharedLivesUpdate { remaining: lives.remaining, max: lives.max }
             });
         }

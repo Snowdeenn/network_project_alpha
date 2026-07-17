@@ -1,4 +1,3 @@
-use crate::simulation::event::CoinEvent;
 use legion::Entity;
 use shared::protocol::ShopItem;
 use std::collections::HashMap;
@@ -6,12 +5,6 @@ use std::collections::HashMap;
 pub struct CoinPool {
     pub coins: Vec<Entity>,
 }
-
-#[derive(Debug)]
-pub struct CoinSpawnQueue(pub Vec<CoinEvent>);
-
-#[derive(Debug)]
-pub struct PickupQueue(pub Vec<(Entity, Entity)>);
 
 #[derive(Debug)]
 pub struct PlayerGold(pub HashMap<u64, u32>);

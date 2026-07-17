@@ -1,4 +1,5 @@
 use crate::next_id;
+use crate::queue::Queue;
 use crate::simulation::components::*;
 use crate::simulation::event::*;
 use crate::simulation::helper::obb_vs_aabb;
@@ -114,7 +115,7 @@ pub fn create_attack_box(
     pos: &Position,
     intent: &AttackIntent,
     command: &mut CommandBuffer,
-    #[resource] game_event_queue: &mut GameEventQueue,
+    #[resource] game_event_queue: &mut Queue<GameEvent>,
 ) {
     let dir = intent.aim_dir;
 
@@ -162,7 +163,7 @@ pub fn create_attack_box(
         ));
 
         // Rendu Debug via ton événement réseau existant !
-        game_event_queue.0.push(GameEvent {
+        game_event_queue.data.push(GameEvent {
             kind: GameEventKind::DebugRect {
                 x: center_x as f32,
                 y: center_y as f32,
@@ -189,8 +190,8 @@ pub fn create_attack_box(
 pub fn check_collide_attackbox(
     world: &mut SubWorld,
     command: &mut CommandBuffer,
-    #[resource] damage_queue: &mut DamageQueue,
-    #[resource] game_event_queue: &mut GameEventQueue,
+    #[resource] damage_queue: &mut Queue<DamageEvent>,
+    #[resource] game_event_queue: &mut Queue<GameEvent>,
 ) {
     let players: std::collections::HashSet<Entity> = <Entity>::query()
         .filter(component::<Player>())
@@ -235,11 +236,11 @@ pub fn check_collide_attackbox(
                 }
 
                 if should_damage {
-                    damage_queue.0.push(DamageEvent {
+                    damage_queue.data.push(DamageEvent {
                         target: *victim_entt,
                         amount: damage.0,
                     });
-                    game_event_queue.0.push(GameEvent {
+                    game_event_queue.data.push(GameEvent {
                         kind: GameEventKind::EntityHit {
                             pos: [victim_pos.x as f32, victim_pos.y as f32],
                         },

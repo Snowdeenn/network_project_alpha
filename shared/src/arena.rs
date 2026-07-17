@@ -1,6 +1,6 @@
-use std::marker::PhantomData;
-use std::hash::Hash;
 use std::fmt::Debug;
+use std::hash::Hash;
+use std::marker::PhantomData;
 
 pub struct Id<Tag> {
     pub index: usize,
@@ -8,14 +8,14 @@ pub struct Id<Tag> {
     _phantom: PhantomData<Tag>,
 }
 
-struct Slot<Data> {
+pub struct Slot<Data> {
     generation: u32,
     value: Option<Data>,
 }
 
 pub struct Arena<Data, Tag = Data> {
-    nodes: Vec<Slot<Data>>,
-    free_slot: Vec<usize>,
+    pub nodes: Vec<Slot<Data>>,
+    pub free_slot: Vec<usize>,
     _phantom: PhantomData<Tag>,
 }
 
@@ -24,6 +24,21 @@ impl<Data, Tag> Arena<Data, Tag> {
         Arena {
             nodes: Vec::new(),
             free_slot: Vec::new(),
+            _phantom: PhantomData,
+        }
+    }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        let mut free_slot = Vec::with_capacity(capacity);
+
+        // On pré-remplit la pile à l'envers : [99, 98, ..., 0]
+        for i in 0..capacity {
+            free_slot.push(capacity - 1 - i);
+        }
+
+        Self {
+            nodes: Vec::with_capacity(capacity),
+            free_slot,
             _phantom: PhantomData,
         }
     }
@@ -70,9 +85,7 @@ impl<Data, Tag> Arena<Data, Tag> {
     }
 
     pub fn remove(&mut self, id: Id<Tag>) -> Option<Data> {
-        if id.index >= self.nodes.len()
-            || id.generation != self.nodes[id.index].generation
-        {
+        if id.index >= self.nodes.len() || id.generation != self.nodes[id.index].generation {
             return None;
         }
         self.free_slot.push(id.index);
@@ -85,6 +98,47 @@ impl<Data, Tag> Arena<Data, Tag> {
 
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Data> {
         self.nodes.iter_mut().filter_map(|slot| slot.value.as_mut())
+    }
+
+    pub fn iter_with_ids(&self) -> impl Iterator<Item = (Id<Tag>, &Data)> {
+        self.nodes.iter().enumerate().filter_map(|(index, slot)| {
+            slot.value.as_ref().map(|data| {
+                (
+                    Id {
+                        index,
+                        generation: slot.generation,
+                        _phantom: PhantomData,
+                    },
+                    data,
+                )
+            })
+        })
+    }
+
+    pub fn acquire(&mut self) -> Option<Id<Tag>> {
+        let index = self.free_slot.pop()?;
+        Some(Id {
+            index,
+            generation: self.nodes[index].generation,
+            _phantom: PhantomData,
+        })
+    }
+
+    pub fn release_index(&mut self, id: Id<Tag>) {
+        if id.index < self.nodes.len() && id.generation == self.nodes[id.index].generation {
+            self.free_slot.push(id.index);
+        }
+    }
+
+    pub fn init_slot(&mut self, value: Data) {
+        if self.nodes.len() >= self.nodes.capacity() {
+            panic!("Arena pleine à l'init");
+        }
+
+        self.nodes.push(Slot {
+            generation: 0,
+            value: Some(value),
+        });
     }
 }
 
@@ -102,13 +156,19 @@ impl<T> Hash for Id<T> {
 }
 impl<T> Debug for Id<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Id {{ index: {}, generation: {} }}", self.index, self.generation)
+        write!(
+            f,
+            "Id {{ index: {}, generation: {} }}",
+            self.index, self.generation
+        )
     }
 }
 
 impl<T> Copy for Id<T> {}
 impl<T> Clone for Id<T> {
-    fn clone(&self) -> Self { *self }
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 
 // #[cfg(test)]

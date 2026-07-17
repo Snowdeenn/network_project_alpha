@@ -1,5 +1,5 @@
 use crate::simulation::components::*;
-use crate::simulation::helper::{PlayerPos, Resolution, aabb_overlap, apply_resolution};
+use crate::simulation::helper::{Resolution, aabb_overlap, apply_resolution};
 use legion::world::SubWorld;
 use legion::*;
 use std::time::Duration;
@@ -12,13 +12,6 @@ const ARENA_H: f64 = 1080.0;
 pub fn update_position(pos: &mut Position, velo: &Velocity, #[resource] dt: &Duration) {
     pos.x += velo.dx * (*dt).as_secs_f64();
     pos.y += velo.dy * (*dt).as_secs_f64();
-}
-
-#[system(for_each)]
-#[filter(component::<Player>())]
-pub fn update_player_pos(pos: &Position, #[resource] player_pos: &mut PlayerPos) {
-    player_pos.x = pos.x;
-    player_pos.y = pos.y;
 }
 
 #[system(for_each)]

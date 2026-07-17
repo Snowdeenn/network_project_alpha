@@ -1,12 +1,11 @@
 use legion::*;
-use crate::simulation::components::*;
-use crate::simulation::event::GameEventQueue;
+use crate::{queue::Queue, simulation::components::*};
 use shared::protocol::{GameEvent, GameEventKind};
 
 #[system(for_each)]
 #[filter(component::<Player>())]
-pub fn send_collider(pos: &Position, #[resource] game_event_queue: &mut GameEventQueue) {
-    game_event_queue.0.push(GameEvent {
+pub fn send_collider(pos: &Position, #[resource] game_event_queue: &mut Queue<GameEvent>) {
+    game_event_queue.data.push(GameEvent {
         kind: GameEventKind::DebugCollider {
             x: pos.x as f32,
             y: pos.y as f32,
@@ -19,10 +18,10 @@ pub fn send_collider(pos: &Position, #[resource] game_event_queue: &mut GameEven
 pub fn debug_projectile_positions(
     pos: &Position,
     geo: &Geometry,
-    #[resource] game_event_queue: &mut GameEventQueue,
+    #[resource] game_event_queue: &mut Queue<GameEvent>,
 ) {
     // On envoie un point de débug à la position du projectile
-    game_event_queue.0.push(GameEvent {
+    game_event_queue.data.push(GameEvent {
         kind: GameEventKind::DebugRect {
             x: pos.x as f32,
             y: pos.y as f32,

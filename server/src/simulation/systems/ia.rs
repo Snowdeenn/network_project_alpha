@@ -1,5 +1,6 @@
+use crate::queue::Queue;
 use crate::simulation::components::*;
-use crate::simulation::event::{DamageEvent, DamageQueue};
+use crate::simulation::event::{DamageEvent};
 use arrayvec::ArrayVec;
 use legion::world::SubWorld;
 use legion::*;
@@ -69,7 +70,7 @@ pub fn melee_ia_movement(world: &mut SubWorld) {
         &AttackStats,
         &MovementStats,
     )>::query()
-    .filter(component::<IA>() & component::<MeleeBrain>() | component::<KamikazeBrain>());
+    .filter(component::<IA>() & (component::<MeleeBrain>() | component::<KamikazeBrain>()));
 
     for (ia_pos, active, target, velo, stats, mov_stats) in query.iter_mut(world) {
         if !active.0 {
@@ -183,8 +184,8 @@ pub fn ranged_ia_movement(world: &mut SubWorld) {
 
 #[system(for_each)]
 #[filter(component::<KamikazeBrain>() & component::<AttackIntent>())]
-pub fn kamikaze_suicide(entt: &Entity, #[resource] damage_queue: &mut DamageQueue) {
-    damage_queue.0.push(DamageEvent {
+pub fn kamikaze_suicide(entt: &Entity, #[resource] damage_queue: &mut Queue<DamageEvent>) {
+    damage_queue.data.push(DamageEvent {
         target: *entt,
         amount: 999999 // Montant arbitraire pour OS le kamikaze
     });

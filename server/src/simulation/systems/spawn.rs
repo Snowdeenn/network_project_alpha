@@ -1,3 +1,4 @@
+use crate::next_id;
 use crate::simulation::components::*;
 use legion::world::World;
 use legion::*;
@@ -56,4 +57,53 @@ pub fn spawn_player(
     });
 
     entity
+}
+
+pub fn spawn_enemy_blank(world: &mut World) -> Entity {
+    let e = world.push((
+        EntityId(next_id()),
+        IA,
+        Position { x: 0.0, y: 0.0 },
+        Velocity { dx: 0.0, dy: 0.0 },
+        Collider { w: 40.0, h: 40.0 },
+        Health {
+            hp: 0,
+            max_hp: 0,
+            state: HealthState::Alive,
+        },
+        Active(false),
+        AttackTimer {
+            remaining: Duration::ZERO,
+            interval: Duration::from_secs_f32(0.5),
+        },
+    ));
+
+    let mut entry = world
+        .entry(e)
+        .expect("[Entry ennemi] Echec de la création de l'entry dans le main");
+    entry.add_component(Target(None));
+    entry.add_component(AttackStats {
+        range: 0.0,
+        damage: 0,
+        box_half_length: 0.0,
+        box_half_width: 0.0,
+        projectile_speed: None,
+    });
+    entry.add_component(MovementStats {
+        accel: 0.0,
+        max_speed: 0.0,
+    });
+    e
+}
+
+pub fn spawn_coin_blank(world: &mut World) -> Entity {
+    let e = world.push((
+        EntityId(next_id()),
+        Coin,
+        Position { x: 0.0, y: 0.0 },
+        Collider { w: 20.0, h: 20.0 },
+        Active(false),
+        CoinValue(0),
+    ));
+    e
 }

@@ -1,26 +1,27 @@
 mod config;
 mod lobby;
 mod net;
+pub mod pool;
+pub mod queue;
 mod session;
 mod simulation;
 mod snapshot;
 
 use crate::config::*;
+use crate::pool::{GamePools, PoolManager};
+use crate::queue::Queue;
 use crate::session::*;
-use crate::simulation::helper::{PlayerHp, PlayerPos};
 use crate::simulation::systems::{
     attack::*, coin::*, debug::*, health::*, ia::*, physics::*, state::dash_system, wave::*,
 };
 
-use legion::{Entity, EntityStore, IntoQuery, Resources, Schedule, component, world::World};
+use legion::{Entity, EntityStore, Resources, Schedule, world::World};
 use net::server::GameNetServer;
 use renet::ServerEvent;
 use shared::config::{ClassConfig, ClassRegistery, GameConfig, PlayerClass};
 use shared::protocol::*;
 use simulation::shop::PlayerShops;
-use simulation::{
-    components::*, eco::*, event::*, helper::clear_resource_queues, input::InputQueue, wave::*,
-};
+use simulation::{components::*, eco::*, event::*, helper::clear_resource_queues, wave::*};
 use snapshot::build_snapshot;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -45,24 +46,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut world = World::default();
     let mut resources = Resources::default();
     let players_entities: HashMap<u64, Entity> = HashMap::new();
-    let mut _client_ids: Vec<u64> = Vec::new();
+    let mut _client_ids: Vec<u64> = vec![];
 
     // --- resources ---
     {
         resources.insert(Duration::new(0, 0));
-        resources.insert(InputQueue(vec![]));
         resources.insert(InputState::default());
-        resources.insert(DamageQueue(vec![]));
-        resources.insert(EnemyDiedQueue(vec![]));
-        resources.insert(CoinSpawnQueue(vec![]));
-        resources.insert(PickupQueue(vec![]));
+        resources.insert(Queue::<DamageEvent> { data: vec![] });
+        resources.insert(Queue::<InputPacket> { data: vec![] });
+        resources.insert(Queue::<EnemyDied> { data: vec![] });
+        resources.insert(Queue::<CoinEvent> { data: vec![] });
+        resources.insert(Queue::<(Entity, Entity)> { data: vec![] });
+        resources.insert(Queue::<GameEvent> { data: vec![] });
         resources.insert(GameState::Playing);
-        resources.insert(PlayerPos { x: 0.0, y: 0.0 });
-        resources.insert(PlayerHp {
-            hp: 100.0,
-            max_hp: 100.0,
-        });
-        resources.insert(GameEventQueue(vec![]));
         resources.insert(PlayerShops::new());
         resources.insert(PlayerGold::new());
         resources.insert(players_entities);
@@ -96,63 +92,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         resources.insert(EnemyConfigs(enemy_config));
     }
 
-    // --- Enemy Pool ---
     {
-        let mut pool = EnemyPool { pool: vec![] };
-        for _ in 0..100 {
-            let e = world.push((
-                EntityId(next_id()),
-                IA,
-                Position { x: 0.0, y: 0.0 },
-                Velocity { dx: 0.0, dy: 0.0 },
-                Collider { w: 40.0, h: 40.0 },
-                Health {
-                    hp: 0,
-                    max_hp: 0,
-                    state: HealthState::Alive,
-                },
-                Active(false),
-                AttackTimer {
-                    remaining: Duration::ZERO,
-                    interval: Duration::from_secs_f32(0.5),
-                },
-            ));
-
-            let mut entry = world
-                .entry(e)
-                .expect("[Entry ennemi] Echec de la création de l'entry dans le main");
-            entry.add_component(Target(None));
-            entry.add_component(AttackStats {
-                range: 0.0,
-                damage: 0,
-                box_half_length: 0.0,
-                box_half_width: 0.0,
-                projectile_speed: None,
-            });
-            entry.add_component(MovementStats {
-                accel: 0.0,
-                max_speed: 0.0,
-            });
-            pool.pool.push(e);
-        }
-        resources.insert(pool);
-    };
-
-    // --- Coin Pool ---
-    {
-        let mut coin_pool = CoinPool { coins: vec![] };
-        for _ in 0..50 {
-            let e = world.push((
-                EntityId(next_id()),
-                Coin,
-                Position { x: 0.0, y: 0.0 },
-                Collider { w: 20.0, h: 20.0 },
-                Active(false),
-                CoinValue(rand::random::<u32>() % 10 + 1),
-            ));
-            coin_pool.coins.push(e);
-        }
-        resources.insert(coin_pool);
+        let pool_manager = PoolManager::new(GamePools::init(&mut world));
+        resources.insert(pool_manager);
     }
 
     // ---- Items Pool ----
@@ -280,7 +222,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .expect("PlayerGold est pas dans les resources")
                                 .0
                                 .insert(client_id, 0);
-                            
+
                             net.send_lobby(
                                 client_id,
                                 &LobbyMessage::SessionJoined {
@@ -396,21 +338,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             *res_dt = TICK_DURATION; // timestep fixe côté serveur
         }
 
-        // Met à jour la position et la santé du joueur dans les ressources pour que les systèmes IA puissent y accéder
-        {
-            let mut player_query = <(&Position, &Health)>::query()
-                .filter(component::<Player>() & component::<Active>());
-            if let Some((pos, health)) = player_query.iter(&world).next() {
-                if let Some(mut player_pos) = resources.get_mut::<PlayerPos>() {
-                    player_pos.x = pos.x;
-                    player_pos.y = pos.y;
-                }
-                if let Some(mut player_hp) = resources.get_mut::<PlayerHp>() {
-                    player_hp.hp = health.hp.into();
-                }
-            }
-        }
-
         schedule.execute(&mut world, &mut resources);
 
         {
@@ -430,13 +357,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         {
             let mut game_events = resources
-                .get_mut::<GameEventQueue>()
+                .get_mut::<Queue<GameEvent>>()
                 .expect("GameEventQueue pas dans les ressources");
             let mapping = resources
                 .get::<EntityToClient>()
                 .expect("EntityToClient pas dans les ressources");
 
-            for event in game_events.0.drain(..) {
+            for event in game_events.data.drain(..) {
                 match event.kind {
                     GameEventKind::PlayerDied { entity_id } => {
                         if let Some(&client_id) = mapping.0.get(&entity_id) {

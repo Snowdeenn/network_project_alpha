@@ -1,5 +1,6 @@
 use std::time::Duration;
 use legion::Entity;
+use shared::arena::Id;
 
 pub struct Player;
 pub struct IA;
@@ -122,3 +123,5 @@ pub struct MovementStats {
 
 #[derive(Clone, Copy)]
 pub struct LifeTime(pub Duration);
+
+pub struct PoolId<Tag>(pub Id<Tag>);

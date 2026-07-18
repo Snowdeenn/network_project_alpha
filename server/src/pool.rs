@@ -11,8 +11,8 @@ impl<T, Tag> Pool<T, Tag> {
     }
 
     #[inline]
-    pub fn create(&mut self, value: T) {
-        self.0.init_slot(value);
+    pub fn create(&mut self, value: T) -> Option<()> {
+        self.0.init_slot(value)
     }
 
     #[inline]
@@ -73,12 +73,30 @@ impl<Storage> PoolManager<Storage> {
     {
         let pool = self.storage.get_pool_mut();
         let id = pool.spawn()?;
-        let entity = *pool.get(id)?;
-        let mut entry = world
-            .entry_mut(entity)
-            .expect("Impossible de créer l'entry dans le pool manager");
-        let active = entry.get_component_mut::<Active>().ok()?;
-        active.0 = true;
+
+        let entity = match pool.get(id).copied() {
+            Some(e) => e,
+            None => {
+                pool.recycle(id);
+                return None;
+            }
+        };
+
+        let mut entry = match world.entry_mut(entity) {
+            Ok(e) => e,
+            Err(_) => {
+                pool.recycle(id);
+                return None;
+            }
+        };
+
+        match entry.get_component_mut::<Active>() {
+            Ok(active) => active.0 = true,
+            Err(_) => {
+                pool.recycle(id);
+                return None;
+            }
+        }
 
         Some((id, entity))
     }
@@ -118,20 +136,82 @@ impl GamePools {
     pub fn init(world: &mut World) -> Self {
         let mut enemy = Pool::<Entity, EnemyTag>::with_capacity(ENEMY_POOL_SIZE);
         for _ in 0..ENEMY_POOL_SIZE {
-            enemy.create(spawn_enemy_blank(world));
+            enemy.create(spawn_enemy_blank(world))
+                .expect("Pool enemy: capacité dépassée à l'init");
         }
-
 
         let mut coin = Pool::<Entity, CoinTag>::with_capacity(COIN_POOL_SIZE);
         for _ in 0..COIN_POOL_SIZE {
-            coin.create(spawn_coin_blank(world));
+            coin.create(spawn_coin_blank(world))
+                .expect("Pool coin: capacité dépassée à l'init");
         }
-
-        println!("Enemy pool free_slots: {}", enemy.0.free_slot.len());
-        println!("Enemy pool nodes: {}", enemy.0.nodes.len());
         Self { enemy, coin }
     }
 }
 
 impl_has_pool!(GamePools, Entity, EnemyTag, enemy);
 impl_has_pool!(GamePools, Entity, CoinTag, coin);
+
+#[cfg(test)]
+mod pool_manager_tests {
+    use super::*;
+    use legion::*; 
+
+    #[test]
+    fn test_pool_manager_enemy_lifecycle() {
+        let mut world = World::default();
+        let pools = GamePools::init(&mut world);
+        let mut pool_manager = PoolManager::new(pools);
+
+        let query = <&mut Active>::query();
+        
+        // 💡 On extrait le premier SubWorld dans sa propre variable bien distincte
+        let (mut unwrapped_world, _) = world.split_for_query(&query); //
+
+        // On passe la référence mutable du SubWorld extrait (&mut SubWorld)
+        let acquire_res = pool_manager.acquire::<EnemyTag>(&mut unwrapped_world);
+        assert!(acquire_res.is_some(), "L'acquisition d'un ennemi de la pool a échoué");
+        
+        let (id, entity) = acquire_res.unwrap();
+        
+        // Vérification avec la bonne variable
+        let entry = unwrapped_world.entry_ref(entity).unwrap();
+        let active = entry.get_component::<Active>().unwrap();
+        assert!(active.0, "L'entité acquise devrait être Active(true)");
+
+        // Recyclage (Release)
+        pool_manager.release::<EnemyTag>(id, &mut unwrapped_world);
+
+        // Vérification finale
+        let entry = unwrapped_world.entry_ref(entity).unwrap();
+        let active = entry.get_component::<Active>().unwrap();
+        assert!(!active.0, "L'entité libérée devrait être Active(false)");
+    }
+
+    #[test]
+    fn test_pool_manager_coin_lifecycle() {
+        let mut world = World::default();
+        let pools = GamePools::init(&mut world);
+        let mut pool_manager = PoolManager::new(pools);
+
+        let query = <&mut Active>::query();
+        
+        // 💡 Même chose ici
+        let (mut unwrapped_world, _) = world.split_for_query(&query); //
+
+        let acquire_res = pool_manager.acquire::<CoinTag>(&mut unwrapped_world);
+        assert!(acquire_res.is_some(), "L'acquisition d'une pièce a échoué");
+        
+        let (id, entity) = acquire_res.unwrap();
+        
+        let entry = unwrapped_world.entry_ref(entity).unwrap();
+        let active = entry.get_component::<Active>().unwrap();
+        assert!(active.0);
+
+        pool_manager.release::<CoinTag>(id, &mut unwrapped_world);
+
+        let entry = unwrapped_world.entry_ref(entity).unwrap();
+        let active = entry.get_component::<Active>().unwrap();
+        assert!(!active.0);
+    }
+}

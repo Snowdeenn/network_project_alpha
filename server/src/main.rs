@@ -1,6 +1,7 @@
 mod config;
 mod lobby;
 mod net;
+mod player_registry;
 pub mod pool;
 pub mod queue;
 mod session;
@@ -8,6 +9,7 @@ mod simulation;
 mod snapshot;
 
 use crate::config::*;
+use crate::player_registry::PlayerRegistry;
 use crate::pool::{GamePools, PoolManager};
 use crate::queue::Queue;
 use crate::session::*;
@@ -32,8 +34,6 @@ pub enum GameState {
     Playing,
     Shop,
 }
-// Une simple table : Key = EntityId (jeu), Value = client_id (réseau)
-pub struct EntityToClient(pub HashMap<u64, u64>);
 
 pub fn next_id() -> u64 {
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -45,8 +45,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut net = GameNetServer::new();
     let mut world = World::default();
     let mut resources = Resources::default();
-    let players_entities: HashMap<u64, Entity> = HashMap::new();
-    let mut _client_ids: Vec<u64> = vec![];
 
     // --- resources ---
     {
@@ -61,8 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         resources.insert(GameState::Playing);
         resources.insert(PlayerShops::new());
         resources.insert(PlayerGold::new());
-        resources.insert(players_entities);
-        resources.insert(EntityToClient(HashMap::new()));
+        resources.insert(PlayerRegistry::with_capacity(16));
     }
 
     // --- wave config ---
@@ -218,13 +215,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     match session.add_slot(client_id, &game_cfg) {
                         Some(slot_index) => {
                             resources
-                                .get_mut::<PlayerGold>()
-                                .expect("PlayerGold est pas dans les resources")
-                                .0
-                                .insert(client_id, 0);
+                                .get_mut::<PlayerRegistry>()
+                                .unwrap()
+                                .add(client_id);
 
                             net.send_lobby(
-                                client_id,
+                                client_id, 
                                 &LobbyMessage::SessionJoined {
                                     code: session.code.clone(),
                                     slot_index,

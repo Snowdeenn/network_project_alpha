@@ -20,11 +20,12 @@ use crate::simulation::systems::{
 use legion::{Entity, EntityStore, Resources, Schedule, world::World};
 use net::server::GameNetServer;
 use renet::ServerEvent;
+use shared::buffer::BufferManager;
 use shared::config::{ClassConfig, ClassRegistery, GameConfig, PlayerClass};
 use shared::protocol::*;
 use simulation::shop::PlayerShops;
 use simulation::{components::*, eco::*, event::*, helper::clear_resource_queues, wave::*};
-use snapshot::build_snapshot;
+use snapshot::{build_entities, build_player_info, build_wave_info};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 const TICK_DURATION: Duration = Duration::from_millis(50);
@@ -60,6 +61,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         resources.insert(PlayerShops::new());
         resources.insert(PlayerGold::new());
         resources.insert(PlayerRegistry::with_capacity(16));
+        resources.insert(BufferManager::with_capacity(24));
     }
 
     // --- wave config ---
@@ -220,7 +222,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .add(client_id);
 
                             net.send_lobby(
-                                client_id, 
+                                client_id,
                                 &LobbyMessage::SessionJoined {
                                     code: session.code.clone(),
                                     slot_index,
@@ -265,36 +267,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("Client disconnected: {}", client_id);
                     session.remove_slot(client_id);
 
-                    // Cleanup existant
-                    if let Some(entity) = resources
-                        .get_mut::<HashMap<u64, Entity>>()
+                    if let Some(entry) = resources
+                        .get_mut::<PlayerRegistry>()
                         .unwrap()
-                        .remove(&client_id)
+                        .remove(client_id)
                     {
-                        if let Ok(entry) = world.entry_ref(entity) {
-                            if let Ok(id) = entry.get_component::<EntityId>() {
-                                resources
-                                    .get_mut::<EntityToClient>()
-                                    .unwrap()
-                                    .0
-                                    .remove(&id.0);
-                            }
+                        if let Some(entity) = entry.entity {
+                            world.remove(entity);
                         }
-                        world.remove(entity);
                     }
 
-                    resources
-                        .get_mut::<PlayerGold>()
-                        .unwrap()
-                        .0
-                        .remove(&client_id);
-
-                    // Broadcaster le lobby mis à jour
-                    let update = LobbyMessage::LobbyUpdate {
+                    net.broadcast_lobby(&LobbyMessage::LobbyUpdate {
                         slots: session.to_slot_infos(),
                         phase: session.to_phase_info(),
-                    };
-                    net.broadcast_lobby(&update);
+                    });
                 }
             }
         }
@@ -302,10 +288,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Traite les inputs reçus du client et les stocke dans les ressources globales
         {
             for (client_id, packet) in net.drain_inputs() {
-                if let Some(&entity) = resources
-                    .get::<HashMap<u64, Entity>>()
+                if let Some(entity) = resources
+                    .get::<PlayerRegistry>()
                     .unwrap()
-                    .get(&client_id)
+                    .get_entity(client_id)
                 {
                     apply_input(&mut world, entity, &packet);
                 }
@@ -338,53 +324,68 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         {
             // On récupère temporairement les IDs des joueurs connectés
-            let active_clients: Vec<u64> = {
-                let players_entities = resources.get::<HashMap<u64, Entity>>().unwrap();
-                players_entities.keys().cloned().collect()
-            };
+            let active_clients: Vec<u64> = resources
+                .get::<PlayerRegistry>()
+                .unwrap()
+                .iter_clients()
+                .collect();
 
-            // On génère et on envoie un snapshot dédié à chaque client
-            for client_id in active_clients {
-                let snapshot = build_snapshot(client_id, &mut world, &resources, tick_id);
+            {
+                let mut buff_manager = resources.get_mut::<BufferManager>().unwrap();
+                // On génère et on envoie un snapshot dédié à chaque client
+                for client_id in active_clients {
+                    let (id, entities) = buff_manager
+                        .acquire::<Vec<EntityState>>()
+                        .expect("Buffer manager à échouer à donner un buffer");
+                    build_entities(&world, entities);
 
-                net.send_snapshot(client_id, &snapshot);
+                    let snapshot = StateSnapshot {
+                        tick_id,
+                        entities: std::mem::take(entities),
+                        wave_info: build_wave_info(&resources),
+                        player_info: build_player_info(client_id, &mut world, &resources),
+                    };
+
+                    net.send_snapshot(client_id, &snapshot);
+                    buff_manager.release(id);
+                }
             }
-        }
 
-        {
-            let mut game_events = resources
-                .get_mut::<Queue<GameEvent>>()
-                .expect("GameEventQueue pas dans les ressources");
-            let mapping = resources
-                .get::<EntityToClient>()
-                .expect("EntityToClient pas dans les ressources");
+            {
+                let mut game_events = resources
+                    .get_mut::<Queue<GameEvent>>()
+                    .expect("GameEventQueue pas dans les ressources");
+                let mapping = resources
+                    .get::<PlayerRegistry>()
+                    .expect("EntityToClient pas dans les ressources");
 
-            for event in game_events.data.drain(..) {
-                match event.kind {
-                    GameEventKind::PlayerDied { entity_id } => {
-                        if let Some(&client_id) = mapping.0.get(&entity_id) {
-                            println!("Envoi de la mort au client concerné : {}", client_id);
-                            net.send_event(client_id, &event);
+                for event in game_events.data.drain(..) {
+                    match event.kind {
+                        GameEventKind::PlayerDied { entity_id } => {
+                            if let Some(client_id) = mapping.entity_to_client(entity_id) {
+                                println!("Envoi de la mort au client concerné : {}", client_id);
+                                net.send_event(client_id, &event);
 
-                            if let Some(&entity) = resources
-                                .get::<HashMap<u64, Entity>>()
-                                .unwrap()
-                                .get(&client_id)
-                            {
-                                if let Ok(mut entry) = world.entry_mut(entity) {
-                                    if let Ok(active) = entry.get_component_mut::<Active>() {
-                                        active.0 = false;
-                                    }
-                                    if let Ok(vel) = entry.get_component_mut::<Velocity>() {
-                                        vel.dx = 0.0;
-                                        vel.dy = 0.0;
+                                if let Some(entity) = resources
+                                    .get::<PlayerRegistry>()
+                                    .unwrap()
+                                    .get_entity(client_id)
+                                {
+                                    if let Ok(mut entry) = world.entry_mut(entity) {
+                                        if let Ok(active) = entry.get_component_mut::<Active>() {
+                                            active.0 = false;
+                                        }
+                                        if let Ok(vel) = entry.get_component_mut::<Velocity>() {
+                                            vel.dx = 0.0;
+                                            vel.dy = 0.0;
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
-                    _ => {
-                        net.broadcast_event(&event);
+                        _ => {
+                            net.broadcast_event(&event);
+                        }
                     }
                 }
             }
@@ -447,12 +448,11 @@ fn handle_shop_action(
         ShopActionKind::Buy => {
             println!("Client {} à acheté un item du shop", client);
 
-            let gold_avaible = res.get::<PlayerGold>().unwrap();
+            let gold = res.get::<PlayerRegistry>().unwrap().get_gold(client);
             let item = {
                 let mut player_shop = res.get_mut::<PlayerShops>().unwrap();
-                player_shop.buy(client, action.slot as usize, gold_avaible.get(client))
+                player_shop.buy(client, action.slot as usize, gold)
             };
-            drop(gold_avaible); // On libère le verrou sur res après utilisation de gold_avaible
 
             match item {
                 Some(item) => {
@@ -460,9 +460,9 @@ fn handle_shop_action(
                         "Client {} as acheter l'item du slot {}",
                         client, action.slot
                     );
-                    if let Some(mut gold) = res.get_mut::<PlayerGold>() {
-                        gold.sub(client, item.price);
-                    }
+                    res.get_mut::<PlayerRegistry>()
+                        .unwrap()
+                        .sub_gold(client, item.price);
                     server.send_event(
                         client,
                         &GameEvent {

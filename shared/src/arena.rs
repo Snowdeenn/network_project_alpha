@@ -14,8 +14,8 @@ pub struct Slot<Data> {
 }
 
 pub struct Arena<Data, Tag = Data> {
-    pub nodes: Vec<Slot<Data>>,
-    pub free_slot: Vec<usize>,
+    nodes: Vec<Slot<Data>>,
+    free_slot: Vec<usize>,
     _phantom: PhantomData<Tag>,
 }
 
@@ -42,6 +42,7 @@ impl<Data, Tag> Arena<Data, Tag> {
         }
     }
 
+    #[must_use]
     pub fn insert(&mut self, data: Data) -> Id<Tag> {
         if let Some(index) = self.free_slot.pop() {
             if index < self.nodes.len() {
@@ -80,6 +81,7 @@ impl<Data, Tag> Arena<Data, Tag> {
         }
     }
 
+    #[must_use]
     pub fn get(&self, id: Id<Tag>) -> Option<&Data> {
         if id.index >= self.nodes.len()
             || id.generation != self.nodes[id.index].generation
@@ -90,6 +92,7 @@ impl<Data, Tag> Arena<Data, Tag> {
         self.nodes[id.index].value.as_ref()
     }
 
+    #[must_use]
     pub fn get_mut(&mut self, id: Id<Tag>) -> Option<&mut Data> {
         if id.index >= self.nodes.len()
             || id.generation != self.nodes[id.index].generation
@@ -131,17 +134,23 @@ impl<Data, Tag> Arena<Data, Tag> {
         })
     }
 
+    #[must_use]
     pub fn acquire(&mut self) -> Option<Id<Tag>> {
-        let index = self.free_slot.pop()?;
+    let index = self.free_slot.pop()?;
+    if index < self.nodes.len() {
         Some(Id {
             index,
             generation: self.nodes[index].generation,
             _phantom: PhantomData,
         })
+    } else {
+        None
     }
+}
 
     pub fn release_index(&mut self, id: Id<Tag>) {
         if id.index < self.nodes.len() && id.generation == self.nodes[id.index].generation {
+            self.nodes[id.index].generation += 1;
             self.free_slot.push(id.index);
         }
     }

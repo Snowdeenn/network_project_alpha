@@ -1,30 +1,11 @@
-use std::collections::HashMap;
-
 use crate::Coin;
-use crate::PlayerGold;
+use crate::player_registry::PlayerRegistry;
 use crate::simulation::components::{Active, EntityId, Health, IA, Player, Position, Projectile};
 use crate::simulation::wave::{WaveManager, WaveState as SimWaveState};
 use legion::*;
-use shared::protocol::{EntityKind, EntityState, PlayerInfo, StateSnapshot, WaveInfo, WaveState};
+use shared::protocol::{EntityKind, EntityState, PlayerInfo,WaveInfo, WaveState};
 
-pub fn build_snapshot(
-    player_id: u64,
-    world: &mut World,
-    resources: &Resources,
-    tick_id: u64,
-) -> StateSnapshot {
-    let wave_info = build_wave_info(resources);
-    let entities = build_entities(world);
-
-    StateSnapshot {
-        tick_id,
-        entities,
-        wave_info,
-        player_info: build_player_info(player_id, world, resources),
-    }
-}
-
-fn build_wave_info(resources: &Resources) -> WaveInfo {
+pub fn build_wave_info(resources: &Resources) -> WaveInfo {
     resources
         .get::<WaveManager>()
         .map(|wm| WaveInfo {
@@ -45,9 +26,7 @@ fn build_wave_info(resources: &Resources) -> WaveInfo {
         })
 }
 
-fn build_entities(world: &World) -> Vec<EntityState> {
-    let mut entities = Vec::new();
-
+pub fn build_entities(world: &World, entities: &mut Vec<EntityState>){
     // joueurs
     {
         let mut player_query = <(&EntityId, &Position, &Health, &Active)>::query()
@@ -120,22 +99,20 @@ fn build_entities(world: &World) -> Vec<EntityState> {
         }
     }
 
-    entities
 }
 
-fn build_player_info(
+pub fn build_player_info(
     player_id: u64,
     world: &mut World,
     resources: &Resources,
 ) -> Option<PlayerInfo> {
-    let players_entities = resources.get::<HashMap<u64, Entity>>().unwrap();
-    let entity = players_entities.get(&player_id)?;
+    let registry = resources.get::<PlayerRegistry>().unwrap();
+    let entity = registry.get_entity(player_id)?;
+    let gold = registry.get_gold(player_id);
+    drop(registry);
 
-    let entry = world.entry(*entity)?;
+    let entry = world.entry(entity)?;
     let health = entry.get_component::<Health>().ok()?;
-
-    let player_gold_res = resources.get::<PlayerGold>().unwrap();
-    let gold = player_gold_res.0.get(&player_id).cloned().unwrap_or(0);
 
     Some(PlayerInfo {
         health: health.hp as f32,

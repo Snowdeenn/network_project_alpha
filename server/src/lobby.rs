@@ -1,18 +1,16 @@
-use crate::EntityToClient;
+use crate::Queue;
 use crate::config::SharedLives;
 use crate::net::server::GameNetServer;
 use crate::next_id;
+use crate::player_registry::PlayerRegistry;
 use crate::session::{LobbyPhase, SessionState};
 use crate::simulation::components::Position;
-use crate::Queue;
 use crate::simulation::systems::spawn::spawn_player;
 use crate::simulation::wave::{WaveManager, WaveState};
-use legion::Entity;
 use legion::Resources;
 use legion::World;
 use shared::config::{ClassRegistery, GameConfig};
-use shared::protocol::{GameEvent, LobbyMessage, SessionErrorKind, GameEventKind};
-use std::collections::HashMap;
+use shared::protocol::{GameEvent, GameEventKind, LobbyMessage, SessionErrorKind};
 use std::time::Duration;
 
 pub fn handle_lobby_message(
@@ -97,17 +95,13 @@ fn start_game(session: &mut SessionState, world: &mut World, resources: &mut Res
             .unwrap_or(Position { x: 960.0, y: 540.0 });
 
         let player_game_id = next_id();
-        let entity = spawn_player(world, player_game_id, &registry, class, pos);
+        let entity = spawn_player(world, player_game_id, &registry, class, pos);                            
 
-        resources
-            .get_mut::<HashMap<u64, Entity>>()
-            .unwrap()
-            .insert(slot.client_id, entity);
-        resources
-            .get_mut::<EntityToClient>()
-            .unwrap()
-            .0
-            .insert(player_game_id, slot.client_id);
+        resources.get_mut::<PlayerRegistry>().unwrap().link_entity(
+            slot.client_id,
+            entity,
+            player_game_id,
+        );
     }
 
     session.phase = LobbyPhase::InGame;
@@ -120,7 +114,10 @@ fn start_game(session: &mut SessionState, world: &mut World, resources: &mut Res
     if let Some(lives) = resources.get::<SharedLives>() {
         if let Some(mut event_queue) = resources.get_mut::<Queue<GameEvent>>() {
             event_queue.data.push(GameEvent {
-                kind: GameEventKind::SharedLivesUpdate { remaining: lives.remaining, max: lives.max }
+                kind: GameEventKind::SharedLivesUpdate {
+                    remaining: lives.remaining,
+                    max: lives.max,
+                },
             });
         }
     }

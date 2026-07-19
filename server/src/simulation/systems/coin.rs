@@ -1,15 +1,14 @@
+use crate::player_registry::PlayerRegistry;
 use crate::pool::GamePools;
 use crate::pool::PoolManager;
 use crate::queue::Queue;
 use crate::simulation::components::*;
-use crate::simulation::eco::*;
 use crate::simulation::event::*;
 use crate::simulation::helper::aabb_overlap;
 use legion::systems::CommandBuffer;
 use legion::world::SubWorld;
 use legion::*;
 use shared::ids::CoinTag;
-use std::collections::HashMap;
 
 #[system]
 #[read_component(Position)]
@@ -119,36 +118,38 @@ pub fn coin_pickup(word: &mut SubWorld, #[resource] pick_up_queue: &mut Queue<(E
 #[system]
 #[read_component(CoinValue)]
 #[read_component(PoolId<CoinTag>)]
+#[read_component(EntityId)]
 #[write_component(Active)]
 pub fn apply_pickup(
     world: &mut SubWorld,
     #[resource] pick_up_queue: &mut Queue<(Entity, Entity)>,
-    #[resource] gold: &mut PlayerGold,
-    #[resource] players_entities: &HashMap<u64, Entity>,
+    #[resource] registry: &mut PlayerRegistry,
     #[resource] pool_manager: &mut PoolManager<GamePools>,
 ) {
     for (player_entity, coin) in pick_up_queue.data.iter() {
-        if let Ok(entry) = world.entry_mut(*coin) {
-            if let Ok(value) = entry.get_component::<CoinValue>() {
-                let player_id = players_entities
-                    .iter()
-                    .find(|&(_, &ent)| ent == *player_entity)
-                    .map(|(&id, _)| id);
-
-                if let Some(id) = player_id {
-                    gold.add(id, value.0);
-
-                    println!(
-                        "Le joueur {} a ramassé une pièce d'une valeur de {} !",
-                        id, value.0
-                    );
-                }
-            }
-        }
         let pool_id = world
             .entry_ref(*coin)
             .ok()
             .and_then(|entry| entry.get_component::<PoolId<CoinTag>>().ok().map(|p| p.0));
+
+        let gold_amount = world
+            .entry_ref(*coin)
+            .ok()
+            .and_then(|e| e.get_component::<CoinValue>().ok().map(|v| v.0));
+
+        let client_id = world
+            .entry_ref(*player_entity)
+            .ok()
+            .and_then(|e| e.get_component::<EntityId>().ok().map(|id| id.0))
+            .and_then(|id| registry.entity_to_client(id));
+
+        if let (Some(amount), Some(client_id)) = (gold_amount, client_id) {
+            registry.add_gold(client_id, amount);
+            println!(
+                "Le joueur {} a ramassé une pièce de {} !",
+                client_id, amount
+            );
+        }
 
         if let Some(id) = pool_id {
             pool_manager.release(id, world);

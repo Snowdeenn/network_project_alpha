@@ -68,7 +68,7 @@ dependencies = [
  "bitflags 2.11.1",
  "cexpr",
  "clang-sys",
- "itertools",
+ "itertools 0.10.5",
  "log",
  "prettyplease",
  "proc-macro2",
@@ -471,6 +471,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "itertools"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b4baf93f58d4425749ca49a51c50ebab072c5df6994d08fed93541c331481dc"
+dependencies = [
+ "either",
+]
+
+[[package]]
 name = "itoa"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -493,7 +502,7 @@ dependencies = [
  "crossbeam-channel",
  "downcast-rs",
  "erased-serde",
- "itertools",
+ "itertools 0.10.5",
  "legion_codegen",
  "parking_lot 0.11.2",
  "paste",
@@ -942,6 +951,7 @@ version = "0.1.0"
 dependencies = [
  "arrayvec",
  "bincode",
+ "itertools 0.15.0",
  "legion",
  "rand",
  "renet",

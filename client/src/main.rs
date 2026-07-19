@@ -41,7 +41,7 @@ fn main() {
     let mut draw_buffer = DrawCommandBuffer::new(4046);
     let mut ui_ctx = UiContext::new(renderer.screen_w as f32, renderer.screen_h as f32);
     let mut shader_manager = ShaderManager::new();
-    let mut texture_manager = TextureManager::new();
+    let texture_manager = TextureManager::new();
 
     let mut last_tick = Instant::now();
     let mut last_frame = Instant::now();
@@ -51,7 +51,6 @@ fn main() {
     let mut last_snap_time: Instant = Instant::now();
     let mut particle_system = ParticleSystem::new();
     let mut is_solo: bool = false;
-
 
     let sh_pr_bar = include_str!("../../shader/progress_bar.frag");
     let raw_sh = renderer
@@ -103,6 +102,7 @@ fn main() {
                     }
                 }
 
+                // Affichave du main menu
                 {
                     let mut d = renderer.rl.begin_drawing(&renderer.thread);
                     match &client {
@@ -118,8 +118,12 @@ fn main() {
                     screens::lobby::handle_input(&renderer.rl, state, c);
                     c.flush();
                 }
-                let mut d = renderer.rl.begin_drawing(&renderer.thread);
-                screens::lobby::render(&mut d, state, &renderer.screen_scale);
+
+                // Affichage du lobby
+                {
+                    let mut d = renderer.rl.begin_drawing(&renderer.thread);
+                    screens::lobby::render(&mut d, state, &renderer.screen_scale);
+                }
             }
             AppScreen::InGame(client_state) => {
                 let dt = renderer.rl.get_frame_time();

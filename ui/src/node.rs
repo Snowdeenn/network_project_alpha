@@ -2,9 +2,9 @@ use std::ops::{Add, Div, Mul, Sub};
 
 use raylib::prelude::{Color, Vector2};
 
-use crate::{draw::NinePatchMargins};
-use crate::input::{Interact};
 use crate::NodeId;
+use crate::draw::NinePatchMargins;
+use crate::input::Interact;
 use shared::ids::{ShaderId, TextureId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -115,12 +115,11 @@ impl UiNode {
 
 #[derive(Debug, Clone, Copy)]
 pub enum UiUnit {
-    Pixels(f32),          // valeur fixe en pixels
-    ScreenWidth(f32),     // ratio de la largeur de l'écran  (0.1 = 10% de screen_w)
-    ScreenHeight(f32),    // ratio de la hauteur de l'écran  (0.1 = 10% de screen_h)
-    ParentPercent(f32),   // ratio de la dimension du parent (0.5 = 50% du parent)
+    Pixels(f32),        // valeur fixe en pixels
+    ScreenWidth(f32),   // ratio de la largeur de l'écran  (0.1 = 10% de screen_w)
+    ScreenHeight(f32),  // ratio de la hauteur de l'écran  (0.1 = 10% de screen_h)
+    ParentPercent(f32), // ratio de la dimension du parent (0.5 = 50% du parent)
 }
-
 
 impl Mul<f32> for UiUnit {
     type Output = Self;
@@ -135,7 +134,6 @@ impl Mul<f32> for UiUnit {
     }
 }
 
-
 impl Sub<UiUnit> for f32 {
     type Output = UiUnit;
 
@@ -148,7 +146,6 @@ impl Sub<UiUnit> for f32 {
         }
     }
 }
-
 
 impl Div<f32> for UiUnit {
     type Output = Self;
@@ -173,7 +170,9 @@ impl Add<UiUnit> for UiUnit {
             (UiUnit::ScreenHeight(a), UiUnit::ScreenHeight(b)) => UiUnit::ScreenHeight(a + b),
             (UiUnit::ParentPercent(a), UiUnit::ParentPercent(b)) => UiUnit::ParentPercent(a + b),
 
-            _ => panic!("Opération Add impossible entre des UiUnit de types différents directement. Attendez la résolution du Layout."),
+            _ => panic!(
+                "Opération Add impossible entre des UiUnit de types différents directement. Attendez la résolution du Layout."
+            ),
         }
     }
 }
@@ -188,7 +187,9 @@ impl Sub<UiUnit> for UiUnit {
             (UiUnit::ScreenHeight(a), UiUnit::ScreenHeight(b)) => UiUnit::ScreenHeight(a - b),
             (UiUnit::ParentPercent(a), UiUnit::ParentPercent(b)) => UiUnit::ParentPercent(a - b),
 
-            _ => panic!("Opération Sub impossible entre des UiUnit de types différents directement. Attendez la résolution du Layout."),
+            _ => panic!(
+                "Opération Sub impossible entre des UiUnit de types différents directement. Attendez la résolution du Layout."
+            ),
         }
     }
 }
@@ -205,13 +206,16 @@ impl UiVec2 {
     }
 
     pub fn pixels(x: f32, y: f32) -> Self {
-        Self { x: UiUnit::Pixels(x), y: UiUnit::Pixels(y) }
+        Self {
+            x: UiUnit::Pixels(x),
+            y: UiUnit::Pixels(y),
+        }
     }
-    
+
     pub fn screen(x: f32, y: f32) -> Self {
-        Self { 
-            x: UiUnit::ScreenWidth(x), 
-            y: UiUnit::ScreenHeight(y) 
+        Self {
+            x: UiUnit::ScreenWidth(x),
+            y: UiUnit::ScreenHeight(y),
         }
     }
 }

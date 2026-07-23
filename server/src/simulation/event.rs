@@ -12,4 +12,3 @@ pub struct EnemyDied(pub Entity);
 pub struct CoinEvent {
     pub pos: [f32; 2],
 }
-

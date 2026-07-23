@@ -1,6 +1,6 @@
-pub mod protocol;
-pub mod net;
-pub mod config;
 pub mod arena;
-pub mod ids;
 pub mod buffer;
+pub mod config;
+pub mod ids;
+pub mod net;
+pub mod protocol;

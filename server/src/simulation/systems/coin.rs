@@ -8,7 +8,9 @@ use crate::simulation::helper::aabb_overlap;
 use legion::systems::CommandBuffer;
 use legion::world::SubWorld;
 use legion::*;
+use shared::buffer::BufferManager;
 use shared::ids::CoinTag;
+use std::collections::HashSet;
 
 #[system]
 #[read_component(Position)]
@@ -73,25 +75,58 @@ pub fn coin_spawn(
 #[read_component(Collider)]
 #[read_component(Player)]
 #[read_component(Coin)]
-pub fn coin_pickup(word: &mut SubWorld, #[resource] pick_up_queue: &mut Queue<(Entity, Entity)>) {
-    let players: std::collections::HashSet<Entity> = <Entity>::query()
-        .filter(component::<Player>())
-        .iter(word)
-        .copied()
-        .collect();
+pub fn coin_pickup(
+    word: &mut SubWorld,
+    #[resource] pick_up_queue: &mut Queue<(Entity, Entity)>,
+    #[resource] buff_manager: &mut BufferManager,
+) {
+    let players_id = buff_manager.acquire_id::<HashSet<Entity>>();
+    let coins_id = buff_manager.acquire_id::<HashSet<Entity>>();
+    let entities_id = buff_manager.acquire_id::<Vec<(Entity, Position, Collider)>>();
 
-    let coins: std::collections::HashSet<Entity> = <Entity>::query()
-        .filter(component::<Coin>())
-        .iter(word)
-        .copied()
-        .collect();
+    {
+        let players = buff_manager.get_mut::<HashSet<Entity>>(players_id).expect(
+            "[Buffer Manager] HashSet<Entity> introuvable, devrait être dans le buffer manager",
+        );
+        players.extend(
+            <Entity>::query()
+                .filter(component::<Player>())
+                .iter(word)
+                .copied(),
+        );
+    }
+    {
+        let coins = buff_manager.get_mut::<HashSet<Entity>>(coins_id).expect(
+            "[Buffer Manager] HashSet<Entity> introuvable , devrait être dans le buffer manager",
+        );
+        coins.extend(
+            <Entity>::query()
+                .filter(component::<Coin>())
+                .iter(word)
+                .copied(),
+        );
+    }
+    {
+        let entities = buff_manager
+            .get_mut::<Vec<(Entity, Position, Collider)>>(entities_id)
+            .expect("[Buffer Manager] Vec<(Entity, &Position, &Collider)> introuvable , devrait être dans le buffer manager");
+        entities.extend(
+            <(Entity, &Position, &Collider, &Active)>::query()
+                .iter(word)
+                .filter(|(_, _, _, active)| active.0)
+                .map(|(e, p, c, _)| (*e, *p, *c)),
+        );
+    }
 
-    let mut query = <(Entity, &Position, &Collider, &Active)>::query();
-    let entities: Vec<_> = query
-        .iter(word)
-        .filter(|(_, _, _, active)| active.0)
-        .map(|(e, p, c, _)| (*e, *p, *c))
-        .collect();
+    let players = buff_manager.get::<HashSet<Entity>>(players_id).expect(
+        "[Buffer Manager] HashSet<Entity> introuvable , devrait être dans le buffer manager",
+    );
+    let coins = buff_manager.get::<HashSet<Entity>>(coins_id).expect(
+        "[Buffer Manager] HashSet<Entity> introuvable , devrait être dans le buffer manager",
+    );
+    let entities = buff_manager
+        .get::<Vec<(Entity, Position, Collider)>>(entities_id)
+        .expect("[Buffer Manager] Vec<(Entity, &Position, &Collider, &Active)> introuvable, devrait être dans le buffer manager");
 
     for i in 0..entities.len() {
         for j in (i + 1)..entities.len() {
@@ -114,6 +149,9 @@ pub fn coin_pickup(word: &mut SubWorld, #[resource] pick_up_queue: &mut Queue<(E
             }
         }
     }
+    buff_manager.release(players_id);
+    buff_manager.release(coins_id);
+    buff_manager.release(entities_id);
 }
 #[system]
 #[read_component(CoinValue)]

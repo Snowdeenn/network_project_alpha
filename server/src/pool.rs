@@ -1,7 +1,13 @@
-use legion::{Entity, world::SubWorld, EntityStore, World};
-use shared::{arena::*, ids::{CoinTag, EnemyTag}};
+use legion::{Entity, EntityStore, World, world::SubWorld};
+use shared::{
+    arena::*,
+    ids::{CoinTag, EnemyTag},
+};
 
-use crate::simulation::{components::Active, systems::spawn::{spawn_coin_blank, spawn_enemy_blank}};
+use crate::simulation::{
+    components::Active,
+    systems::spawn::{spawn_coin_blank, spawn_enemy_blank},
+};
 
 pub struct Pool<T, Tag>(Arena<T, Tag>);
 
@@ -136,7 +142,8 @@ impl GamePools {
     pub fn init(world: &mut World) -> Self {
         let mut enemy = Pool::<Entity, EnemyTag>::with_capacity(ENEMY_POOL_SIZE);
         for _ in 0..ENEMY_POOL_SIZE {
-            enemy.create(spawn_enemy_blank(world))
+            enemy
+                .create(spawn_enemy_blank(world))
                 .expect("Pool enemy: capacité dépassée à l'init");
         }
 
@@ -155,7 +162,7 @@ impl_has_pool!(GamePools, Entity, CoinTag, coin);
 #[cfg(test)]
 mod pool_manager_tests {
     use super::*;
-    use legion::*; 
+    use legion::*;
 
     #[test]
     fn test_pool_manager_enemy_lifecycle() {
@@ -164,16 +171,19 @@ mod pool_manager_tests {
         let mut pool_manager = PoolManager::new(pools);
 
         let query = <&mut Active>::query();
-        
+
         // 💡 On extrait le premier SubWorld dans sa propre variable bien distincte
         let (mut unwrapped_world, _) = world.split_for_query(&query); //
 
         // On passe la référence mutable du SubWorld extrait (&mut SubWorld)
         let acquire_res = pool_manager.acquire::<EnemyTag>(&mut unwrapped_world);
-        assert!(acquire_res.is_some(), "L'acquisition d'un ennemi de la pool a échoué");
-        
+        assert!(
+            acquire_res.is_some(),
+            "L'acquisition d'un ennemi de la pool a échoué"
+        );
+
         let (id, entity) = acquire_res.unwrap();
-        
+
         // Vérification avec la bonne variable
         let entry = unwrapped_world.entry_ref(entity).unwrap();
         let active = entry.get_component::<Active>().unwrap();
@@ -195,15 +205,15 @@ mod pool_manager_tests {
         let mut pool_manager = PoolManager::new(pools);
 
         let query = <&mut Active>::query();
-        
+
         // 💡 Même chose ici
         let (mut unwrapped_world, _) = world.split_for_query(&query); //
 
         let acquire_res = pool_manager.acquire::<CoinTag>(&mut unwrapped_world);
         assert!(acquire_res.is_some(), "L'acquisition d'une pièce a échoué");
-        
+
         let (id, entity) = acquire_res.unwrap();
-        
+
         let entry = unwrapped_world.entry_ref(entity).unwrap();
         let active = entry.get_component::<Active>().unwrap();
         assert!(active.0);

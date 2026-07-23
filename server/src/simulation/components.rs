@@ -1,6 +1,6 @@
-use std::time::Duration;
 use legion::Entity;
 use shared::arena::Id;
+use std::time::Duration;
 
 pub struct Player;
 pub struct IA;
@@ -46,30 +46,30 @@ pub enum HealthState {
 
 #[derive(Debug)]
 pub struct Health {
-   pub hp: u32,
-   pub max_hp: u32,
-   pub state: HealthState,
+    pub hp: u32,
+    pub max_hp: u32,
+    pub state: HealthState,
 }
 
 #[derive(Debug, PartialEq)]
 pub struct Active(pub bool);
 
-pub struct CoinValue(pub u32); 
+pub struct CoinValue(pub u32);
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct InputState {
     pub move_dir: [f32; 2],
-    pub aim_dir:  [f32; 2],
-    pub spell:    Option<u8>,
-    pub attack:   bool,
-    pub dash:     bool,
+    pub aim_dir: [f32; 2],
+    pub spell: Option<u8>,
+    pub attack: bool,
+    pub dash: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct Geometry {
     pub dir: [f32; 2],
     pub half_length: f32,
-    pub half_width: f32
+    pub half_width: f32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -101,6 +101,7 @@ pub struct AttackStats {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct TeamFilter {
     pub is_player: bool,
 }
@@ -112,7 +113,7 @@ pub struct Damage(pub u32);
 pub struct Knockback {
     pub dx: f32,
     pub dy: f32,
-    pub duration: f32
+    pub duration: f32,
 }
 
 #[derive(Debug, Clone, Copy)]

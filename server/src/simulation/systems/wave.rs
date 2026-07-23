@@ -4,6 +4,7 @@ use crate::queue::Queue;
 use crate::simulation::components::*;
 use crate::simulation::event::*;
 use crate::simulation::wave::*;
+use crate::simulation::systems::spawn;
 use legion::systems::CommandBuffer;
 use legion::world::SubWorld;
 use legion::*;
@@ -38,11 +39,6 @@ pub fn wave_death_reaper(
     }
 }
 
-const SPAWN_RADIUS: f64 = 800.0;
-use std::f64::consts::PI;
-const MAP_CENTER_X: f64 = 960.0;
-const MAP_CENTER_Y: f64 = 540.0;
-
 #[system]
 #[write_component(Health)]
 #[write_component(Active)]
@@ -65,59 +61,15 @@ pub fn wave_spawner(
 
         if wave_manager.spawn_timer.is_zero() && wave_manager.enemies_to_spawn > 0 {
             if let Some((id, entity)) = pool_manager.acquire::<EnemyTag>(world) {
-                if let Ok(mut entry) = world.entry_mut(entity) {
-                    if let Ok(id) = entry.get_component_mut::<EntityId>() {
-                        *id = EntityId(crate::next_id());
-                    }
+                let current_wave_config = &wave_configs.0[wave_manager.current_wave];
+                let base_hp = current_wave_config.enemy_hp;
+                let base_speed = current_wave_config.enemy_speed;
 
-                    if let Ok(pos) = entry.get_component_mut::<Position>() {
-                        let angle = rand::random::<f64>() * 2.0 * PI;
-                        pos.x = MAP_CENTER_X + angle.cos() * SPAWN_RADIUS;
-                        pos.y = MAP_CENTER_Y + angle.sin() * SPAWN_RADIUS;
-                    }
+                let enemy_type = pick_enemy_type(current_wave_config);
 
-                    if let Ok(target) = entry.get_component_mut::<Target>() {
-                        target.0 = None;
-                    }
-
-                    let current_wave_config = &wave_configs.0[wave_manager.current_wave];
-                    let base_hp = current_wave_config.enemy_hp;
-                    let base_speed = current_wave_config.enemy_speed;
-
-                    let mut enemy_type = EnemyType::Melee;
-                    let total_weight: f64 = current_wave_config.enemy_weights.values().sum();
-
-                    if total_weight > 0.0 {
-                        let mut rng_weight = rand::random::<f64>() * total_weight;
-
-                        for (etype, weight) in &current_wave_config.enemy_weights {
-                            if rng_weight <= *weight {
-                                enemy_type = EnemyType::from_str(etype).unwrap();
-                                break;
-                            }
-                            rng_weight -= *weight;
-                        }
-                    }
-
-                    if let Some(config) = enemy_config.0.get(enemy_type.to_str()) {
-                        if let Ok(health) = entry.get_component_mut::<Health>() {
-                            health.hp = (base_hp as f64 * config.hp_modifier) as u32;
-                            health.max_hp = (base_hp as f64 * config.hp_modifier) as u32;
-                            health.state = HealthState::Alive;
-                        }
-
-                        if let Ok(speed) = entry.get_component_mut::<MovementStats>() {
-                            speed.accel = base_speed * config.speed_modifier;
-                            speed.max_speed = config.max_speed;
-                        }
-
-                        if let Ok(attack_stats) = entry.get_component_mut::<AttackStats>() {
-                            attack_stats.range = config.range;
-                            attack_stats.damage = config.damage;
-                            attack_stats.projectile_speed = config.projectile_speed;
-                            attack_stats.box_half_length = config.box_half_length;
-                            attack_stats.box_half_width = config.box_half_width;
-                        }
+                if let Some(config) = enemy_config.0.get(enemy_type.to_str()) {
+                    if let Ok(mut entry) = world.entry_mut(entity) {
+                        spawn::configure_enemy(&mut entry, config, base_hp, base_speed);
 
                         match enemy_type {
                             EnemyType::Melee => command.add_component(entity, MeleeBrain),
@@ -126,15 +78,14 @@ pub fn wave_spawner(
                         }
                         command.add_component(entity, PoolId(id));
                     }
-
-                    // Relancer le chrono de spawn
-                    wave_manager.spawn_timer =
-                        Duration::from_millis(current_wave_config.spawn_interval_ms);
-                    wave_manager.enemies_to_spawn -= 1;
                 }
-            } else {
-                eprintln!("[Wave Spawner] pool vide");
+
+                wave_manager.spawn_timer =
+                    Duration::from_millis(current_wave_config.spawn_interval_ms);
+                wave_manager.enemies_to_spawn -= 1;
             }
+        } else {
+            eprintln!("[Wave Spawner] pool vide");
         }
     }
 }
@@ -186,4 +137,19 @@ pub fn wave_flow_manager(
         }
         _ => {}
     }
+}
+
+pub fn pick_enemy_type(config: &WaveConfig) -> EnemyType {
+    let total_weight: f64 = config.enemy_weights.values().sum();
+    if total_weight <= 0.0 {
+        return EnemyType::Melee;
+    }
+    let mut rng_weight = rand::random::<f64>() * total_weight;
+    for (etype, weight) in &config.enemy_weights {
+        if rng_weight <= *weight {
+            return EnemyType::from_str(etype).unwrap_or(EnemyType::Melee);
+        }
+        rng_weight -= *weight;
+    }
+    EnemyType::Melee
 }

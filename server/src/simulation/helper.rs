@@ -1,10 +1,10 @@
 use legion::EntityStore;
-use legion::{Entity, world::SubWorld};
 use legion::systems::Resources;
+use legion::{Entity, world::SubWorld};
 
-use crate::simulation::components::{Collider, Position, Velocity, Geometry};
 use crate::Queue;
-use crate::{DamageEvent, CoinEvent, EnemyDied, GameEvent};
+use crate::simulation::components::{Collider, Geometry, Position, Velocity};
+use crate::{CoinEvent, DamageEvent, EnemyDied, GameEvent};
 
 #[derive(Debug)]
 pub struct Resolution {
@@ -49,54 +49,56 @@ pub fn obb_vs_aabb(
     let delta_center_y = hitbox_pos.y - victim_pos.y;
 
     // 2. Demi-dimensions de la Victime (AABB)
-    let victim_half_width  = victim_col.w / 2.0;
+    let victim_half_width = victim_col.w / 2.0;
     let victim_half_height = victim_col.h / 2.0;
 
     // 3. Demi-dimensions de la Hitbox d'attaque (OBB)
     let hitbox_half_length = geometry.half_length as f64;
-    let hitbox_half_width  = geometry.half_width as f64;
+    let hitbox_half_width = geometry.half_width as f64;
 
     // 4. Les deux axes directionnels de la Hitbox
     let hitbox_forward_x = geometry.dir[0] as f64; // Axe longitudinal
     let hitbox_forward_y = geometry.dir[1] as f64;
-    
-    let hitbox_right_x = -hitbox_forward_y;         // Axe transversal (perpendiculaire)
+
+    let hitbox_right_x = -hitbox_forward_y; // Axe transversal (perpendiculaire)
     let hitbox_right_y = hitbox_forward_x;
 
     // --- TEST 1 : Projection sur l'axe Horizontal de la Victime ---
     let victim_shadow = victim_half_width;
-    let hitbox_shadow = hitbox_half_length * hitbox_forward_x.abs() 
-                      + hitbox_half_width * hitbox_right_x.abs();
-                      
+    let hitbox_shadow =
+        hitbox_half_length * hitbox_forward_x.abs() + hitbox_half_width * hitbox_right_x.abs();
+
     if delta_center_x.abs() > (victim_shadow + hitbox_shadow) {
         return false; // Zone vide trouvée, aucune collision possible !
     }
 
     // --- TEST 2 : Projection sur l'axe Vertical de la Victime ---
     let victim_shadow = victim_half_height;
-    let hitbox_shadow = hitbox_half_length * hitbox_forward_y.abs() 
-                      + hitbox_half_width * hitbox_right_y.abs();
-                      
+    let hitbox_shadow =
+        hitbox_half_length * hitbox_forward_y.abs() + hitbox_half_width * hitbox_right_y.abs();
+
     if delta_center_y.abs() > (victim_shadow + hitbox_shadow) {
         return false; // Zone vide trouvée
     }
 
     // --- TEST 3 : Projection sur l'axe Longitudinal (Face) de l'Attaque ---
-    let victim_shadow = victim_half_width * hitbox_forward_x.abs() 
-                      + victim_half_height * hitbox_forward_y.abs();
+    let victim_shadow =
+        victim_half_width * hitbox_forward_x.abs() + victim_half_height * hitbox_forward_y.abs();
     let hitbox_shadow = hitbox_half_length;
-    
-    let projected_distance = (delta_center_x * hitbox_forward_x + delta_center_y * hitbox_forward_y).abs();
+
+    let projected_distance =
+        (delta_center_x * hitbox_forward_x + delta_center_y * hitbox_forward_y).abs();
     if projected_distance > (victim_shadow + hitbox_shadow) {
         return false; // Zone vide trouvée
     }
 
     // --- TEST 4 : Projection sur l'axe Transversal (Côté) de l'Attaque ---
-    let victim_shadow = victim_half_width * hitbox_right_x.abs() 
-                      + victim_half_height * hitbox_right_y.abs();
+    let victim_shadow =
+        victim_half_width * hitbox_right_x.abs() + victim_half_height * hitbox_right_y.abs();
     let hitbox_shadow = hitbox_half_width;
-    
-    let projected_distance = (delta_center_x * hitbox_right_x + delta_center_y * hitbox_right_y).abs();
+
+    let projected_distance =
+        (delta_center_x * hitbox_right_x + delta_center_y * hitbox_right_y).abs();
     if projected_distance > (victim_shadow + hitbox_shadow) {
         return false; // Zone vide trouvée
     }
@@ -148,9 +150,29 @@ pub fn apply_resolution(world: &mut SubWorld, res: &Resolution) {
 }
 
 pub fn clear_resource_queues(resources: &mut Resources) {
-    resources.get_mut::<Queue<DamageEvent>>().unwrap().data.clear();
-    resources.get_mut::<Queue<EnemyDied>>().unwrap().data.clear();
-    resources.get_mut::<Queue<CoinEvent>>().unwrap().data.clear();
-    resources.get_mut::<Queue<(Entity, Entity)>>().unwrap().data.clear();
-    resources.get_mut::<Queue<GameEvent>>().unwrap().data.clear();
+    resources
+        .get_mut::<Queue<DamageEvent>>()
+        .unwrap()
+        .data
+        .clear();
+    resources
+        .get_mut::<Queue<EnemyDied>>()
+        .unwrap()
+        .data
+        .clear();
+    resources
+        .get_mut::<Queue<CoinEvent>>()
+        .unwrap()
+        .data
+        .clear();
+    resources
+        .get_mut::<Queue<(Entity, Entity)>>()
+        .unwrap()
+        .data
+        .clear();
+    resources
+        .get_mut::<Queue<GameEvent>>()
+        .unwrap()
+        .data
+        .clear();
 }

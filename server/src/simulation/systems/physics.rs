@@ -2,6 +2,7 @@ use crate::simulation::components::*;
 use crate::simulation::helper::{Resolution, aabb_overlap, apply_resolution};
 use legion::world::SubWorld;
 use legion::*;
+use shared::buffer::BufferManager;
 use std::time::Duration;
 
 const FRICTION: f64 = 0.85;
@@ -50,14 +51,24 @@ pub fn collide_arena(pos: &mut Position, col: &Collider) {
 #[write_component(Velocity)]
 #[write_component(Position)]
 #[read_component(Active)]
-pub fn collide(world: &mut SubWorld) {
-    let mut query = <(Entity, &Position, &Collider, &Active)>::query().filter(!component::<Coin>());
+pub fn collide(world: &mut SubWorld, #[resource] buff_manager: &mut BufferManager) {
+    let entities_id = buff_manager.acquire_id::<Vec<(Entity, Position, Collider)>>();
+    {
+        let entities = buff_manager.get_mut::<Vec<(Entity, Position, Collider)>>(entities_id).expect("[BufferManager] Vec<(Entity, Position, Collider)> devrait être dans le buffer manager");
+        entities.extend(
+            <(Entity, &Position, &Collider, &Active)>::query()
+                .filter(!component::<Coin>())
+                .iter(world)
+                .filter(|(_, _, _, active)| active.0)
+                .map(|(e, p, c, _)| (*e, *p, *c)),
+        );
+    }
 
-    let entities: Vec<_> = query
-        .iter(world)
-        .filter(|(_, _, _, active)| active.0)
-        .map(|(e, p, c, _)| (*e, *p, *c))
-        .collect();
+    let entities = buff_manager
+        .get::<Vec<(Entity, Position, Collider)>>(entities_id)
+        .expect(
+            "[BufferManager] Vec<(Entity, Position, Collider)> devrait être dans le buffer manager",
+        );
 
     let mut to_resolve: Vec<Resolution> = Vec::new();
     for i in 0..entities.len() {
@@ -87,4 +98,5 @@ pub fn collide(world: &mut SubWorld) {
     for res in to_resolve {
         apply_resolution(world, &res);
     }
+    buff_manager.release(entities_id);
 }

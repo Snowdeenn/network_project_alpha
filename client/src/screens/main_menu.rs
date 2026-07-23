@@ -3,7 +3,7 @@ use raylib::drawing::RaylibDrawHandle;
 use raylib::ffi::KeyboardKey;
 use raylib::prelude::*;
 
-use crate::{net::client::GameNetClient};
+use crate::net::client::GameNetClient;
 
 pub enum MenuAction {
     None,

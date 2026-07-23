@@ -95,7 +95,7 @@ fn start_game(session: &mut SessionState, world: &mut World, resources: &mut Res
             .unwrap_or(Position { x: 960.0, y: 540.0 });
 
         let player_game_id = next_id();
-        let entity = spawn_player(world, player_game_id, &registry, class, pos);                            
+        let entity = spawn_player(world, player_game_id, &registry, class, pos);
 
         resources.get_mut::<PlayerRegistry>().unwrap().link_entity(
             slot.client_id,

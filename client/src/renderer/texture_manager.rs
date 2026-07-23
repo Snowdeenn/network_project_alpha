@@ -1,6 +1,6 @@
+use raylib::prelude::{RaylibHandle, RaylibThread, Texture2D};
 use shared::arena::Arena;
 use shared::ids::{TextureId, TextureTag};
-use raylib::prelude::{RaylibHandle, RaylibThread, Texture2D};
 use ui::provider::TextureProvider;
 
 pub struct TextureManager {
@@ -9,7 +9,9 @@ pub struct TextureManager {
 
 impl TextureManager {
     pub fn new() -> Self {
-        Self { textures: Arena::new() }
+        Self {
+            textures: Arena::new(),
+        }
     }
 
     pub fn load(

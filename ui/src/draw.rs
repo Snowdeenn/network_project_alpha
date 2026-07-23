@@ -1,7 +1,6 @@
-use shared::ids::{ShaderId, TextureId};
 use crate::provider::{ShaderProvider, TextureProvider};
 use raylib::prelude::*;
-
+use shared::ids::{ShaderId, TextureId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct NinePatchMargins {

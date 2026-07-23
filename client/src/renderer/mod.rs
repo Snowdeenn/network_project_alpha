@@ -1,17 +1,19 @@
 pub mod animation;
+pub mod animation_manager;
 pub mod debug_ui;
 pub mod hud;
 pub mod pipeline;
-pub mod animation_manager;
-pub mod types;
 pub mod shader_manager;
 pub mod texture_manager;
+pub mod types;
 
 use crate::config::*;
 use crate::event::ClientState;
 use crate::particle::ParticleSystem;
 use crate::renderer::animation::AnimEntity;
-use crate::renderer::animation_manager::{BossState, EnemyState, PlayerState, AnimId, AnimationManager};
+use crate::renderer::animation_manager::{
+    AnimId, AnimationManager, BossState, EnemyState, PlayerState,
+};
 use crate::renderer::types::*;
 use raylib::prelude::*;
 use raylib_imgui::RaylibGui;
@@ -118,7 +120,7 @@ impl Renderer {
         d.clear_background(Color::BLACK);
 
         let dt = d.get_frame_time();
-        
+
         Self::render_game_world(
             &mut d,
             &frame,
@@ -132,7 +134,7 @@ impl Renderer {
         );
         Self::render_game_hud(&mut d, client_state, &self.screen_scale);
         Self::render_ui_frameworks(&mut d, ctx, ui, client_state, &self.cam);
-        
+
         self.imgui.end();
         d.draw_fps(self.screen_w - 100, 20);
     }

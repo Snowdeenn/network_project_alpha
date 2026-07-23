@@ -1,17 +1,20 @@
-use std::{any, collections::{HashMap, HashSet}};
+use std::{
+    any,
+    collections::{HashMap, HashSet},
+};
 
 use crate::{
     arena::Arena,
     ids::{BufferId, BufferTag},
 };
 
-pub trait AnyBuffer {
+pub trait AnyBuffer: Send + Sync {
     fn as_any(&self) -> &dyn any::Any;
     fn as_any_mut(&mut self) -> &mut dyn any::Any;
     fn clear(&mut self);
 }
 
-impl<T: 'static> AnyBuffer for Vec<T> {
+impl<T: 'static + Send + Sync> AnyBuffer for Vec<T> {
     fn as_any(&self) -> &dyn any::Any {
         self
     }
@@ -23,7 +26,7 @@ impl<T: 'static> AnyBuffer for Vec<T> {
     }
 }
 
-impl<T: 'static> AnyBuffer for HashSet<T> {
+impl<T: 'static + Send + Sync> AnyBuffer for HashSet<T> {
     fn as_any(&self) -> &dyn any::Any {
         self
     }
@@ -35,7 +38,7 @@ impl<T: 'static> AnyBuffer for HashSet<T> {
     }
 }
 
-impl<K: 'static, V: 'static> AnyBuffer for HashMap<K, V> {
+impl<K: 'static + Send + Sync, V: 'static + Send + Sync> AnyBuffer for HashMap<K, V> {
     fn as_any(&self) -> &dyn any::Any {
         self
     }
@@ -60,12 +63,25 @@ impl BufferManager {
 
     #[must_use]
     #[inline]
-    pub fn acquire<'a, C: AnyBuffer + Default + 'static>(&'a mut self) -> Option<(BufferId, &'a mut C)> {
-        let id = match self.buffers.acquire() {
-            Some(id) => id,
-            None => self.buffers.insert(Box::new(C::default())),
-        };
+    pub fn acquire_id<C: AnyBuffer + Default + 'static>(&mut self) -> BufferId {
+        if let Some(id) = self.buffers.acquire() {
+            if let Some(buffer) = self.buffers.get(id) {
+                if buffer.as_any().downcast_ref::<C>().is_some() {
+                    return id;
+                }
+            }
 
+            self.buffers.release_index(id);
+        }
+        self.buffers.insert(Box::new(C::default()))
+    }
+
+    #[must_use]
+    #[inline]
+    pub fn acquire<'a, C: AnyBuffer + Default + 'static>(
+        &'a mut self,
+    ) -> Option<(BufferId, &'a mut C)> {
+        let id = self.acquire_id::<C>();
         let buffer = self.buffers.get_mut(id)?;
         let collection = buffer.as_any_mut().downcast_mut::<C>()?;
         Some((id, collection))
@@ -88,7 +104,10 @@ impl BufferManager {
 
     #[must_use]
     #[inline]
-    pub fn get_mut<'a, C: AnyBuffer + Default + 'static>(&'a mut self, id: BufferId) -> Option<&'a mut C> {
+    pub fn get_mut<'a, C: AnyBuffer + Default + 'static>(
+        &'a mut self,
+        id: BufferId,
+    ) -> Option<&'a mut C> {
         let buffer = self.buffers.get_mut(id)?;
         buffer.as_any_mut().downcast_mut::<C>()
     }
@@ -107,7 +126,9 @@ mod tests {
     fn test_buffer_manager_basic_cycle() {
         let mut manager = BufferManager::with_capacity(2);
 
-        let (id1, vec1) = manager.acquire::<Vec<u8>>().expect("Devrait allouer un buffer");
+        let (id1, vec1) = manager
+            .acquire::<Vec<u8>>()
+            .expect("Devrait allouer un buffer");
         assert!(vec1.is_empty(), "Le buffer initial doit être vide");
 
         vec1.push(10);
@@ -162,7 +183,9 @@ mod tests {
         let (id1, _vec1) = manager.acquire::<Vec<u8>>().unwrap();
         manager.release(id1);
 
-        let (_id2, vec2) = manager.acquire::<Vec<u8>>().expect("Devrait recycler le slot");
+        let (_id2, vec2) = manager
+            .acquire::<Vec<u8>>()
+            .expect("Devrait recycler le slot");
         assert!(vec2.is_empty());
 
         let (_id3, _vec3) = manager

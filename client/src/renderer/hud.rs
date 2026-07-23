@@ -1,9 +1,9 @@
 use raylib::prelude::*;
 
 use crate::config::*;
+use shared::ids::ShaderId;
 use ui::prelude::*;
 use ui::*;
-use shared::ids::ShaderId;
 
 pub struct HudIds {
     pub wave_label_id: NodeId,
@@ -225,7 +225,7 @@ pub fn init_shop(ui_ctx: &mut UiContext) -> ShopHudIds {
             parent: sold_overlay_id,
             anchor: Anchor::Center,
             offset: UiVec2::pixels(30.0, 0.0),
-            size: UiVec2::screen(0.1, 0.03), 
+            size: UiVec2::screen(0.1, 0.03),
             content: "",
             font_size: 35.0,
             color: Color::WHITE,

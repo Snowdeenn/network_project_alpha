@@ -1,8 +1,7 @@
-use legion::Entity;
-use std::str::FromStr;
 use serde::Deserialize;
-use std::time::Duration;
 use std::collections::HashMap;
+use std::str::FromStr;
+use std::time::Duration;
 
 #[derive(Debug)]
 pub struct WaveManager {
@@ -32,11 +31,6 @@ pub struct WaveConfig {
 #[derive(Debug)]
 pub struct WaveConfigs(pub Vec<WaveConfig>);
 
-#[derive(Debug)]
-pub struct EnemyPool {
-    pub pool: Vec<Entity>,
-}
-
 #[derive(Deserialize, Debug, Clone)]
 pub struct EnemyStatsConfig {
     pub hp_modifier: f64,
@@ -54,7 +48,7 @@ pub struct EnemyConfigs(pub HashMap<String, EnemyStatsConfig>);
 pub enum EnemyType {
     Melee,
     Ranged,
-    Kamikaze
+    Kamikaze,
 }
 
 impl EnemyType {
@@ -75,7 +69,10 @@ impl FromStr for EnemyType {
             "melee" => Ok(EnemyType::Melee),
             "ranged" => Ok(EnemyType::Ranged),
             "kamikaze" => Ok(EnemyType::Kamikaze),
-            _ => Err(format!("'{}' n'est pas un type d'ennemi valide (attendu: 'melee' ou 'ranged')", s)),
+            _ => Err(format!(
+                "'{}' n'est pas un type d'ennemi valide (attendu: 'melee' ou 'ranged')",
+                s
+            )),
         }
     }
 }

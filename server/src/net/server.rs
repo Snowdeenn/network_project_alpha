@@ -15,6 +15,7 @@ pub struct GameNetServer {
     transport: NetcodeServerTransport,
 }
 
+#[allow(dead_code)]
 impl GameNetServer {
     pub fn new() -> Self {
         let addr: SocketAddr = SERVER_ADDR.parse().unwrap();
@@ -49,41 +50,33 @@ impl GameNetServer {
         events
     }
 
-    pub fn drain_inputs(&mut self) -> Vec<(u64, InputPacket)> {
-        let mut inputs = Vec::new();
-        let client_ids: Vec<u64> = self.server.clients_id().into_iter().collect();
-        for client_id in client_ids {
-            while let Some(bytes) = self.server.receive_message(client_id, CHANNEL_INPUT) {
-                if let Ok((packet, _)) =
-                    bincode::decode_from_slice(&bytes, bincode::config::standard())
-                {
-                    inputs.push((client_id, packet));
-                }
+    pub fn drain_inputs_into(&mut self, buf: &mut Vec<(u64, InputPacket)>) {
+    for client_id in self.server.clients_id().into_iter() {
+        while let Some(bytes) = self.server.receive_message(client_id, CHANNEL_INPUT) {
+            if let Ok((packet, _)) = bincode::decode_from_slice(&bytes, bincode::config::standard()) {
+                buf.push((client_id, packet));
             }
         }
-        inputs
     }
+}
 
-    pub fn drain_shop_actions(&mut self) -> Vec<(u64, ShopAction)> {
-        let mut actions = Vec::new();
-        for client_id in self.server.clients_id() {
+    pub fn drain_shop_actions_into(&mut self, buf: &mut Vec<(u64, ShopAction)>) {
+        for client_id in self.server.clients_id().into_iter() {
             while let Some(bytes) = self.server.receive_message(client_id, CHANNEL_SHOP) {
                 if let Ok((action, _)) =
                     bincode::decode_from_slice(&bytes, bincode::config::standard())
                 {
-                    actions.push((client_id, action));
+                    buf.push((client_id, action));
                 }
             }
         }
-        actions
     }
 
     pub fn drain_lobby_messages(&mut self) -> Vec<(u64, LobbyMessage)> {
         let mut msg = Vec::new();
         for client_id in self.server.clients_id() {
             while let Some(bytes) = self.server.receive_message(client_id, CHANNEL_LOBBY) {
-                if let Ok((m, _)) = 
-                    bincode::decode_from_slice(&bytes, bincode::config::standard())
+                if let Ok((m, _)) = bincode::decode_from_slice(&bytes, bincode::config::standard())
                 {
                     msg.push((client_id, m));
                 } else {

@@ -1,9 +1,9 @@
-pub mod physics;
-pub mod debug;
 pub mod attack;
-pub mod ia;
-pub mod health;
 pub mod coin;
-pub mod wave;
-pub mod state;
+pub mod debug;
+pub mod health;
+pub mod ia;
+pub mod physics;
 pub mod spawn;
+pub mod state;
+pub mod wave;

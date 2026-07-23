@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use super::{
-    Renderer, debug_ui,render_world,
+    Renderer, debug_ui, render_world,
     types::{FrameState, RenderContext},
 };
 use crate::TICK_DURATION;

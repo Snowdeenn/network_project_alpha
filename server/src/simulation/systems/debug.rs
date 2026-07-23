@@ -1,5 +1,5 @@
-use legion::*;
 use crate::{queue::Queue, simulation::components::*};
+use legion::*;
 use shared::protocol::{GameEvent, GameEventKind};
 
 #[system(for_each)]

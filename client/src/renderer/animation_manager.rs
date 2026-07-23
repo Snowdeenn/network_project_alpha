@@ -131,7 +131,7 @@ fn id_to_key(id: &AnimId) -> &'static str {
         AnimId::Boss(BossKind::Tank, BossState::Attack) => "tank_boss_attack",
         AnimId::Boss(BossKind::Tank, BossState::Die) => "tank_boss_die",
 
-        _ => ""
+        _ => "",
     }
 }
 

@@ -1,6 +1,6 @@
+use crate::simulation::components::*;
 use legion::*;
 use std::time::Duration;
-use crate::simulation::components::*;
 
 #[system(for_each)]
 #[filter(component::<Player>())]

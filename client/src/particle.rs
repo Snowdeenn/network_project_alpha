@@ -32,7 +32,7 @@ impl ParticleSystem {
         self.particle_pool.retain_mut(|p| {
             p.lifetime -= dt;
             p.pos += p.velocity * dt;
-            
+
             p.velocity.x *= 1.0 - (p.friction * dt);
             p.velocity.y *= 1.0 - (p.friction * dt);
 
@@ -45,7 +45,7 @@ impl ParticleSystem {
     pub fn draw(&self, d: &mut RaylibMode2D<RaylibDrawHandle>) {
         for p in &self.particle_pool {
             let size = (16.0 * p.scale) as i32;
-            
+
             let progress = (p.lifetime / p.lt_max).clamp(0.0, 1.0);
 
             d.draw_rectangle(

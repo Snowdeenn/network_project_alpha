@@ -23,6 +23,7 @@ pub struct SessionState {
     pub phase: LobbyPhase,
 }
 
+#[allow(dead_code)]
 impl SessionState {
     pub fn new(server_cfg: &ServerConfig) -> Self {
         Self {
@@ -34,7 +35,6 @@ impl SessionState {
 
     /// Retourne le slot_index attribué, ou None si la session est pleine ou InGame
     pub fn add_slot(&mut self, client_id: u64, game_cfg: &GameConfig) -> Option<u8> {
-
         let slot_index = self.slots.iter().position(|s| s.is_none())?;
         if slot_index >= game_cfg.max_players as usize {
             return None;

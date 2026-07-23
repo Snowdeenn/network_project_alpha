@@ -6,7 +6,7 @@ use crate::arena::Id;
 pub struct ShaderTag;
 pub struct TextureTag;
 
-pub type ShaderId  = Id<ShaderTag>;
+pub type ShaderId = Id<ShaderTag>;
 pub type TextureId = Id<TextureTag>;
 
 // ======================================

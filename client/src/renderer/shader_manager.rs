@@ -1,9 +1,8 @@
-use shared::arena::Arena;
-use shared::ids::{ShaderId, ShaderTag};
 use raylib::prelude::Shader;
 use raylib::shaders::RaylibShader;
+use shared::arena::Arena;
+use shared::ids::{ShaderId, ShaderTag};
 use ui::provider::ShaderProvider;
-
 
 pub struct ShaderManager {
     shaders: Arena<Shader, ShaderTag>,
@@ -71,7 +70,7 @@ impl ShaderManager {
 
 impl ShaderProvider for ShaderManager {
     fn get_shader(&self, id: ShaderId) -> Option<&Shader> {
-       self.shaders.get(id)
+        self.shaders.get(id)
     }
     fn get_shader_mut(&mut self, id: ShaderId) -> Option<&mut Shader> {
         self.shaders.get_mut(id)

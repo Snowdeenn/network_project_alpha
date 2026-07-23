@@ -1,10 +1,11 @@
-use legion::*;
-use legion::world::SubWorld;
+use crate::config::SharedLives;
 use crate::queue::Queue;
 use crate::simulation::components::*;
 use crate::simulation::event::*;
+use legion::world::SubWorld;
+use legion::*;
+use shared::buffer::BufferManager;
 use shared::protocol::{GameEvent, GameEventKind};
-use crate::config::SharedLives;
 
 #[system]
 #[write_component(Health)]
@@ -17,20 +18,26 @@ pub fn health(
     #[resource] enemy_die_queue: &mut Queue<EnemyDied>,
     #[resource] game_event_queue: &mut Queue<GameEvent>,
     #[resource] shared_lives: &mut SharedLives,
+    #[resource] buff_manager: &mut BufferManager,
 ) {
-    let dead: Vec<Entity> = <(Entity, &mut Health, &Active)>::query()
-        .iter_mut(world)
-        .filter(|(_, h, active)| h.hp == 0 && h.state != HealthState::Dead && active.0)
-        .map(|(e, h, _)| {
-            h.state = HealthState::Dead;
-            *e
-        })
-        .collect();
+    let (deads_id, dead) = buff_manager
+        .acquire::<Vec<Entity>>()
+        .expect("[BufferManager] devrait retourner un tuple avec l'id et le Vec<Entity>");
 
-    for entity in dead {
-        if let Ok(entry) = world.entry_mut(entity) {
+    dead.extend(
+        <(Entity, &mut Health, &Active)>::query()
+            .iter_mut(world)
+            .filter(|(_, h, active)| h.hp == 0 && h.state != HealthState::Dead && active.0)
+            .map(|(e, h, _)| {
+                h.state = HealthState::Dead;
+                *e
+            }),
+    );
+
+    for entity in dead.iter() {
+        if let Ok(entry) = world.entry_mut(*entity) {
             if entry.get_component::<IA>().is_ok() {
-                enemy_die_queue.data.push(EnemyDied(entity));
+                enemy_die_queue.data.push(EnemyDied(*entity));
             }
             if entry.get_component::<Player>().is_ok() {
                 let id = entry
@@ -61,6 +68,7 @@ pub fn health(
             }
         }
     }
+    buff_manager.release(deads_id);
 }
 
 #[system]

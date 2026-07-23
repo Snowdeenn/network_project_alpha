@@ -6,7 +6,10 @@ use crate::simulation::helper::obb_vs_aabb;
 use legion::systems::CommandBuffer;
 use legion::world::SubWorld;
 use legion::*;
+use shared::buffer::BufferManager;
 use shared::protocol::{GameEvent, GameEventKind};
+use std::collections::HashMap;
+use std::collections::HashSet;
 use std::time::Duration;
 
 #[system]
@@ -54,14 +57,15 @@ pub fn ia_attack(
     world: &mut SubWorld,
     command: &mut CommandBuffer,
     #[resource] dt: &Duration,
+    #[resource] buff_manager: &mut BufferManager,
 ) {
-    let player_positions: std::collections::HashMap<Entity, Position> = {
-        let mut player_query = <(Entity, &Position)>::query().filter(component::<Player>());
+    let (p_position_id, p_positions) = buff_manager.acquire::<HashMap<Entity, Position>>().unwrap();
+    let mut player_query = <(Entity, &Position)>::query().filter(component::<Player>());
+    p_positions.extend(
         player_query
             .iter(&*world)
-            .map(|(entity, pos)| (*entity, *pos))
-            .collect()
-    };
+            .map(|(entity, pos)| (*entity, *pos)),
+    );
 
     let mut query = <(
         Entity,
@@ -81,7 +85,7 @@ pub fn ia_attack(
         timer.remaining = timer.remaining.saturating_sub(*dt);
 
         if let Some(target_entity) = target.0 {
-            if let Some(target_pos) = player_positions.get(&target_entity) {
+            if let Some(target_pos) = p_positions.get(&target_entity) {
                 let dx = target_pos.x - ia_pos.x;
                 let dy = target_pos.y - ia_pos.y;
                 let distance = (dx * dx + dy * dy).sqrt();
@@ -103,6 +107,7 @@ pub fn ia_attack(
             }
         }
     }
+    buff_manager.release(p_position_id);
 }
 
 const OFFSET_ATTACKBOX: f32 = 10.0;
@@ -192,34 +197,69 @@ pub fn check_collide_attackbox(
     command: &mut CommandBuffer,
     #[resource] damage_queue: &mut Queue<DamageEvent>,
     #[resource] game_event_queue: &mut Queue<GameEvent>,
+    #[resource] buff_manager: &mut BufferManager,
 ) {
-    let players: std::collections::HashSet<Entity> = <Entity>::query()
-        .filter(component::<Player>())
-        .iter(world)
-        .copied()
-        .collect();
+    let players_id = buff_manager.acquire_id::<HashSet<Entity>>();
+    let attackboxes_id =
+        buff_manager.acquire_id::<Vec<(Entity, Geometry, Owner, Damage, Position)>>();
+    let victims_id = buff_manager.acquire_id::<Vec<(Entity, Collider, Position)>>();
 
-    let mut attackbox_query = <(Entity, &Geometry, &Owner, &Damage, &Position)>::query();
-    let attackboxes: Vec<_> = attackbox_query
-        .iter(world)
-        .map(|(e, g, o, d, p)| (*e, *g, *o, *d, *p))
-        .collect();
+    {
+        let players = buff_manager
+            .get_mut::<HashSet<Entity>>(players_id)
+            .expect("[Buffer Manager] HashSet<Entity> introuvable");
+        players.extend(
+            <Entity>::query()
+                .filter(component::<Player>())
+                .iter(world)
+                .copied(),
+        );
+    }
+    {
+        let attackboxes = buff_manager
+            .get_mut::<Vec<(Entity, Geometry, Owner, Damage, Position)>>(attackboxes_id)
+            .expect(
+                "[Buffer Manager] Vec<(Entity, Geometry, Owner, Damage, Position)> introuvable",
+            );
+        attackboxes.extend(
+            <(Entity, &Geometry, &Owner, &Damage, &Position)>::query()
+                .iter(world)
+                .map(|(e, g, o, d, p)| (*e, *g, *o, *d, *p)),
+        );
+    }
+    {
+        let victims = buff_manager
+            .get_mut::<Vec<(Entity, Collider, Position)>>(victims_id)
+            .expect("[Buffer Manager] Vec<(Entity, Collider, Position)> introuvable");
+        victims.extend(
+            <(Entity, &Collider, &Position)>::query()
+                .filter(component::<Health>())
+                .iter(world)
+                .map(|(e, c, p)| (*e, *c, *p)),
+        );
+    }
 
-    let mut victim_query = <(Entity, &Collider, &Position)>::query().filter(component::<Health>());
-    let victims: Vec<_> = victim_query
-        .iter(world)
-        .map(|(e, c, p)| (*e, *c, *p))
-        .collect();
+    let players = buff_manager
+        .get::<HashSet<Entity>>(players_id)
+        .expect("[Buffer Manager] HashSet<Entity> introuvable");
+
+    let attackboxes = buff_manager
+        .get::<Vec<(Entity, Geometry, Owner, Damage, Position)>>(attackboxes_id)
+        .expect("[Buffer Manager] Vec<(Entity, Geometry, Owner, Damage, Position)> introuvable");
+
+    let victims = buff_manager
+        .get::<Vec<(Entity, Collider, Position)>>(victims_id)
+        .expect("[Buffer Manager] Vec<(Entity, Collider, Position)> introuvable");
 
     for (attackbox_entt, attackbox, owner, damage, attackbox_pos) in attackboxes {
         let attacker_is_player = players.contains(&owner.0);
         let is_projectile = world
-            .entry_ref(attackbox_entt)
+            .entry_ref(*attackbox_entt)
             .map(|e| e.get_component::<Projectile>().is_ok())
             .unwrap_or(false);
         let mut hit = false;
 
-        for (victim_entt, victim_col, victim_pos) in &victims {
+        for (victim_entt, victim_col, victim_pos) in victims {
             if *victim_entt == owner.0 {
                 continue;
             }
@@ -277,9 +317,12 @@ pub fn check_collide_attackbox(
         }
 
         if !is_projectile || hit {
-            command.remove(attackbox_entt);
+            command.remove(*attackbox_entt);
         }
     }
+    buff_manager.release(players_id);
+    buff_manager.release(attackboxes_id);
+    buff_manager.release(victims_id);
 }
 
 #[system(for_each)]
@@ -329,5 +372,4 @@ pub fn projectile_life_time(
     } else {
         lt.0 = remaining;
     }
-
 }

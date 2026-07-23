@@ -15,14 +15,14 @@ pub struct InputPacket {
     pub attack: bool,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Decode, Encode)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Decode, Encode)]
 pub enum ShopActionKind {
     Open,
     Buy,
     Close,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Decode, Encode)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Decode, Encode)]
 pub struct ShopAction {
     pub kind: ShopActionKind,
     pub slot: u8,

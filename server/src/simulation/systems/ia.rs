@@ -1,9 +1,11 @@
 use crate::queue::Queue;
 use crate::simulation::components::*;
-use crate::simulation::event::{DamageEvent};
+use crate::simulation::event::DamageEvent;
 use arrayvec::ArrayVec;
 use legion::world::SubWorld;
 use legion::*;
+use shared::buffer::BufferManager;
+use std::collections::HashMap;
 
 #[system]
 #[read_component(Player)]
@@ -11,10 +13,16 @@ use legion::*;
 #[write_component(Target)]
 #[read_component(Active)]
 #[read_component(IA)]
-pub fn ia_targeting(world: &mut SubWorld) {
-    let mut player_query = <(Entity, &Position)>::query().filter(component::<Player>());
-    let players: Vec<(Entity, Position)> =
-        player_query.iter(world).map(|(e, p)| (*e, *p)).collect();
+pub fn ia_targeting(world: &mut SubWorld, #[resource] buff_manager: &mut BufferManager) {
+    let (players_id, players) = buff_manager.acquire::<Vec<(Entity, Position)>>().expect(
+        "[BufferManager] devrait retourner un tuple avec l'id et le Vec<(Entity, Position)>",
+    );
+    players.extend(
+        <(Entity, &Position)>::query()
+            .filter(component::<Player>())
+            .iter(world)
+            .map(|(e, p)| (*e, *p)),
+    );
 
     let mut ia_query = <(&Position, &mut Target, &Active)>::query().filter(component::<IA>());
 
@@ -26,7 +34,7 @@ pub fn ia_targeting(world: &mut SubWorld) {
         let mut closest_player = None;
         let mut min_dist = f64::MAX;
 
-        for (p_entt, p_pos) in &players {
+        for (p_entt, p_pos) in players.iter() {
             let dx = p_pos.x - ia_pos.x;
             let dy = p_pos.y - ia_pos.y;
             let dist = dx * dx + dy * dy;
@@ -39,6 +47,7 @@ pub fn ia_targeting(world: &mut SubWorld) {
 
         target.0 = closest_player;
     }
+    buff_manager.release(players_id);
 }
 
 #[system]
@@ -51,16 +60,18 @@ pub fn ia_targeting(world: &mut SubWorld) {
 #[read_component(MeleeBrain)]
 #[read_component(AttackStats)]
 #[read_component(MovementStats)]
-pub fn melee_ia_movement(world: &mut SubWorld) {
-    let player_positions: std::collections::HashMap<Entity, Position> = {
-        let mut player_query = <(Entity, &Position)>::query()
+pub fn melee_ia_movement(world: &mut SubWorld, #[resource] buff_manager: &mut BufferManager) {
+    let (player_pos_id, player_positions) =
+        buff_manager.acquire::<HashMap<Entity, Position>>().expect(
+            "[BufferManager] devrait retourner un tuple avec l'id et le HashMap<Entity, Position>",
+        );
+    player_positions.extend(
+        <(Entity, &Position)>::query()
             .filter(component::<Player>())
-            .filter(!component::<Knockback>());
-        player_query
+            .filter(!component::<Knockback>())
             .iter(&*world)
-            .map(|(entity, pos)| (*entity, *pos))
-            .collect()
-    };
+            .map(|(entity, pos)| (*entity, *pos)),
+    );
 
     let mut query = <(
         &Position,
@@ -102,6 +113,7 @@ pub fn melee_ia_movement(world: &mut SubWorld) {
             velo.dy = 0.0;
         }
     }
+    buff_manager.release(player_pos_id);
 }
 
 #[system]
@@ -187,6 +199,6 @@ pub fn ranged_ia_movement(world: &mut SubWorld) {
 pub fn kamikaze_suicide(entt: &Entity, #[resource] damage_queue: &mut Queue<DamageEvent>) {
     damage_queue.data.push(DamageEvent {
         target: *entt,
-        amount: 999999 // Montant arbitraire pour OS le kamikaze
+        amount: 999999, // Montant arbitraire pour OS le kamikaze
     });
 }

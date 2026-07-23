@@ -3,7 +3,7 @@ use crate::player_registry::PlayerRegistry;
 use crate::simulation::components::{Active, EntityId, Health, IA, Player, Position, Projectile};
 use crate::simulation::wave::{WaveManager, WaveState as SimWaveState};
 use legion::*;
-use shared::protocol::{EntityKind, EntityState, PlayerInfo,WaveInfo, WaveState};
+use shared::protocol::{EntityKind, EntityState, PlayerInfo, WaveInfo, WaveState};
 
 pub fn build_wave_info(resources: &Resources) -> WaveInfo {
     resources
@@ -26,7 +26,7 @@ pub fn build_wave_info(resources: &Resources) -> WaveInfo {
         })
 }
 
-pub fn build_entities(world: &World, entities: &mut Vec<EntityState>){
+pub fn build_entities(world: &World, entities: &mut Vec<EntityState>) {
     // joueurs
     {
         let mut player_query = <(&EntityId, &Position, &Health, &Active)>::query()
@@ -98,7 +98,6 @@ pub fn build_entities(world: &World, entities: &mut Vec<EntityState>){
             });
         }
     }
-
 }
 
 pub fn build_player_info(

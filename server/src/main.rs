@@ -7,6 +7,7 @@ pub mod queue;
 mod session;
 mod simulation;
 mod snapshot;
+mod spatial_grid;
 
 use crate::config::*;
 use crate::player_registry::PlayerRegistry;
@@ -16,7 +17,6 @@ use crate::session::*;
 use crate::simulation::systems::{
     attack::*, coin::*, debug::*, health::*, ia::*, physics::*, state::dash_system, wave::*,
 };
-
 use legion::{Entity, EntityStore, Resources, Schedule, world::World};
 use net::server::GameNetServer;
 use renet::ServerEvent;
@@ -59,7 +59,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         resources.insert(Queue::<GameEvent> { data: vec![] });
         resources.insert(GameState::Playing);
         resources.insert(PlayerShops::new());
-        resources.insert(PlayerGold::new());
         resources.insert(PlayerRegistry::with_capacity(16));
         resources.insert(BufferManager::with_capacity(24));
     }
@@ -91,6 +90,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         resources.insert(EnemyConfigs(enemy_config));
     }
 
+    // ---- Pool Manager ----
     {
         let pool_manager = PoolManager::new(GamePools::init(&mut world));
         resources.insert(pool_manager);
@@ -287,19 +287,39 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Traite les inputs reçus du client et les stocke dans les ressources globales
         {
-            for (client_id, packet) in net.drain_inputs() {
+            let mut buff_manager = resources
+                .get_mut::<BufferManager>()
+                .expect("[Ressource] devrait retourner le BufferManager");
+            let (input_id, inputs) = buff_manager
+                .acquire::<Vec<(u64, InputPacket)>>()
+                .expect("[BufferManager] devrait retourner un tuple id data");
+            net.drain_inputs_into(inputs);
+            for (client_id, packet) in inputs {
                 if let Some(entity) = resources
                     .get::<PlayerRegistry>()
                     .unwrap()
-                    .get_entity(client_id)
+                    .get_entity(*client_id)
                 {
                     apply_input(&mut world, entity, &packet);
                 }
             }
+            buff_manager.release(input_id);
         }
 
+        // ---- Handle ShopAction ----
         {
-            for (client_id, shop_action) in net.drain_shop_actions() {
+            let actions: Vec<(u64, ShopAction)> = {
+                let mut buff_manager = resources.get_mut::<BufferManager>().unwrap();
+                let action_id = buff_manager.acquire_id::<Vec<(u64, ShopAction)>>();
+                let actions = buff_manager
+                    .get_mut::<Vec<(u64, ShopAction)>>(action_id)
+                    .unwrap();
+                net.drain_shop_actions_into(actions);
+                let owned = std::mem::take(actions);
+                buff_manager.release(action_id);
+                owned
+            };
+            for (client_id, shop_action) in actions {
                 handle_shop_action(client_id, &mut net, shop_action, &mut resources);
             }
         }
@@ -322,6 +342,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         schedule.execute(&mut world, &mut resources);
 
+        // ---- Maj Snapshot ----
         {
             // On récupère temporairement les IDs des joueurs connectés
             let active_clients: Vec<u64> = resources
@@ -402,6 +423,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
+    
 }
 
 fn apply_input(world: &mut World, entity: Entity, packet: &InputPacket) {

@@ -5,12 +5,12 @@ use crate::queue::Queue;
 use crate::simulation::components::*;
 use crate::simulation::event::*;
 use crate::simulation::helper::aabb_overlap;
+use crate::spatial_grid::SpatialGrid;
 use legion::systems::CommandBuffer;
 use legion::world::SubWorld;
 use legion::*;
 use shared::buffer::BufferManager;
 use shared::ids::CoinTag;
-use std::collections::HashSet;
 
 #[system]
 #[read_component(Position)]
@@ -79,80 +79,90 @@ pub fn coin_pickup(
     word: &mut SubWorld,
     #[resource] pick_up_queue: &mut Queue<(Entity, Entity)>,
     #[resource] buff_manager: &mut BufferManager,
+    #[resource] grid: &mut SpatialGrid,
 ) {
-    let players_id = buff_manager.acquire_id::<HashSet<Entity>>();
-    let coins_id = buff_manager.acquire_id::<HashSet<Entity>>();
-    let entities_id = buff_manager.acquire_id::<Vec<(Entity, Position, Collider)>>();
+    grid.clear();
+
+    let coins_id = buff_manager.acquire_id::<Vec<(Entity, Position, Collider)>>();
+    let players_id = buff_manager.acquire_id::<Vec<(Entity, Position, Collider)>>();
+    let candidates_id = buff_manager.acquire_id::<Vec<usize>>();
 
     {
-        let players = buff_manager.get_mut::<HashSet<Entity>>(players_id).expect(
-            "[Buffer Manager] HashSet<Entity> introuvable, devrait être dans le buffer manager",
-        );
-        players.extend(
-            <Entity>::query()
-                .filter(component::<Player>())
-                .iter(word)
-                .copied(),
-        );
-    }
-    {
-        let coins = buff_manager.get_mut::<HashSet<Entity>>(coins_id).expect(
-            "[Buffer Manager] HashSet<Entity> introuvable , devrait être dans le buffer manager",
-        );
+        let coins = buff_manager
+            .get_mut::<Vec<(Entity, Position, Collider)>>(coins_id)
+            .expect("[Buffer Manager] Vec<Coins> introuvable");
+
         coins.extend(
-            <Entity>::query()
+            <(Entity, &Position, &Collider, &Active)>::query()
                 .filter(component::<Coin>())
                 .iter(word)
-                .copied(),
-        );
-    }
-    {
-        let entities = buff_manager
-            .get_mut::<Vec<(Entity, Position, Collider)>>(entities_id)
-            .expect("[Buffer Manager] Vec<(Entity, &Position, &Collider)> introuvable , devrait être dans le buffer manager");
-        entities.extend(
-            <(Entity, &Position, &Collider, &Active)>::query()
-                .iter(word)
-                .filter(|(_, _, _, active)| active.0)
+                .filter(|(_, _, _, a)| a.0)
                 .map(|(e, p, c, _)| (*e, *p, *c)),
         );
+
+        let coins = buff_manager
+            .get::<Vec<(Entity, Position, Collider)>>(coins_id)
+            .expect("[Buffer Manager] Coins introuvable");
+
+        // On verifie si il y a des coins actifs sur la map
+        // Si il n'y en a pas on early return pour éviter de griller des cylces cpu pour rien
+        if coins.is_empty() {
+            buff_manager.release(coins_id);
+            buff_manager.release(players_id);
+            buff_manager.release(candidates_id);
+            return;
+        }
+        for (idx, (_, pos, col)) in coins.iter().enumerate() {
+            grid.insert(idx, pos, col);
+        }
+    }
+    {
+        let players = buff_manager
+            .get_mut::<Vec<(Entity, Position, Collider)>>(players_id)
+            .expect("[Buffer Manager] Vec<Players> introuvable");
+
+        players.extend(
+            <(Entity, &Position, &Collider)>::query()
+                .filter(component::<Player>())
+                .iter(word)
+                .map(|(e, p, c)| (*e, *p, *c)),
+        );
     }
 
-    let players = buff_manager.get::<HashSet<Entity>>(players_id).expect(
-        "[Buffer Manager] HashSet<Entity> introuvable , devrait être dans le buffer manager",
+    grid.build();
+    let mut candidates = std::mem::take(
+        buff_manager
+            .get_mut::<Vec<usize>>(candidates_id)
+            .expect("[Buffer Manager] Candidates introuvable"),
     );
-    let coins = buff_manager.get::<HashSet<Entity>>(coins_id).expect(
-        "[Buffer Manager] HashSet<Entity> introuvable , devrait être dans le buffer manager",
-    );
-    let entities = buff_manager
-        .get::<Vec<(Entity, Position, Collider)>>(entities_id)
-        .expect("[Buffer Manager] Vec<(Entity, &Position, &Collider, &Active)> introuvable, devrait être dans le buffer manager");
 
-    for i in 0..entities.len() {
-        for j in (i + 1)..entities.len() {
-            let (ent_a, pos_a, col_a) = entities[i];
-            let (ent_b, pos_b, col_b) = entities[j];
+    let coins = buff_manager
+        .get::<Vec<(Entity, Position, Collider)>>(coins_id)
+        .expect("[Buffer Manager] Coins introuvable");
+    let players = buff_manager
+        .get::<Vec<(Entity, Position, Collider)>>(players_id)
+        .expect("[Buffer Manager] Players introuvable");
 
-            if let Some(_) = aabb_overlap(&pos_a, &col_a, &pos_b, &col_b) {
-                let a_is_player = players.contains(&ent_a);
-                let b_is_player = players.contains(&ent_b);
-                let a_is_coin = coins.contains(&ent_a);
-                let b_is_coin = coins.contains(&ent_b);
+    for (player_entity, player_pos, player_col) in players.iter() {
+        grid.query(player_pos, player_col, &mut candidates);
 
-                if a_is_player && b_is_coin {
-                    pick_up_queue.data.push((ent_a, ent_b));
-                }
+        candidates.sort_unstable();
+        candidates.dedup();
 
-                if b_is_player && a_is_coin {
-                    pick_up_queue.data.push((ent_b, ent_a));
-                }
+        for &coin_idx in candidates.iter() {
+            let (coin_entity, coin_pos, coin_col) = &coins[coin_idx];
+
+            if aabb_overlap(player_pos, player_col, coin_pos, coin_col).is_some() {
+                pick_up_queue.data.push((*player_entity, *coin_entity));
             }
         }
     }
-    buff_manager.release(players_id);
+
     buff_manager.release(coins_id);
-    buff_manager.release(entities_id);
+    buff_manager.release(players_id);
+    buff_manager.release(candidates_id);
 }
+
 #[system]
 #[read_component(CoinValue)]
 #[read_component(PoolId<CoinTag>)]

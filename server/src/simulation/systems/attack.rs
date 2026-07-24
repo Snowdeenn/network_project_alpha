@@ -3,6 +3,7 @@ use crate::queue::Queue;
 use crate::simulation::components::*;
 use crate::simulation::event::*;
 use crate::simulation::helper::obb_vs_aabb;
+use crate::spatial_grid::SpatialGrid;
 use legion::systems::CommandBuffer;
 use legion::world::SubWorld;
 use legion::*;
@@ -198,11 +199,15 @@ pub fn check_collide_attackbox(
     #[resource] damage_queue: &mut Queue<DamageEvent>,
     #[resource] game_event_queue: &mut Queue<GameEvent>,
     #[resource] buff_manager: &mut BufferManager,
+    #[resource] grid: &mut SpatialGrid,
 ) {
+    grid.clear();
+
     let players_id = buff_manager.acquire_id::<HashSet<Entity>>();
     let attackboxes_id =
         buff_manager.acquire_id::<Vec<(Entity, Geometry, Owner, Damage, Position)>>();
     let victims_id = buff_manager.acquire_id::<Vec<(Entity, Collider, Position)>>();
+    let candidates_id = buff_manager.acquire_id::<Vec<usize>>();
 
     {
         let players = buff_manager
@@ -218,9 +223,7 @@ pub fn check_collide_attackbox(
     {
         let attackboxes = buff_manager
             .get_mut::<Vec<(Entity, Geometry, Owner, Damage, Position)>>(attackboxes_id)
-            .expect(
-                "[Buffer Manager] Vec<(Entity, Geometry, Owner, Damage, Position)> introuvable",
-            );
+            .expect("[Buffer Manager] Vec<Attackbox> introuvable");
         attackboxes.extend(
             <(Entity, &Geometry, &Owner, &Damage, &Position)>::query()
                 .iter(world)
@@ -230,28 +233,38 @@ pub fn check_collide_attackbox(
     {
         let victims = buff_manager
             .get_mut::<Vec<(Entity, Collider, Position)>>(victims_id)
-            .expect("[Buffer Manager] Vec<(Entity, Collider, Position)> introuvable");
+            .expect("[Buffer Manager] Vec<Victim> introuvable");
         victims.extend(
             <(Entity, &Collider, &Position)>::query()
                 .filter(component::<Health>())
                 .iter(world)
                 .map(|(e, c, p)| (*e, *c, *p)),
         );
+
+        for (idx, (_, col, pos)) in victims.iter().enumerate() {
+            grid.insert(idx, pos, col);
+        }
     }
+
+    grid.build();
+
+    let mut candidates = std::mem::take(
+        buff_manager
+            .get_mut::<Vec<usize>>(candidates_id)
+            .expect("[Buffer Manager] Candidates introuvable"),
+    );
 
     let players = buff_manager
         .get::<HashSet<Entity>>(players_id)
         .expect("[Buffer Manager] HashSet<Entity> introuvable");
-
     let attackboxes = buff_manager
         .get::<Vec<(Entity, Geometry, Owner, Damage, Position)>>(attackboxes_id)
-        .expect("[Buffer Manager] Vec<(Entity, Geometry, Owner, Damage, Position)> introuvable");
-
+        .expect("[Buffer Manager] Vec<Attackbox> introuvable");
     let victims = buff_manager
         .get::<Vec<(Entity, Collider, Position)>>(victims_id)
-        .expect("[Buffer Manager] Vec<(Entity, Collider, Position)> introuvable");
+        .expect("[Buffer Manager] Vec<Victim> introuvable");
 
-    for (attackbox_entt, attackbox, owner, damage, attackbox_pos) in attackboxes {
+    for (attackbox_entt, attackbox_geom, owner, damage, attackbox_pos) in attackboxes.iter() {
         let attacker_is_player = players.contains(&owner.0);
         let is_projectile = world
             .entry_ref(*attackbox_entt)
@@ -259,11 +272,33 @@ pub fn check_collide_attackbox(
             .unwrap_or(false);
         let mut hit = false;
 
-        for (victim_entt, victim_col, victim_pos) in victims {
+        // --- BROADPHASE : Construire une AABB de recherche englobant l'OBB rotatée ---
+        // Estimation conservatrice : un carré bordant basé sur la diagonale (w + h)
+        let broadphase_w = (attackbox_geom.half_width + attackbox_geom.half_length) as f64;
+        let broadphase_h = (attackbox_geom.half_width + attackbox_geom.half_length) as f64;
+        let broadphase_pos = Position {
+            x: attackbox_pos.x - broadphase_w * 0.5,
+            y: attackbox_pos.y - broadphase_h * 0.5,
+        };
+        let broadphase_col = Collider {
+            w: broadphase_w,
+            h: broadphase_h,
+        };
+
+        candidates.clear();
+        grid.query(&broadphase_pos, &broadphase_col, &mut candidates);
+        candidates.sort_unstable();
+        candidates.dedup();
+
+        // --- NARROWPHASE : Tester uniquement les candidats retenus ---
+        for &victim_idx in candidates.iter() {
+            let (victim_entt, victim_col, victim_pos) = &victims[victim_idx];
+
             if *victim_entt == owner.0 {
                 continue;
             }
-            if obb_vs_aabb(&attackbox_pos, &attackbox, victim_pos, victim_col) {
+
+            if obb_vs_aabb(attackbox_pos, attackbox_geom, victim_pos, victim_col) {
                 let mut should_damage = false;
 
                 if attacker_is_player {
@@ -286,31 +321,35 @@ pub fn check_collide_attackbox(
                         },
                     });
 
-                    {
-                        let mut dx = victim_pos.x - attackbox_pos.x;
-                        let mut dy = victim_pos.y - attackbox_pos.y;
-                        let distance = (dx * dx + dy * dy).sqrt();
+                    // Calcul du Knockback
+                    let mut dx = victim_pos.x - attackbox_pos.x;
+                    let mut dy = victim_pos.y - attackbox_pos.y;
+                    let distance = (dx * dx + dy * dy).sqrt();
 
-                        if distance > 0.0 {
-                            dx /= distance;
-                            dy /= distance;
-                        } else {
-                            dx = 1.0;
-                            dy = 0.0;
-                        }
+                    if distance > 0.0 {
+                        dx /= distance;
+                        dy /= distance;
+                    } else {
+                        dx = 1.0;
+                        dy = 0.0;
+                    }
 
-                        let knockback_force = 600.0f32;
-                        let knockback_duration = 0.12;
+                    let knockback_force = 600.0f32;
+                    let knockback_duration = 0.12;
 
-                        command.add_component(
-                            *victim_entt,
-                            Knockback {
-                                dx: dx as f32 * knockback_force,
-                                dy: dy as f32 * knockback_force,
-                                duration: knockback_duration,
-                            },
-                        );
-                        hit = true;
+                    command.add_component(
+                        *victim_entt,
+                        Knockback {
+                            dx: dx as f32 * knockback_force,
+                            dy: dy as f32 * knockback_force,
+                            duration: knockback_duration,
+                        },
+                    );
+                    hit = true;
+
+                    // Si c'est un projectile monocible, on arrête dès le premier impact
+                    if is_projectile {
+                        break;
                     }
                 }
             }
@@ -320,9 +359,12 @@ pub fn check_collide_attackbox(
             command.remove(*attackbox_entt);
         }
     }
+
+    // 5. Nettoyage
     buff_manager.release(players_id);
     buff_manager.release(attackboxes_id);
     buff_manager.release(victims_id);
+    buff_manager.release(candidates_id);
 }
 
 #[system(for_each)]

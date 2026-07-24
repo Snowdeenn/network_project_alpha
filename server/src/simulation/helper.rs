@@ -44,9 +44,14 @@ pub fn obb_vs_aabb(
     victim_pos: &Position,
     victim_col: &Collider,
 ) -> bool {
-    // 1. Vecteur de distance entre les centres des deux entités
-    let delta_center_x = hitbox_pos.x - victim_pos.x;
-    let delta_center_y = hitbox_pos.y - victim_pos.y;
+    // 1. Vecteur de distance entre les CENTRES des deux entités
+    let hitbox_center_x = hitbox_pos.x + geometry.half_length as f64;
+    let hitbox_center_y = hitbox_pos.y + geometry.half_width as f64;
+    let victim_center_x = victim_pos.x + victim_col.w / 2.0;
+    let victim_center_y = victim_pos.y + victim_col.h / 2.0;
+
+    let delta_center_x = hitbox_center_x - victim_center_x;
+    let delta_center_y = hitbox_center_y - victim_center_y;
 
     // 2. Demi-dimensions de la Victime (AABB)
     let victim_half_width = victim_col.w / 2.0;
@@ -56,11 +61,11 @@ pub fn obb_vs_aabb(
     let hitbox_half_length = geometry.half_length as f64;
     let hitbox_half_width = geometry.half_width as f64;
 
-    // 4. Les deux axes directionnels de la Hitbox
-    let hitbox_forward_x = geometry.dir[0] as f64; // Axe longitudinal
+    // 4. Axes directionnels de la Hitbox
+    let hitbox_forward_x = geometry.dir[0] as f64;
     let hitbox_forward_y = geometry.dir[1] as f64;
 
-    let hitbox_right_x = -hitbox_forward_y; // Axe transversal (perpendiculaire)
+    let hitbox_right_x = -hitbox_forward_y;
     let hitbox_right_y = hitbox_forward_x;
 
     // --- TEST 1 : Projection sur l'axe Horizontal de la Victime ---
@@ -69,7 +74,7 @@ pub fn obb_vs_aabb(
         hitbox_half_length * hitbox_forward_x.abs() + hitbox_half_width * hitbox_right_x.abs();
 
     if delta_center_x.abs() > (victim_shadow + hitbox_shadow) {
-        return false; // Zone vide trouvée, aucune collision possible !
+        return false;
     }
 
     // --- TEST 2 : Projection sur l'axe Vertical de la Victime ---
@@ -78,10 +83,10 @@ pub fn obb_vs_aabb(
         hitbox_half_length * hitbox_forward_y.abs() + hitbox_half_width * hitbox_right_y.abs();
 
     if delta_center_y.abs() > (victim_shadow + hitbox_shadow) {
-        return false; // Zone vide trouvée
+        return false;
     }
 
-    // --- TEST 3 : Projection sur l'axe Longitudinal (Face) de l'Attaque ---
+    // --- TEST 3 : Projection sur l'axe Longitudinal de l'Attaque ---
     let victim_shadow =
         victim_half_width * hitbox_forward_x.abs() + victim_half_height * hitbox_forward_y.abs();
     let hitbox_shadow = hitbox_half_length;
@@ -89,10 +94,10 @@ pub fn obb_vs_aabb(
     let projected_distance =
         (delta_center_x * hitbox_forward_x + delta_center_y * hitbox_forward_y).abs();
     if projected_distance > (victim_shadow + hitbox_shadow) {
-        return false; // Zone vide trouvée
+        return false;
     }
 
-    // --- TEST 4 : Projection sur l'axe Transversal (Côté) de l'Attaque ---
+    // --- TEST 4 : Projection sur l'axe Transversal de l'Attaque ---
     let victim_shadow =
         victim_half_width * hitbox_right_x.abs() + victim_half_height * hitbox_right_y.abs();
     let hitbox_shadow = hitbox_half_width;
@@ -100,17 +105,16 @@ pub fn obb_vs_aabb(
     let projected_distance =
         (delta_center_x * hitbox_right_x + delta_center_y * hitbox_right_y).abs();
     if projected_distance > (victim_shadow + hitbox_shadow) {
-        return false; // Zone vide trouvée
+        return false;
     }
 
-    // Si le code arrive ici, aucun espace vide n'a été trouvé : ça touche !
     true
 }
 
-const MIN_BOUNCE: f64 = 50.0;
+const MIN_BOUNCE: f64 = 100.0;
 
 pub fn apply_resolution(world: &mut SubWorld, res: &Resolution) {
-    let epsilon = 0.2;
+    let epsilon = 0.1;
 
     if let Ok(mut entry_a) = world.entry_mut(res.ent_a) {
         if res.axis {
@@ -136,14 +140,14 @@ pub fn apply_resolution(world: &mut SubWorld, res: &Resolution) {
                 pos.x -= (res.overlap_x / 2.0 + epsilon) * res.dir_x;
             }
             if let Ok(velo) = entry_b.get_component_mut::<Velocity>() {
-                velo.dx = velo.dx.abs() * -res.dir_x;
+                velo.dx = velo.dx.abs().max(MIN_BOUNCE) * -res.dir_x;
             }
         } else {
             if let Ok(pos) = entry_b.get_component_mut::<Position>() {
                 pos.y -= (res.overlap_y / 2.0 + epsilon) * res.dir_y;
             }
             if let Ok(velo) = entry_b.get_component_mut::<Velocity>() {
-                velo.dy = velo.dy.abs() * -res.dir_y;
+                velo.dy = velo.dy.abs().max(MIN_BOUNCE) * -res.dir_y;
             }
         }
     }

@@ -17,6 +17,7 @@ use crate::session::*;
 use crate::simulation::systems::{
     attack::*, coin::*, debug::*, health::*, ia::*, physics::*, state::dash_system, wave::*,
 };
+use crate::spatial_grid::SpatialGrid;
 use legion::{Entity, EntityStore, Resources, Schedule, world::World};
 use net::server::GameNetServer;
 use renet::ServerEvent;
@@ -61,6 +62,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         resources.insert(PlayerShops::new());
         resources.insert(PlayerRegistry::with_capacity(16));
         resources.insert(BufferManager::with_capacity(24));
+        resources.insert(SpatialGrid::new(128.0, 1920.0, 1080.0));
     }
 
     // --- wave config ---
@@ -344,7 +346,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // ---- Maj Snapshot ----
         {
-            // On récupère temporairement les IDs des joueurs connectés
             let active_clients: Vec<u64> = resources
                 .get::<PlayerRegistry>()
                 .unwrap()
@@ -353,7 +354,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             {
                 let mut buff_manager = resources.get_mut::<BufferManager>().unwrap();
-                // On génère et on envoie un snapshot dédié à chaque client
                 for client_id in active_clients {
                     let (id, entities) = buff_manager
                         .acquire::<Vec<EntityState>>()

@@ -84,8 +84,6 @@ pub fn wave_spawner(
                     Duration::from_millis(current_wave_config.spawn_interval_ms);
                 wave_manager.enemies_to_spawn -= 1;
             }
-        } else {
-            eprintln!("[Wave Spawner] pool vide");
         }
     }
 }

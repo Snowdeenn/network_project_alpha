@@ -1,8 +1,13 @@
-use std::collections::HashMap;
+// src/renderer/animation_manager.rs
 
-use raylib::{RaylibHandle, RaylibThread, texture::Texture2D};
+use std::collections::HashMap;
+use raylib::{RaylibHandle, RaylibThread};
 use serde::Deserialize;
+use shared::arena::Arena;
+use shared::ids::{AnimId, AnimTag, TextureId};
 use shared::protocol::BossKind;
+
+use crate::renderer::texture_manager::TextureManager;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum PlayerState {
@@ -12,6 +17,7 @@ pub enum PlayerState {
     Attack,
     Die,
 }
+
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum EnemyState {
     Idle,
@@ -29,7 +35,7 @@ pub enum BossState {
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
-pub enum AnimId {
+pub enum AnimKey {
     Player(PlayerState),
     Enemy(EnemyState),
     Boss(BossKind, BossState),
@@ -44,130 +50,124 @@ struct AnimConfig {
     looping: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AnimData {
-    pub frames: Vec<Texture2D>,
+    pub frames: Vec<TextureId>,
     pub frame_time: f32,
     pub looping: bool,
 }
 
-#[derive(Debug)]
 pub struct AnimationManager {
-    anims: HashMap<AnimId, AnimData>,
+    anims: Arena<AnimData, AnimTag>,
+    key_map: HashMap<AnimKey, AnimId>,
+    named_map: HashMap<String, AnimId>,
 }
 
+#[allow(dead_code)]
 impl AnimationManager {
-    pub fn load_texture(rl: &mut RaylibHandle, thread: &RaylibThread) -> Self {
-        let json = std::fs::read_to_string("assets/config/animations.json")
-            .expect("[TextureManager] animations.json introuvable");
-        let configs: HashMap<String, AnimConfig> = serde_json::from_str(&json)
-            .expect("[Texture Manager] Impossible de deserialiser le animations.json");
+    pub fn new() -> Self {
+        Self {
+            anims: Arena::new(),
+            key_map: HashMap::new(),
+            named_map: HashMap::new(),
+        }
+    }
 
-        let mut anims: HashMap<AnimId, AnimData> = HashMap::new();
+    pub fn load_from_config(
+        &mut self,
+        textures: &mut TextureManager,
+        rl: &mut RaylibHandle,
+        thread: &RaylibThread,
+        config_path: &str,
+    ) {
+        let json = std::fs::read_to_string(config_path)
+            .expect("[AnimationManager] Fichier de configuration introuvable");
+        let configs: HashMap<String, AnimConfig> = serde_json::from_str(&json)
+            .expect("[AnimationManager] Impossible de désérialiser le JSON d'animations");
 
         for (name, cfg) in configs {
-            let Ok(id) = key_to_id(name.as_str()) else {
-                continue;
-            };
+            let mut frame_ids = Vec::new();
 
-            let frames = cfg
-                .frames
-                .iter()
-                .filter_map(|p| rl.load_texture(thread, p).ok())
-                .collect::<Vec<_>>();
+            for path in &cfg.frames {
+                if let Some(tex_id) = textures.load(rl, thread, path) {
+                    frame_ids.push(tex_id);
+                }
+            }
 
-            if frames.is_empty() {
+            if frame_ids.is_empty() {
                 continue;
             }
 
-            anims.insert(
-                id,
-                AnimData {
-                    frames,
-                    frame_time: cfg.frame_time,
-                    looping: cfg.looping,
-                },
-            );
-        }
+            let anim_id = self.anims.insert(AnimData {
+                frames: frame_ids,
+                frame_time: cfg.frame_time,
+                looping: cfg.looping,
+            });
 
-        Self { anims }
+            if let Ok(key) = key_to_enum(name.as_str()) {
+                self.key_map.insert(key, anim_id);
+            }
+            self.named_map.insert(name, anim_id);
+        }
+    }
+
+    pub fn register(&mut self, data: AnimData) -> AnimId {
+        self.anims.insert(data)
     }
 
     pub fn get(&self, id: AnimId) -> Option<&AnimData> {
-        self.anims.get(&id)
+        self.anims.get(id)
+    }
+
+    pub fn get_mut(&mut self, id: AnimId) -> Option<&mut AnimData> {
+        self.anims.get_mut(id)
+    }
+
+    pub fn get_by_key(&self, key: AnimKey) -> Option<AnimId> {
+        self.key_map.get(&key).copied()
+    }
+
+    pub fn get_by_name(&self, name: &str) -> Option<AnimId> {
+        self.named_map.get(name).copied()
     }
 }
 
-fn id_to_key(id: &AnimId) -> &'static str {
-    match id {
-        AnimId::Player(PlayerState::Idle) => "player_idle",
-        AnimId::Player(PlayerState::Run) => "player_run",
-        AnimId::Player(PlayerState::Dash) => "player_dash",
-        AnimId::Player(PlayerState::Attack) => "player_attack",
-        AnimId::Player(PlayerState::Die) => "player_die",
-
-        AnimId::Enemy(EnemyState::Idle) => "enemy_idle",
-        AnimId::Enemy(EnemyState::Run) => "enemy_run",
-        AnimId::Enemy(EnemyState::Attack) => "enemy_attack",
-        AnimId::Enemy(EnemyState::Die) => "enemy_died",
-
-        AnimId::Boss(BossKind::Big, BossState::Idle) => "big_boss_idle",
-        AnimId::Boss(BossKind::Big, BossState::Run) => "big_boss_run",
-        AnimId::Boss(BossKind::Big, BossState::Attack) => "big_boss_attack",
-        AnimId::Boss(BossKind::Big, BossState::Die) => "big_boss_die",
-
-        AnimId::Boss(BossKind::Sorcerer, BossState::Idle) => "sorcerer_boss_idle",
-        AnimId::Boss(BossKind::Sorcerer, BossState::Run) => "sorcerer_boss_run",
-        AnimId::Boss(BossKind::Sorcerer, BossState::Attack) => "sorcerer_boss_attack",
-        AnimId::Boss(BossKind::Sorcerer, BossState::Die) => "sorcerer_boss_die",
-
-        AnimId::Boss(BossKind::Fast, BossState::Idle) => "fast_boss_idle",
-        AnimId::Boss(BossKind::Fast, BossState::Run) => "fast_boss_run",
-        AnimId::Boss(BossKind::Fast, BossState::Attack) => "fast_boss_attack",
-        AnimId::Boss(BossKind::Fast, BossState::Die) => "fast_boss_die",
-
-        AnimId::Boss(BossKind::Tank, BossState::Idle) => "tank_boss_idle",
-        AnimId::Boss(BossKind::Tank, BossState::Run) => "tank_boss_run",
-        AnimId::Boss(BossKind::Tank, BossState::Attack) => "tank_boss_attack",
-        AnimId::Boss(BossKind::Tank, BossState::Die) => "tank_boss_die",
-
-        _ => "",
-    }
-}
-
-fn key_to_id(key: &str) -> Result<AnimId, &'static str> {
+fn key_to_enum(key: &str) -> Result<AnimKey, &'static str> {
     match key {
-        "player_idle" => Ok(AnimId::Player(PlayerState::Idle)),
-        "player_run" => Ok(AnimId::Player(PlayerState::Run)),
-        "player_dash" => Ok(AnimId::Player(PlayerState::Dash)),
-        "player_attack" => Ok(AnimId::Player(PlayerState::Attack)),
-        "player_die" => Ok(AnimId::Player(PlayerState::Die)),
+        "player_idle" => Ok(AnimKey::Player(PlayerState::Idle)),
+        "player_run" => Ok(AnimKey::Player(PlayerState::Run)),
+        "player_dash" => Ok(AnimKey::Player(PlayerState::Dash)),
+        "player_attack" => Ok(AnimKey::Player(PlayerState::Attack)),
+        "player_die" => Ok(AnimKey::Player(PlayerState::Die)),
 
-        "enemy_idle" => Ok(AnimId::Enemy(EnemyState::Idle)),
-        "enemy_run" => Ok(AnimId::Enemy(EnemyState::Run)),
-        "enemy_attack" => Ok(AnimId::Enemy(EnemyState::Attack)),
-        "enemy_died" => Ok(AnimId::Enemy(EnemyState::Die)),
+        "enemy_idle" => Ok(AnimKey::Enemy(EnemyState::Idle)),
+        "enemy_run" => Ok(AnimKey::Enemy(EnemyState::Run)),
+        "enemy_attack" => Ok(AnimKey::Enemy(EnemyState::Attack)),
+        "enemy_died" => Ok(AnimKey::Enemy(EnemyState::Die)),
 
-        "big_boss_idle" => Ok(AnimId::Boss(BossKind::Big, BossState::Idle)),
-        "big_boss_run" => Ok(AnimId::Boss(BossKind::Big, BossState::Run)),
-        "big_boss_attack" => Ok(AnimId::Boss(BossKind::Big, BossState::Attack)),
-        "big_boss_die" => Ok(AnimId::Boss(BossKind::Big, BossState::Die)),
+        "big_boss_idle" => Ok(AnimKey::Boss(BossKind::Big, BossState::Idle)),
+        "big_boss_run" => Ok(AnimKey::Boss(BossKind::Big, BossState::Run)),
+        "big_boss_attack" => Ok(AnimKey::Boss(BossKind::Big, BossState::Attack)),
+        "big_boss_die" => Ok(AnimKey::Boss(BossKind::Big, BossState::Die)),
 
-        "sorcerer_boss_idle" => Ok(AnimId::Boss(BossKind::Sorcerer, BossState::Idle)),
-        "sorcerer_boss_run" => Ok(AnimId::Boss(BossKind::Sorcerer, BossState::Run)),
-        "sorcerer_boss_attack" => Ok(AnimId::Boss(BossKind::Sorcerer, BossState::Attack)),
-        "sorcerer_boss_die" => Ok(AnimId::Boss(BossKind::Sorcerer, BossState::Die)),
+        "sorcerer_boss_idle" => Ok(AnimKey::Boss(BossKind::Sorcerer, BossState::Idle)),
+        "sorcerer_boss_run" => Ok(AnimKey::Boss(BossKind::Sorcerer, BossState::Run)),
+        "sorcerer_boss_attack" => Ok(AnimKey::Boss(BossKind::Sorcerer, BossState::Attack)),
+        "sorcerer_boss_die" => Ok(AnimKey::Boss(BossKind::Sorcerer, BossState::Die)),
 
-        "fast_boss_idle" => Ok(AnimId::Boss(BossKind::Fast, BossState::Idle)),
-        "fast_boss_run" => Ok(AnimId::Boss(BossKind::Fast, BossState::Run)),
-        "fast_boss_attack" => Ok(AnimId::Boss(BossKind::Fast, BossState::Attack)),
-        "fast_boss_die" => Ok(AnimId::Boss(BossKind::Fast, BossState::Die)),
+        "fast_boss_idle" => Ok(AnimKey::Boss(BossKind::Fast, BossState::Idle)),
+        "fast_boss_run" => Ok(AnimKey::Boss(BossKind::Fast, BossState::Run)),
+        "fast_boss_attack" => Ok(AnimKey::Boss(BossKind::Fast, BossState::Attack)),
+        "fast_boss_die" => Ok(AnimKey::Boss(BossKind::Fast, BossState::Die)),
 
-        "tank_boss_idle" => Ok(AnimId::Boss(BossKind::Tank, BossState::Idle)),
-        "tank_boss_run" => Ok(AnimId::Boss(BossKind::Tank, BossState::Run)),
-        "tank_boss_attack" => Ok(AnimId::Boss(BossKind::Tank, BossState::Attack)),
-        "tank_boss_die" => Ok(AnimId::Boss(BossKind::Tank, BossState::Die)),
+        "tank_boss_idle" => Ok(AnimKey::Boss(BossKind::Tank, BossState::Idle)),
+        "tank_boss_run" => Ok(AnimKey::Boss(BossKind::Tank, BossState::Run)),
+        "tank_boss_attack" => Ok(AnimKey::Boss(BossKind::Tank, BossState::Attack)),
+        "tank_boss_die" => Ok(AnimKey::Boss(BossKind::Tank, BossState::Die)),
 
-        _ => Err("Clé anim non reconnu"),
+        "coin" => Ok(AnimKey::Coin),
+        "projectile" => Ok(AnimKey::Projectile),
+
+        _ => Err("Clé anim non reconnue"),
     }
 }

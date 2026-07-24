@@ -1,22 +1,25 @@
-use crate::renderer::animation_manager::{self, AnimData};
-use raylib::texture::Texture2D;
+// src/renderer/animation.rs
+
+use shared::ids::{AnimId, TextureId};
+use crate::renderer::animation_manager::AnimData;
+
 #[derive(Debug)]
 pub struct AnimEntity {
-    current_id: animation_manager::AnimId,
+    current_id: AnimId,
     current_frame: usize,
     timer: f32,
 }
 
 impl AnimEntity {
-    pub fn new(id: &animation_manager::AnimId) -> Self {
+    pub fn new(id: AnimId) -> Self {
         Self {
-            current_id: *id,
+            current_id: id,
             current_frame: 0,
             timer: 0.0,
         }
     }
 
-    pub fn set(&mut self, id: animation_manager::AnimId) {
+    pub fn set(&mut self, id: AnimId) {
         if self.current_id != id {
             self.current_id = id;
             self.current_frame = 0;
@@ -39,7 +42,7 @@ impl AnimEntity {
         }
     }
 
-    pub fn current_texture<'a>(&self, data: &'a AnimData) -> &'a Texture2D {
-        &data.frames[self.current_frame]
+    pub fn current_texture_id(&self, data: &AnimData) -> Option<TextureId> {
+        data.frames.get(self.current_frame).copied()
     }
 }

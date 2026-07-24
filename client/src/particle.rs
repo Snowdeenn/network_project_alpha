@@ -42,7 +42,7 @@ impl ParticleSystem {
         });
     }
 
-    pub fn draw(&self, d: &mut RaylibMode2D<RaylibDrawHandle>) {
+    pub fn draw<D: RaylibDraw>(&self, d: &mut RaylibMode2D<D>) {
         for p in &self.particle_pool {
             let size = (16.0 * p.scale) as i32;
 

@@ -91,12 +91,10 @@ impl InGameScene {
         gui: &mut GuiContext,
         dt: f32,
     ) {
-        // Mode Debug (F2)
         if renderer.rl.is_key_pressed(KeyboardKey::KEY_F2) {
             client_state.debug.cycle();
         }
 
-        // Découpage clair par responsabilités
         self.process_snapshots(client, gui);
         self.handle_ui(client, renderer, client_state, gui);
         self.handle_shop(client, renderer, client_state, gui);
@@ -126,7 +124,6 @@ impl InGameScene {
         renderer.render_frame(frame_state, client_state, &self.particle_system, ctx);
     }
 
-    // --- SOUS-FONCTIONS PRIVÉES ---
 
     /// Réception des snapshots, MAJ du HUD et génération des particules de mouvement
     fn process_snapshots(&mut self, client: &mut GameNetClient, gui: &mut GuiContext) {

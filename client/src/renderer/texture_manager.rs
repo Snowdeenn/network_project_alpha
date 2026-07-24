@@ -1,3 +1,5 @@
+// src/renderer/texture_manager.rs
+
 use raylib::prelude::{RaylibHandle, RaylibThread, Texture2D};
 use shared::arena::Arena;
 use shared::ids::{TextureId, TextureTag};
@@ -7,6 +9,7 @@ pub struct TextureManager {
     textures: Arena<Texture2D, TextureTag>,
 }
 
+#[allow(dead_code)]
 impl TextureManager {
     pub fn new() -> Self {
         Self {
@@ -43,9 +46,9 @@ impl TextureManager {
 
 impl TextureProvider for TextureManager {
     fn get_texture(&self, id: TextureId) -> Option<&Texture2D> {
-        self.textures.get(id)
+        self.get(id)
     }
     fn get_texture_mut(&mut self, id: TextureId) -> Option<&mut Texture2D> {
-        self.textures.get_mut(id)
+        self.get_mut(id)
     }
 }

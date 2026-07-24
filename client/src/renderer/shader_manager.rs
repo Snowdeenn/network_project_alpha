@@ -1,24 +1,51 @@
-use raylib::prelude::Shader;
-use raylib::shaders::RaylibShader;
+// src/renderer/shader_manager.rs
+
+use raylib::prelude::*;
 use shared::arena::Arena;
 use shared::ids::{ShaderId, ShaderTag};
+use std::collections::HashMap;
 use ui::provider::ShaderProvider;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PassKind {
+    World,
+    Vfx,
+    Hud,
+    PostProcess,
+}
 
 pub struct ShaderManager {
     shaders: Arena<Shader, ShaderTag>,
+    pass_shaders: HashMap<PassKind, ShaderId>,
     elapsed: f32,
 }
 
+#[allow(dead_code)]
 impl ShaderManager {
     pub fn new() -> Self {
         Self {
             shaders: Arena::new(),
-            elapsed: 0.0f32,
+            pass_shaders: HashMap::new(),
+            elapsed: 0.0,
         }
     }
 
     pub fn register(&mut self, shader: Shader) -> ShaderId {
         self.shaders.insert(shader)
+    }
+
+    pub fn set_pass_shader(&mut self, pass: PassKind, id: ShaderId) {
+        self.pass_shaders.insert(pass, id);
+    }
+
+    pub fn get_pass_shader(&self, pass: PassKind) -> Option<&Shader> {
+        let id = self.pass_shaders.get(&pass)?;
+        self.shaders.get(*id)
+    }
+
+    pub fn get_pass_shader_mut(&mut self, pass: PassKind) -> Option<&mut Shader> {
+        let id = *self.pass_shaders.get(&pass)?;
+        self.shaders.get_mut(id)
     }
 
     pub fn get(&self, id: ShaderId) -> Option<&Shader> {
@@ -39,17 +66,22 @@ impl ShaderManager {
         }
     }
 
+    // --- Uniforms par Batch ---
     pub fn set_uniform_f32(&mut self, id: ShaderId, name: &str, value: f32) {
         if let Some(shader) = self.shaders.get_mut(id) {
             let loc = shader.get_shader_location(name);
-            shader.set_shader_value(loc, value);
+            if loc >= 0 {
+                shader.set_shader_value(loc, value);
+            }
         }
     }
 
-    pub fn set_uniform_vec2(&mut self, id: ShaderId, name: &str, value: raylib::math::Vector2) {
+    pub fn set_uniform_vec2(&mut self, id: ShaderId, name: &str, value: Vector2) {
         if let Some(shader) = self.shaders.get_mut(id) {
             let loc = shader.get_shader_location(name);
-            shader.set_shader_value(loc, value);
+            if loc >= 0 {
+                shader.set_shader_value(loc, value);
+            }
         }
     }
 

@@ -5,9 +5,11 @@ use crate::arena::Id;
 // Tags vides — zéro dépendance externe
 pub struct ShaderTag;
 pub struct TextureTag;
+pub struct AnimTag;
 
 pub type ShaderId = Id<ShaderTag>;
 pub type TextureId = Id<TextureTag>;
+pub type AnimId = Id<AnimTag>;
 
 // ======================================
 // Tag Server

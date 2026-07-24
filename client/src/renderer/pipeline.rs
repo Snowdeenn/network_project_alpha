@@ -4,7 +4,7 @@ use super::{
     Renderer, debug_ui, render_world,
     types::{FrameState, RenderContext},
 };
-use crate::TICK_DURATION;
+use crate::screens::in_game::Ticks;
 use crate::config::*;
 use crate::event::ClientState;
 use crate::event::GamePhase;
@@ -27,7 +27,7 @@ impl Renderer {
         anim_entities: &mut HashMap<u64, AnimEntity>, // ajuste selon ton type réel
     ) {
         let mut d2 = d.begin_mode2D(cam);
-        let t = (frame.last_snap_time.elapsed().as_secs_f32() / TICK_DURATION.as_secs_f32())
+        let t = (frame.last_snap_time.elapsed().as_secs_f32() / Ticks::TICK_DURATION.as_secs_f32())
             .clamp(0.0, 1.0);
         let s = screen_scale;
 

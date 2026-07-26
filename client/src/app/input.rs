@@ -1,5 +1,5 @@
-use crate::event::ClientState;
-use crate::net::client::GameNetClient;
+use crate::core::event::ClientState;
+use crate::core::client::GameNetClient;
 use raylib::prelude::*;
 use shared::protocol::InputPacket;
 use shared::protocol::{ShopAction, ShopActionKind};

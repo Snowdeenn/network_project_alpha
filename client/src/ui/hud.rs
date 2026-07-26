@@ -1,6 +1,6 @@
 use raylib::prelude::*;
 
-use crate::config::*;
+use crate::core::config::*;
 use shared::ids::ShaderId;
 use ui::prelude::*;
 use ui::*;

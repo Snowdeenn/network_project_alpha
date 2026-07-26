@@ -1,7 +1,7 @@
 // src/renderer/animation.rs
 
 use shared::ids::{AnimId, TextureId};
-use crate::renderer::animation_manager::AnimData;
+use crate::graphic_data::animation_manager::AnimData;
 
 #[derive(Debug)]
 pub struct AnimEntity {

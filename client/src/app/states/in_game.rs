@@ -5,16 +5,16 @@ use ui::prelude::*;
 use shared::ids::ShaderId;
 use shared::protocol::{EntityKind, ShopAction, ShopActionKind, StateSnapshot};
 
-use crate::camera;
-use crate::config;
-use crate::event::{handle_shop_ui_event, ClientState};
-use crate::input::{self, ShopInputAction};
-use crate::net::client::GameNetClient;
-use crate::particle::{Particle, ParticleSystem};
-use crate::renderer::hud::{HudIds, ShopHudIds};
-use crate::renderer::shader_manager::ShaderManager;
-use crate::renderer::types::{FrameState, RenderContext};
-use crate::renderer::Renderer;
+use crate::rendering::camera;
+use crate::core::config;
+use crate::core::event::{handle_shop_ui_event, ClientState};
+use crate::app::input::{self, ShopInputAction};
+use crate::core::client::GameNetClient;
+use crate::rendering::vfx::particle::{Particle, ParticlePool};
+use crate::ui::hud::{HudIds, ShopHudIds};
+use crate::rendering::shader_manager::ShaderManager;
+use crate::rendering::types::{FrameState, RenderContext};
+use crate::rendering::Renderer;
 
 fn lerp(a: f32, b: f32, t: f32) -> f32 {
     a + (b - a) * t
@@ -69,15 +69,15 @@ pub struct GuiContext<'a> {
 pub struct InGameScene {
     pub snapshots: Snapshots,
     pub ticks: Ticks,
-    pub particle_system: ParticleSystem,
+    pub particle_system: ParticlePool,
 }
-
+    
 impl Default for InGameScene {
     fn default() -> Self {
         Self {
             snapshots: Snapshots::default(),
             ticks: Ticks::default(),
-            particle_system: ParticleSystem::new(),
+            particle_system: ParticlePool::new(),
         }
     }
 }

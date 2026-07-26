@@ -3,8 +3,8 @@
 use raylib::prelude::{RaylibHandle, RaylibThread};
 use shared::ids::{TextureId};
 
-use crate::renderer::animation_manager::AnimationManager;
-use crate::renderer::texture_manager::TextureManager;
+use crate::graphic_data::animation_manager::AnimationManager;
+use crate::graphic_data::texture_manager::TextureManager;
 
 pub struct AssetManager {
     textures: TextureManager,

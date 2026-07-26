@@ -1,7 +1,7 @@
 // src/renderer/pipeline.rs
 
 use raylib::prelude::*;
-use crate::renderer::shader_manager::{PassKind, ShaderManager};
+use crate::rendering::shader_manager::{PassKind, ShaderManager};
 
 pub struct RenderPipeline {
     post_process_target: RenderTexture2D,

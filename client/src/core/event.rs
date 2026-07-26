@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-use crate::config::SOLD_ANIM_DURATION;
-use crate::hud::ShopHudIds;
+use crate::core::config::SOLD_ANIM_DURATION;
+use crate::ui::hud::ShopHudIds;
 use raylib::prelude::Color;
 use shared::protocol::EffectType;
 use shared::{

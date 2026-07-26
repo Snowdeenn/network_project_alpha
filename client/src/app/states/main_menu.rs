@@ -3,7 +3,7 @@ use raylib::drawing::RaylibDrawHandle;
 use raylib::ffi::KeyboardKey;
 use raylib::prelude::*;
 
-use crate::net::client::GameNetClient;
+use crate::core::client::GameNetClient;
 
 pub enum MenuAction {
     None,
@@ -32,7 +32,7 @@ pub fn handle_input(
     MenuAction::None
 }
 
-pub fn render(d: &mut RaylibDrawHandle, s: &crate::renderer::ScreenScale) {
+pub fn render(d: &mut RaylibDrawHandle, s: &crate::rendering::ScreenScale) {
     d.clear_background(Color::BLACK);
     d.draw_text(
         "PROJECT ALPHA",
@@ -65,7 +65,7 @@ pub fn render(d: &mut RaylibDrawHandle, s: &crate::renderer::ScreenScale) {
     );
 }
 
-pub fn render_connecting(d: &mut RaylibDrawHandle, s: &crate::renderer::ScreenScale) {
+pub fn render_connecting(d: &mut RaylibDrawHandle, s: &crate::rendering::ScreenScale) {
     d.clear_background(Color::BLACK);
     d.draw_text(
         "Connexion en cours...",

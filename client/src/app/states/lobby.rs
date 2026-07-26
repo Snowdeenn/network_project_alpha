@@ -5,9 +5,9 @@ use shared::{
 };
 
 use crate::{
-    event::{AppScreen, ClientState, LobbyScreenState},
-    net::client::GameNetClient,
-    renderer::ScreenScale,
+    core::event::{AppScreen, ClientState, LobbyScreenState},
+    core::client::GameNetClient,
+    rendering::ScreenScale,
 };
 
 pub fn handle_lobby_message(msg: LobbyMessage, screen: &mut AppScreen, is_solo: &mut bool) {

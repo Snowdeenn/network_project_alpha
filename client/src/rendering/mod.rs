@@ -1,28 +1,22 @@
 // src/renderer/mod.rs
 
-pub mod animation;
-pub mod animation_manager;
-pub mod asset_manager;
-pub mod debug_ui;
-pub mod hud;
 pub mod render_pipeline;
-pub mod resources;
 pub mod shader_manager;
-pub mod texture_manager;
 pub mod types;
+pub mod camera;
+pub mod vfx;
 
-use crate::config::*;
-use crate::event::ClientState;
-use crate::particle::ParticleSystem;
-use crate::renderer::animation::AnimEntity;
-use crate::renderer::animation_manager::{AnimKey, BossState, EnemyState, PlayerState};
-use crate::renderer::asset_manager::AssetManager;
-use crate::renderer::render_pipeline::RenderPipeline;
-use crate::renderer::resources::Resources;
-use crate::renderer::shader_manager::ShaderManager;
-use crate::renderer::types::*;
+use crate::core::config::*;
+use crate::core::event::ClientState;
+use crate::rendering::vfx::particle::ParticlePool;
+use crate::graphic_data::animation::AnimEntity;
+use crate::graphic_data::animation_manager::{AnimKey, BossState, EnemyState, PlayerState};
+use crate::graphic_data::asset_manager::AssetManager;
+use crate::rendering::render_pipeline::RenderPipeline;
+use crate::app::resources::Resources;
+use crate::rendering::types::*;
 
-use crate::event::GamePhase;
+use crate::core::event::GamePhase;
 use raylib::prelude::*;
 use raylib_imgui::RaylibGui;
 use shared::protocol::{EntityKind, EntityState, StateSnapshot};
@@ -100,7 +94,6 @@ impl Renderer {
         assets.load_animations(&mut rl, &thread, "assets/config/animations.json");
 
         resources.insert(assets);
-        resources.insert(ShaderManager::new());
 
         let pipeline = RenderPipeline::new(&mut rl, &thread, real_w, real_h);
         let imgui = RaylibGui::new(&mut rl, &thread);
@@ -123,20 +116,17 @@ impl Renderer {
         &mut self,
         frame: FrameState,
         client_state: &mut ClientState,
-        particle_system: &ParticleSystem,
+        particle_system: &ParticlePool,
         ctx: &mut RenderContext,
     ) {
         let dt = self.rl.get_frame_time();
 
-        self.resources
-            .write_resource::<ShaderManager>()
-            .update_globals(dt, self.screen_w as f32, self.screen_h as f32);
+        ctx.shader_manager.update_globals(dt, self.screen_w as f32, self.screen_h as f32);
 
         let ui = self.imgui.begin(&mut self.rl);
         let mut d = self.rl.begin_drawing(&self.thread);
 
         let assets = self.resources.read_resource::<AssetManager>();
-        let mut shaders = self.resources.write_resource::<ShaderManager>();
 
         let cam = self.cam;
         let anim_entities = &mut self.anim_entities;
@@ -145,7 +135,7 @@ impl Renderer {
         self.pipeline.execute(
             &mut d,
             &self.thread,
-            &mut shaders,
+            ctx.shader_manager,
             // --- PASSE WORLD ---
             |draw_target| {
                 let mut d2 = draw_target.begin_mode2D(cam);
@@ -166,7 +156,7 @@ impl Renderer {
                         }
                         _ => {
                             let t = (frame.last_snap_time.elapsed().as_secs_f32()
-                                / crate::screens::in_game::Ticks::TICK_DURATION.as_secs_f32())
+                                / crate::app::states::in_game::Ticks::TICK_DURATION.as_secs_f32())
                             .clamp(0.0, 1.0);
 
                             render_world(
@@ -243,13 +233,13 @@ impl Renderer {
         ctx.buffer.flush(d, ctx.texture_manager, ctx.shader_manager);
         ctx.buffer.clear();
 
-        debug_ui::process_debug(ui, d, cam, client_state);
+        crate::ui::debug_ui::process_debug(ui, d, cam, client_state);
     }
 }
 
 fn render_world(
     d: &mut RaylibMode2D<RaylibTextureMode<RaylibDrawHandle>>,
-    particle_system: &ParticleSystem,
+    particle_system: &ParticlePool,
     assets: &AssetManager,
     anim_entities: &mut HashMap<u64, AnimEntity>,
     prev: Option<&StateSnapshot>,

@@ -7,7 +7,7 @@ use shared::arena::Arena;
 use shared::ids::{AnimId, AnimTag, TextureId};
 use shared::protocol::BossKind;
 
-use crate::renderer::texture_manager::TextureManager;
+use crate::graphic_data::texture_manager::TextureManager;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum PlayerState {

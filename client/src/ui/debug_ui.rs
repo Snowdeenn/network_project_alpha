@@ -1,5 +1,4 @@
-// src/debug_ui.rs
-use crate::event::{ClientState, DebugMode};
+use crate::core::event::{ClientState, DebugMode};
 use raylib::prelude::*;
 
 use imgui;

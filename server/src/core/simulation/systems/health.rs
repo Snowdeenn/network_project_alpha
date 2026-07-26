@@ -1,7 +1,7 @@
-use crate::config::SharedLives;
-use crate::queue::Queue;
-use crate::simulation::components::*;
-use crate::simulation::event::*;
+use crate::core::config::SharedLives;
+use crate::core::queue::Queue;
+use crate::core::simulation::components::*;
+use crate::core::simulation::event::*;
 use legion::world::SubWorld;
 use legion::*;
 use shared::buffer::BufferManager;

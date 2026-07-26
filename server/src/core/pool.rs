@@ -4,7 +4,7 @@ use shared::{
     ids::{CoinTag, EnemyTag},
 };
 
-use crate::simulation::{
+use crate::core::simulation::{
     components::Active,
     systems::spawn::{spawn_coin_blank, spawn_enemy_blank},
 };

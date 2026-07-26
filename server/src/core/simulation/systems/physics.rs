@@ -1,6 +1,6 @@
-use crate::simulation::components::*;
-use crate::simulation::helper::{Resolution, aabb_overlap, apply_resolution};
-use crate::spatial_grid::SpatialGrid;
+use crate::core::simulation::components::*;
+use crate::core::simulation::helper::{Resolution, aabb_overlap, apply_resolution};
+use crate::core::simulation::spatial_grid::SpatialGrid;
 use legion::world::SubWorld;
 use legion::*;
 use shared::buffer::BufferManager;

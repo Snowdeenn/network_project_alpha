@@ -1,4 +1,4 @@
-use crate::config::ServerConfig;
+use crate::core::config::ServerConfig;
 use rand::seq::IndexedRandom;
 use shared::{
     config::{GameConfig, PlayerClass},

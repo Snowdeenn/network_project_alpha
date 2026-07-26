@@ -1,6 +1,6 @@
-use crate::queue::Queue;
-use crate::simulation::components::*;
-use crate::simulation::event::DamageEvent;
+use crate::core::queue::Queue;
+use crate::core::simulation::components::*;
+use crate::core::simulation::event::DamageEvent;
 use arrayvec::ArrayVec;
 use legion::world::SubWorld;
 use legion::*;

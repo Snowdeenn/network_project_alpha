@@ -1,4 +1,4 @@
-use crate::{queue::Queue, simulation::components::*};
+use crate::{core::queue::Queue, core::simulation::components::*};
 use legion::*;
 use shared::protocol::{GameEvent, GameEventKind};
 

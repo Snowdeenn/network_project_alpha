@@ -1,9 +1,9 @@
-use crate::next_id;
-use crate::queue::Queue;
-use crate::simulation::components::*;
-use crate::simulation::event::*;
-use crate::simulation::helper::obb_vs_aabb;
-use crate::spatial_grid::SpatialGrid;
+use crate::app::next_id;
+use crate::core::queue::Queue;
+use crate::core::simulation::components::*;
+use crate::core::simulation::event::*;
+use crate::core::simulation::helper::obb_vs_aabb;
+use crate::core::simulation::spatial_grid::SpatialGrid;
 use legion::systems::CommandBuffer;
 use legion::world::SubWorld;
 use legion::*;

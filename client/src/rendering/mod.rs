@@ -17,6 +17,7 @@ use crate::app::resources::Resources;
 use crate::rendering::types::*;
 
 use crate::core::event::GamePhase;
+use crate::rendering::vfx::vfx_manager::VfxManager;
 use raylib::prelude::*;
 use raylib_imgui::RaylibGui;
 use shared::protocol::{EntityKind, EntityState, StateSnapshot};
@@ -240,6 +241,7 @@ fn render_world(
 ) {
     let assets = resources.read_resource::<AssetManager>();
     let particle_pool = resources.read_resource::<ParticlePool>();
+    let vfx = resources.read_resource::<VfxManager>();
 
     for entity in &curr.entities {
         let prev_entity =
@@ -288,6 +290,7 @@ fn render_world(
     anim_entities.retain(|id, _| curr.entities.iter().any(|e| e.entity_id == *id));
 
     particle_pool.draw(d);
+    vfx.draw(d);
 }
 
 fn draw_fallback(

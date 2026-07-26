@@ -220,7 +220,7 @@ impl ClientState {
             GameEventKind::PurchaseFailed { slot } => {
                 self.shop_ui.purchase_failed(slot as usize);
             }
-            GameEventKind::DebugRect {
+            GameEventKind::SpawnRect {
                 x,
                 y,
                 half_length,

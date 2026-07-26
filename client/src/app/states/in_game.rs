@@ -1,21 +1,24 @@
-use std::time::{Duration, Instant};
 use raylib::prelude::*;
-use ui::prelude::*;
+use std::time::{Duration, Instant};
+use ui::{prelude::*};
 
 use shared::ids::ShaderId;
-use shared::protocol::{EntityKind, ShopAction, ShopActionKind, StateSnapshot};
+use shared::protocol::{
+    EntityKind, GameEvent, GameEventKind, ShopAction, ShopActionKind, StateSnapshot,
+};
 
-use crate::app::resources::Resources;
-use crate::rendering::camera;
-use crate::core::config;
-use crate::core::event::{handle_shop_ui_event, ClientState};
 use crate::app::input::{self, ShopInputAction};
+use crate::app::resources::Resources;
 use crate::core::client::GameNetClient;
-use crate::rendering::vfx::particle::{Particle, ParticlePool};
-use crate::ui::hud::{HudIds, ShopHudIds};
+use crate::core::config;
+use crate::core::event::{ClientState, handle_shop_ui_event};
+use crate::rendering::Renderer;
+use crate::rendering::camera::{self, CameraShake};
 use crate::rendering::shader_manager::ShaderManager;
 use crate::rendering::types::{FrameState, RenderContext};
-use crate::rendering::Renderer;
+use crate::rendering::vfx::particle::{Particle, ParticlePool};
+use crate::rendering::vfx::vfx_manager::VfxManager;
+use crate::ui::hud::{HudIds, ShopHudIds};
 
 fn lerp(a: f32, b: f32, t: f32) -> f32 {
     a + (b - a) * t
@@ -70,13 +73,15 @@ pub struct GuiContext<'a> {
 pub struct InGameScene {
     pub snapshots: Snapshots,
     pub ticks: Ticks,
+    pub shake: CameraShake,
 }
-    
+
 impl Default for InGameScene {
     fn default() -> Self {
         Self {
             snapshots: Snapshots::default(),
             ticks: Ticks::default(),
+            shake: CameraShake::default()
         }
     }
 }
@@ -90,14 +95,14 @@ impl InGameScene {
         client_state: &mut ClientState,
         gui: &mut GuiContext,
         dt: f32,
-        
     ) {
         if renderer.rl.is_key_pressed(KeyboardKey::KEY_F2) {
             client_state.debug.cycle();
         }
 
         self.process_snapshots(client, gui, resources);
-        self.handle_ui(client, renderer, client_state, gui);
+        self.process_game_event(client, client_state, gui, resources);
+        self.handle_ui(renderer, client_state, gui);
         self.handle_shop(client, renderer, client_state, gui);
         self.process_network_ticks(client, renderer);
 
@@ -105,11 +110,13 @@ impl InGameScene {
         client_state.update_timers(dt);
         {
             resources.write_resource::<ParticlePool>().update(dt);
+            resources.write_resource::<VfxManager>().update(dt);
         }
-        
+
 
         // Caméra & UI
         self.update_camera(renderer);
+        self.shake.update(dt);
         gui.ui_ctx.update(dt);
     }
 
@@ -118,7 +125,7 @@ impl InGameScene {
         renderer: &mut Renderer,
         client_state: &mut ClientState,
         ctx: &mut RenderContext,
-        resources: &mut Resources
+        resources: &mut Resources,
     ) {
         let frame_state = FrameState {
             current: self.snapshots.last_snapshot.as_ref(),
@@ -129,9 +136,13 @@ impl InGameScene {
         renderer.render_frame(frame_state, client_state, ctx, resources);
     }
 
-
     /// Réception des snapshots, MAJ du HUD et génération des particules de mouvement
-    fn process_snapshots(&mut self, client: &mut GameNetClient, gui: &mut GuiContext, resources: &mut Resources) {
+    fn process_snapshots(
+        &mut self,
+        client: &mut GameNetClient,
+        gui: &mut GuiContext,
+        resources: &mut Resources,
+    ) {
         while let Some(snap) = client.recv_snapshot() {
             self.snapshots.prev_snapshot = self.snapshots.last_snapshot.take();
             self.snapshots.last_snapshot = Some(snap);
@@ -222,10 +233,67 @@ impl InGameScene {
         }
     }
 
+    fn process_game_event(
+        &mut self,
+        client: &mut GameNetClient,
+        state: &mut ClientState,
+        gui: &mut GuiContext,
+        resources: &mut Resources,
+    ) {
+        while let Some(event) = client.recv_event() {
+            self.handle_vfx_event(&event, resources);
+            handle_shop_ui_event(&event, gui.ui_ctx, &gui.ids.shop);
+            state.handle_event(event);
+        }
+    }
+
+    fn handle_vfx_event(&mut self, event: &GameEvent, resources: &mut Resources) {
+        match event.kind {
+            GameEventKind::EntityHit { pos } => {
+                let mut particle_pool = resources.write_resource::<ParticlePool>();
+                for _ in 0..10 {
+                    let angle = rand::random_range(0.0..std::f32::consts::TAU);
+                    let speed = rand::random_range(80.0..160.0f32);
+                    let lifetime = rand::random_range(0.1..0.25f32);
+                    particle_pool.spawn(Particle {
+                        pos: Vector2::new(pos[0], pos[1]),
+                        velocity: Vector2::new(angle.cos() * speed, angle.sin() * speed),
+                        friction: 6.0,
+                        lifetime,
+                        lt_max: lifetime,
+                        scale: 0.15,
+                        growth: 5.5,
+                        color: Color::DARKGOLDENROD,
+                    })
+                }
+                self.shake.add_trauma(0.4);
+            },
+            GameEventKind::SpawnRect {
+                x,
+                y,
+                half_length,
+                half_width,
+                dir,
+            } => {
+                let mut vfx = resources.write_resource::<VfxManager>();
+                let angle_deg = dir[1].atan2(dir[0]).to_degrees();
+                vfx.spawn_slash(
+                    Vector2 { x, y },
+                    angle_deg,
+                    half_length * 0.5,
+                    half_width,
+                    60.0,
+                    0.15,
+                    Color::WHITE,
+                );
+            }
+            _ => (),
+        }
+    }
+
     /// Traitement des entrées utilisateur globales et dépouillement des événements réseau
     fn handle_ui(
         &mut self,
-        client: &mut GameNetClient,
         renderer: &Renderer,
         client_state: &mut ClientState,
         gui: &mut GuiContext,
@@ -241,10 +309,6 @@ impl InGameScene {
         gui.ui_ctx.process_input(mouse_pos, pressed, released);
 
         client_state.debug.cleared = false;
-        while let Some(event) = client.recv_event() {
-            handle_shop_ui_event(&event, gui.ui_ctx, &gui.ids.shop);
-            client_state.handle_event(event);
-        }
     }
 
     /// Gestion des raccourcis et des clics d'achat dans la boutique
@@ -319,7 +383,13 @@ impl InGameScene {
             let t = (self.snapshots.last_snap_time.elapsed().as_secs_f32()
                 / Ticks::TICK_DURATION.as_secs_f32())
             .clamp(0.0, 1.0);
-            camera::update(&mut renderer.cam, self.snapshots.prev_snapshot.as_ref(), curr, t);
+            camera::update(
+                &mut renderer.cam,
+                self.snapshots.prev_snapshot.as_ref(),
+                curr,
+                t,
+                &self.shake,
+            );
         }
     }
 }

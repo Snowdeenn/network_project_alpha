@@ -61,7 +61,6 @@ pub struct Renderer {
     pub screen_h: i32,
     pub screen_scale: ScreenScale,
     pub imgui: RaylibGui,
-    pub resources: Resources,
     pub pipeline: RenderPipeline,
     pub anim_entities: HashMap<u64, AnimEntity>,
 }
@@ -88,12 +87,6 @@ impl Renderer {
             rotation: 0.0,
             zoom,
         };
-        
-        let mut resources = Resources::new();
-        let mut assets = AssetManager::new();
-        assets.load_animations(&mut rl, &thread, "assets/config/animations.json");
-
-        resources.insert(assets);
 
         let pipeline = RenderPipeline::new(&mut rl, &thread, real_w, real_h);
         let imgui = RaylibGui::new(&mut rl, &thread);
@@ -106,7 +99,6 @@ impl Renderer {
             screen_h: real_h,
             screen_scale: ScreenScale::new(real_w, real_h),
             imgui,
-            resources,
             pipeline,
             anim_entities: HashMap::new(),
         }
@@ -116,8 +108,8 @@ impl Renderer {
         &mut self,
         frame: FrameState,
         client_state: &mut ClientState,
-        particle_system: &ParticlePool,
         ctx: &mut RenderContext,
+        resources: &mut Resources
     ) {
         let dt = self.rl.get_frame_time();
 
@@ -125,8 +117,6 @@ impl Renderer {
 
         let ui = self.imgui.begin(&mut self.rl);
         let mut d = self.rl.begin_drawing(&self.thread);
-
-        let assets = self.resources.read_resource::<AssetManager>();
 
         let cam = self.cam;
         let anim_entities = &mut self.anim_entities;
@@ -161,8 +151,7 @@ impl Renderer {
 
                             render_world(
                                 &mut d2,
-                                particle_system,
-                                &assets,
+                                &resources,
                                 anim_entities,
                                 frame.prev,
                                 curr,
@@ -184,7 +173,7 @@ impl Renderer {
         );
 
         // UI & Debug ImGui par-dessus tout le reste
-        Self::render_ui_frameworks(&mut d, ctx, ui, client_state, &self.cam);
+        Self::render_ui_frameworks(&mut d, ctx, ui, client_state, &self.cam, resources);
 
         self.imgui.end();
         d.draw_fps(self.screen_w - 100, 20);
@@ -227,10 +216,13 @@ impl Renderer {
         ui: &mut imgui::Ui,
         client_state: &mut ClientState,
         cam: &Camera2D,
+        resources: &mut Resources,
     ) {
+        let assets = resources.read_resource::<AssetManager>();
+        let texture = assets.textures();
         ctx.ui_ctx.collect(ctx.buffer);
         ctx.buffer.sort();
-        ctx.buffer.flush(d, ctx.texture_manager, ctx.shader_manager);
+        ctx.buffer.flush(d, texture, ctx.shader_manager);
         ctx.buffer.clear();
 
         crate::ui::debug_ui::process_debug(ui, d, cam, client_state);
@@ -239,14 +231,16 @@ impl Renderer {
 
 fn render_world(
     d: &mut RaylibMode2D<RaylibTextureMode<RaylibDrawHandle>>,
-    particle_system: &ParticlePool,
-    assets: &AssetManager,
+    resources: &Resources,
     anim_entities: &mut HashMap<u64, AnimEntity>,
     prev: Option<&StateSnapshot>,
     curr: &StateSnapshot,
     t: f32,
     dt: f32,
 ) {
+    let assets = resources.read_resource::<AssetManager>();
+    let particle_pool = resources.read_resource::<ParticlePool>();
+
     for entity in &curr.entities {
         let prev_entity =
             prev.and_then(|p| p.entities.iter().find(|e| e.entity_id == entity.entity_id));
@@ -293,7 +287,7 @@ fn render_world(
 
     anim_entities.retain(|id, _| curr.entities.iter().any(|e| e.entity_id == *id));
 
-    particle_system.draw(d);
+    particle_pool.draw(d);
 }
 
 fn draw_fallback(

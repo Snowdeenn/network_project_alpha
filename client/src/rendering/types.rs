@@ -3,7 +3,6 @@ use std::time::Instant;
 use ui::{context::UiContext, draw::DrawCommandBuffer};
 
 use crate::rendering::shader_manager::ShaderManager;
-use crate::graphic_data::texture_manager::TextureManager;
 
 /// Regroupe l'état réseau nécessaire à l'interpolation d'une frame
 pub struct FrameState<'a> {
@@ -15,7 +14,6 @@ pub struct FrameState<'a> {
 /// Regroupe temporairement les outils de ton Framework UI pour le rendu
 pub struct RenderContext<'a> {
     pub buffer: &'a mut DrawCommandBuffer,
-    pub texture_manager: &'a TextureManager,
     pub shader_manager: &'a mut ShaderManager,
     pub ui_ctx: &'a mut UiContext,
 }

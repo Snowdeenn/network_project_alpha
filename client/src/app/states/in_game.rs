@@ -5,6 +5,7 @@ use ui::prelude::*;
 use shared::ids::ShaderId;
 use shared::protocol::{EntityKind, ShopAction, ShopActionKind, StateSnapshot};
 
+use crate::app::resources::Resources;
 use crate::rendering::camera;
 use crate::core::config;
 use crate::core::event::{handle_shop_ui_event, ClientState};
@@ -69,7 +70,6 @@ pub struct GuiContext<'a> {
 pub struct InGameScene {
     pub snapshots: Snapshots,
     pub ticks: Ticks,
-    pub particle_system: ParticlePool,
 }
     
 impl Default for InGameScene {
@@ -77,7 +77,6 @@ impl Default for InGameScene {
         Self {
             snapshots: Snapshots::default(),
             ticks: Ticks::default(),
-            particle_system: ParticlePool::new(),
         }
     }
 }
@@ -85,24 +84,29 @@ impl Default for InGameScene {
 impl InGameScene {
     pub fn update(
         &mut self,
+        resources: &mut Resources,
         client: &mut GameNetClient,
         renderer: &mut Renderer,
         client_state: &mut ClientState,
         gui: &mut GuiContext,
         dt: f32,
+        
     ) {
         if renderer.rl.is_key_pressed(KeyboardKey::KEY_F2) {
             client_state.debug.cycle();
         }
 
-        self.process_snapshots(client, gui);
+        self.process_snapshots(client, gui, resources);
         self.handle_ui(client, renderer, client_state, gui);
         self.handle_shop(client, renderer, client_state, gui);
         self.process_network_ticks(client, renderer);
 
         // Mises à jour logiques
         client_state.update_timers(dt);
-        self.particle_system.update(dt);
+        {
+            resources.write_resource::<ParticlePool>().update(dt);
+        }
+        
 
         // Caméra & UI
         self.update_camera(renderer);
@@ -114,6 +118,7 @@ impl InGameScene {
         renderer: &mut Renderer,
         client_state: &mut ClientState,
         ctx: &mut RenderContext,
+        resources: &mut Resources
     ) {
         let frame_state = FrameState {
             current: self.snapshots.last_snapshot.as_ref(),
@@ -121,12 +126,12 @@ impl InGameScene {
             last_snap_time: self.snapshots.last_snap_time,
         };
 
-        renderer.render_frame(frame_state, client_state, &self.particle_system, ctx);
+        renderer.render_frame(frame_state, client_state, ctx, resources);
     }
 
 
     /// Réception des snapshots, MAJ du HUD et génération des particules de mouvement
-    fn process_snapshots(&mut self, client: &mut GameNetClient, gui: &mut GuiContext) {
+    fn process_snapshots(&mut self, client: &mut GameNetClient, gui: &mut GuiContext, resources: &mut Resources) {
         while let Some(snap) = client.recv_snapshot() {
             self.snapshots.prev_snapshot = self.snapshots.last_snapshot.take();
             self.snapshots.last_snapshot = Some(snap);
@@ -194,7 +199,7 @@ impl InGameScene {
 
                         if dx.abs() > 0.05 || dy.abs() > 0.05 {
                             let lifetime = rand::random_range(0.18..0.32f32);
-                            self.particle_system.spawn(Particle {
+                            resources.write_resource::<ParticlePool>().spawn(Particle {
                                 pos: Vector2 {
                                     x: x + rand::random_range(-20.0..20.0),
                                     y: y + 20.0,

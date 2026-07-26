@@ -170,7 +170,7 @@ pub fn create_attack_box(
 
         // Rendu Debug via ton événement réseau existant !
         game_event_queue.data.push(GameEvent {
-            kind: GameEventKind::DebugRect {
+            kind: GameEventKind::SpawnRect {
                 x: center_x as f32,
                 y: center_y as f32,
                 half_length: intent.box_half_length as f32,

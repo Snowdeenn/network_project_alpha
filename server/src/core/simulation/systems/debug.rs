@@ -22,7 +22,7 @@ pub fn debug_projectile_positions(
 ) {
     // On envoie un point de débug à la position du projectile
     game_event_queue.data.push(GameEvent {
-        kind: GameEventKind::DebugRect {
+        kind: GameEventKind::SpawnRect {
             x: pos.x as f32,
             y: pos.y as f32,
             half_length: geo.half_length,

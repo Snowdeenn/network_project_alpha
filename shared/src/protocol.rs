@@ -90,7 +90,7 @@ pub enum GameEventKind {
     PurchaseFailed {
         slot: usize,
     },
-    DebugRect {
+    SpawnRect {
         x: f32,
         y: f32,
         half_length: f32,

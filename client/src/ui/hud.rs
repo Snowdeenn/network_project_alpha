@@ -1,7 +1,9 @@
 use raylib::prelude::*;
-
+use std::fmt::Write;
+use crate::app::states::in_game::{GuiContext, HudBuffers};
 use crate::core::config::*;
 use shared::ids::ShaderId;
+use shared::protocol::StateSnapshot;
 use ui::prelude::*;
 use ui::*;
 
@@ -280,5 +282,53 @@ pub fn init_shop(ui_ctx: &mut UiContext) -> ShopHudIds {
         cards,
         title: title_id,
         close: close_id,
+    }
+}
+
+pub fn update(
+    gui: &mut GuiContext,
+    snap: &StateSnapshot,
+    bufs: &mut HudBuffers,
+) {
+    if let Some(info) = &snap.player_info {
+        let ratio = info.health / info.max_health;
+        bufs.hp.clear();
+        write!(bufs.hp, "{} / {}", info.health, info.max_health).unwrap();
+
+        bufs.gold.clear();
+        write!(bufs.gold, "Or {}", info.gold).unwrap();
+
+        let wave_info = &snap.wave_info;
+        bufs.wave.clear();
+        write!(
+            bufs.wave,
+            "Vague {} | Ennemis {}",
+            wave_info.wave_number, wave_info.enemy_remaining
+        )
+        .unwrap();
+
+        gui.ui_ctx.send_event(UIEvent::SetSize {
+            target: gui.ids.hud.hp_fill_id,
+            size: UiVec2::new(UiUnit::ParentPercent(ratio), UiUnit::ParentPercent(1.0)),
+        });
+        gui.ui_ctx.send_event(UIEvent::SetText {
+            target: gui.ids.hud.hp_text_id,
+            content: bufs.hp.to_string(),
+        });
+
+        gui.ui_ctx.send_event(UIEvent::SetText {
+            target: gui.ids.hud.gold_label_id,
+            content: bufs.gold.to_string(),
+        });
+
+        if let Some(shader) = gui.shader_manager.get_mut(gui.ids.shader) {
+            let loc = shader.get_shader_location("u_ratio");
+            shader.set_shader_value(loc, ratio);
+        }
+
+        gui.ui_ctx.send_event(UIEvent::SetText {
+            target: gui.ids.hud.wave_label_id,
+            content: bufs.wave.to_string(),
+        });
     }
 }

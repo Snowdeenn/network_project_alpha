@@ -2,7 +2,7 @@ use raylib::prelude::*;
 use std::time::{Duration, Instant};
 use ui::{prelude::*};
 
-use shared::ids::ShaderId;
+use shared::ids::{ShaderId};
 use shared::protocol::{
     EntityKind, GameEvent, GameEventKind, ShopAction, ShopActionKind, StateSnapshot,
 };
@@ -18,7 +18,7 @@ use crate::rendering::shader_manager::ShaderManager;
 use crate::rendering::types::{FrameState, RenderContext};
 use crate::rendering::vfx::particle::{Particle, ParticlePool};
 use crate::rendering::vfx::vfx_manager::VfxManager;
-use crate::ui::hud::{HudIds, ShopHudIds};
+use crate::ui::hud::{self, HudIds, ShopHudIds};
 
 fn lerp(a: f32, b: f32, t: f32) -> f32 {
     a + (b - a) * t
@@ -58,6 +58,22 @@ impl Default for Ticks {
     }
 }
 
+pub struct HudBuffers {
+    pub hp: String,
+    pub gold: String,
+    pub wave: String,
+}
+
+impl HudBuffers {
+    pub fn new() -> Self {
+        Self {
+            hp: String::with_capacity(16),
+            gold: String::with_capacity(16),
+            wave: String::with_capacity(32),
+        }
+    }
+}
+
 pub struct InGameIds {
     pub shop: ShopHudIds,
     pub hud: HudIds,
@@ -74,6 +90,8 @@ pub struct InGameScene {
     pub snapshots: Snapshots,
     pub ticks: Ticks,
     pub shake: CameraShake,
+    pub hud_buffers: HudBuffers,
+
 }
 
 impl Default for InGameScene {
@@ -81,10 +99,12 @@ impl Default for InGameScene {
         Self {
             snapshots: Snapshots::default(),
             ticks: Ticks::default(),
-            shake: CameraShake::default()
+            shake: CameraShake::default(),
+            hud_buffers: HudBuffers::new(),
         }
     }
 }
+
 
 impl InGameScene {
     pub fn update(
@@ -150,38 +170,8 @@ impl InGameScene {
         }
 
         if let Some(snap) = &self.snapshots.last_snapshot {
-            // MAJ Santé, Or & Shader du HUD
-            if let Some(info) = &snap.player_info {
-                let ratio = info.health / info.max_health;
-
-                gui.ui_ctx.send_event(UIEvent::SetSize {
-                    target: gui.ids.hud.hp_fill_id,
-                    size: UiVec2::new(UiUnit::ParentPercent(ratio), UiUnit::ParentPercent(1.0)),
-                });
-                gui.ui_ctx.send_event(UIEvent::SetText {
-                    target: gui.ids.hud.hp_text_id,
-                    content: format!("{} / {}", info.health, info.max_health),
-                });
-                gui.ui_ctx.send_event(UIEvent::SetText {
-                    target: gui.ids.hud.gold_label_id,
-                    content: format!("Or {}", info.gold),
-                });
-
-                if let Some(shader) = gui.shader_manager.get_mut(gui.ids.shader) {
-                    let loc = shader.get_shader_location("u_ratio");
-                    shader.set_shader_value(loc, ratio);
-                }
-            }
-
-            // MAJ Vagues
-            let wave_info = &snap.wave_info;
-            gui.ui_ctx.send_event(UIEvent::SetText {
-                target: gui.ids.hud.wave_label_id,
-                content: format!(
-                    "Vague {} | Ennemis {}",
-                    wave_info.wave_number, wave_info.enemy_remaining
-                ),
-            });
+            // MAJ hud
+           hud::update(gui, snap, &mut self.hud_buffers);
 
             // Particules de déplacement des joueurs
             for entity in &snap.entities {

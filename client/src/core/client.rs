@@ -14,6 +14,7 @@ const SERVER_ADDR: &str = "127.0.0.1:7777";
 pub struct GameNetClient {
     client: RenetClient,
     transport: NetcodeClientTransport,
+    send_buf: Vec<u8>,
 }
 
 impl GameNetClient {
@@ -35,7 +36,11 @@ impl GameNetClient {
         let transport = NetcodeClientTransport::new(current_time, auth, socket).unwrap();
         let client = RenetClient::new(connection_config());
 
-        Self { client, transport }
+        Self {
+            client,
+            transport,
+            send_buf: Vec::<u8>::with_capacity(256),
+        }
     }
 
     pub fn update(&mut self, delta: Duration) {
@@ -48,18 +53,27 @@ impl GameNetClient {
     }
 
     pub fn send_input(&mut self, packet: &InputPacket) {
-        let bytes = bincode::encode_to_vec(packet, bincode::config::standard()).unwrap();
-        self.client.send_message(CHANNEL_INPUT, bytes);
+        self.send_buf.clear();
+        bincode::encode_into_std_write(packet, &mut self.send_buf, bincode::config::standard())
+            .unwrap();
+        self.client
+            .send_message(CHANNEL_INPUT, bytes::Bytes::copy_from_slice(&self.send_buf));
     }
 
     pub fn send_shop_action(&mut self, action: &ShopAction) {
-        let bytes = bincode::encode_to_vec(action, bincode::config::standard()).unwrap();
-        self.client.send_message(CHANNEL_SHOP, bytes);
+        self.send_buf.clear();
+        bincode::encode_into_std_write(action, &mut self.send_buf, bincode::config::standard())
+            .unwrap();
+        self.client
+            .send_message(CHANNEL_SHOP, bytes::Bytes::copy_from_slice(&self.send_buf));
     }
 
     pub fn send_lobby_message(&mut self, msg: &LobbyMessage) {
-        let bytes = bincode::encode_to_vec(msg, bincode::config::standard()).unwrap();
-        self.client.send_message(CHANNEL_LOBBY, bytes);
+        self.send_buf.clear();
+        bincode::encode_into_std_write(msg, &mut self.send_buf, bincode::config::standard())
+            .unwrap();
+        self.client
+            .send_message(CHANNEL_LOBBY, bytes::Bytes::copy_from_slice(&self.send_buf));
     }
 
     pub fn recv_snapshot(&mut self) -> Option<StateSnapshot> {

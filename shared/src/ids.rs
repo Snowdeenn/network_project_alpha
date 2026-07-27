@@ -6,10 +6,12 @@ use crate::arena::Id;
 pub struct ShaderTag;
 pub struct TextureTag;
 pub struct AnimTag;
+pub struct AnimEntityTag;
 
 pub type ShaderId = Id<ShaderTag>;
 pub type TextureId = Id<TextureTag>;
 pub type AnimId = Id<AnimTag>;
+pub type AnimEntityId = Id<AnimEntityTag>;
 
 // ======================================
 // Tag Server

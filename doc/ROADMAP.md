@@ -118,7 +118,7 @@ Assainir l'architecture pour rendre le combat et les vagues 100% extensibles (Op
 - [ ] Map plus grande avec zones distinctes
 
 ### 4b — Multijoueur complet
-- [ ] Réseau : Réplication et synchronisation des composants dynamiques (`AttackStats`, `MovementStats`) des 4 joueurs.
+- [x] Réseau : Réplication et synchronisation des composants dynamiques (`AttackStats`, `MovementStats`) des 4 joueurs.
 - [ ] Affichage de tous les joueurs dans le HUD
 - [x] Mort individuelle sans bloquer la partie des autres
 - [ ] Score partagé en fin de partie
@@ -166,10 +166,10 @@ Style hand-painted minimaliste : formes simples, brosses texturées, palette pas
 - [ ] Lumières douces sur les projectiles ennemis
 
 ## Renderer / Engine
-- [ ] ShaderManager global : gestion unifiée de tous les shaders du jeu
+- [x] ShaderManager global : gestion unifiée de tous les shaders du jeu
        (monde, post-process, UI), API pour set_uniform, hot-reload GLSL,
        évite d'avoir ShaderRegistry UI et les shaders renderer en silos séparés
-- [ ] TextureManager refactor : aligner avec le pattern handle-based du framework UI
+- [x] TextureManager refactor : aligner avec le pattern handle-based du framework UI
        (TextureId générationnel, registry centralisé)
 
 ---

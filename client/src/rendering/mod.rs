@@ -1,27 +1,26 @@
 // src/renderer/mod.rs
 
+pub mod camera;
 pub mod render_pipeline;
 pub mod shader_manager;
 pub mod types;
-pub mod camera;
 pub mod vfx;
 
+use crate::app::resources::Resources;
 use crate::core::config::*;
 use crate::core::event::ClientState;
-use crate::rendering::vfx::particle::ParticlePool;
-use crate::graphic_data::animation::AnimEntity;
+use crate::graphic_data::animation::AnimEntityManager;
 use crate::graphic_data::animation_manager::{AnimKey, BossState, EnemyState, PlayerState};
 use crate::graphic_data::asset_manager::AssetManager;
 use crate::rendering::render_pipeline::RenderPipeline;
-use crate::app::resources::Resources;
 use crate::rendering::types::*;
+use crate::rendering::vfx::particle::ParticlePool;
 
 use crate::core::event::GamePhase;
 use crate::rendering::vfx::vfx_manager::VfxManager;
 use raylib::prelude::*;
 use raylib_imgui::RaylibGui;
 use shared::protocol::{EntityKind, EntityState, StateSnapshot};
-use std::collections::HashMap;
 
 #[derive(Clone, Copy)]
 pub struct ScreenScale {
@@ -63,7 +62,7 @@ pub struct Renderer {
     pub screen_scale: ScreenScale,
     pub imgui: RaylibGui,
     pub pipeline: RenderPipeline,
-    pub anim_entities: HashMap<u64, AnimEntity>,
+    pub anim_entities: AnimEntityManager,
 }
 
 impl Renderer {
@@ -101,7 +100,7 @@ impl Renderer {
             screen_scale: ScreenScale::new(real_w, real_h),
             imgui,
             pipeline,
-            anim_entities: HashMap::new(),
+            anim_entities: AnimEntityManager::new(),
         }
     }
 
@@ -110,11 +109,12 @@ impl Renderer {
         frame: FrameState,
         client_state: &mut ClientState,
         ctx: &mut RenderContext,
-        resources: &mut Resources
+        resources: &mut Resources,
     ) {
         let dt = self.rl.get_frame_time();
 
-        ctx.shader_manager.update_globals(dt, self.screen_w as f32, self.screen_h as f32);
+        ctx.shader_manager
+            .update_globals(dt, self.screen_w as f32, self.screen_h as f32);
 
         let ui = self.imgui.begin(&mut self.rl);
         let mut d = self.rl.begin_drawing(&self.thread);
@@ -149,6 +149,9 @@ impl Renderer {
                             let t = (frame.last_snap_time.elapsed().as_secs_f32()
                                 / crate::app::states::in_game::Ticks::TICK_DURATION.as_secs_f32())
                             .clamp(0.0, 1.0);
+
+                            let assets = resources.read_resource::<AssetManager>();
+                            anim_entities.tick_all(dt, assets.anims());
 
                             render_world(
                                 &mut d2,
@@ -233,7 +236,7 @@ impl Renderer {
 fn render_world(
     d: &mut RaylibMode2D<RaylibTextureMode<RaylibDrawHandle>>,
     resources: &Resources,
-    anim_entities: &mut HashMap<u64, AnimEntity>,
+    anim_entities: &mut AnimEntityManager,
     prev: Option<&StateSnapshot>,
     curr: &StateSnapshot,
     t: f32,
@@ -258,14 +261,10 @@ fn render_world(
         let anim_key = resolve_anim(&entity.entity_kind, prev_entity, entity);
 
         if let Some(anim_id) = assets.anims().get_by_key(anim_key) {
-            let anim = anim_entities
-                .entry(entity.entity_id)
-                .or_insert_with(|| AnimEntity::new(anim_id));
-
+            let anim = anim_entities.get_or_create(entity.entity_id, anim_id);
             anim.set(anim_id);
 
             if let Some(data) = assets.anims().get(anim_id) {
-                anim.tick(dt, data);
                 if let Some(tex_id) = anim.current_texture_id(data) {
                     if let Some(tex) = assets.textures().get(tex_id) {
                         let scale = 2.0;
@@ -287,7 +286,7 @@ fn render_world(
         draw_fallback(d, &entity.entity_kind, x, y, entity);
     }
 
-    anim_entities.retain(|id, _| curr.entities.iter().any(|e| e.entity_id == *id));
+    anim_entities.retain(|id| curr.entities.iter().any(|e| e.entity_id == id));
 
     particle_pool.draw(d);
     vfx.draw(d);

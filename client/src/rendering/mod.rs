@@ -5,6 +5,7 @@ pub mod render_pipeline;
 pub mod shader_manager;
 pub mod types;
 pub mod vfx;
+pub mod backend;
 
 use crate::app::resources::Resources;
 use crate::core::config::*;

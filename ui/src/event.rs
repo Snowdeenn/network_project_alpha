@@ -1,11 +1,11 @@
 use crate::NodeId;
 use crate::node::UiVec2;
-use raylib::prelude::Color;
+use shared::colors;
 use shared::ids::{ShaderId, TextureId};
 
 #[derive(Clone)]
 pub enum UIEvent {
-    SetColor { target: NodeId, color: Color },
+    SetColor { target: NodeId, color: colors::Color },
     SetOpacity { target: NodeId, opacity: f32 },
     SetVisible { target: NodeId, visible: bool },
 

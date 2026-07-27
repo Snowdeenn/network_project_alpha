@@ -1,6 +1,16 @@
 use crate::provider::{ShaderProvider, TextureProvider};
 use raylib::prelude::*;
+use shared::colors;
 use shared::ids::{ShaderId, TextureId};
+use shared::math::Vec2;
+
+pub fn to_raylib_color(c: colors::Color) -> raylib::prelude::Color {
+    raylib::prelude::Color::new(c.r, c.g, c.b, c.a)
+}
+
+pub fn to_raylib_vec2(v: Vec2) -> raylib::math::Vector2 {
+    raylib::math::Vector2::new(v.x, v.y)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct NinePatchMargins {
@@ -23,46 +33,46 @@ impl NinePatchMargins {
 
 pub enum DrawCommand {
     Rect {
-        pos: Vector2,
-        size: Vector2,
-        color: Color,
+        pos: Vec2,
+        size: Vec2,
+        color: colors::Color,
         layer: u8,
     },
     Texture {
         texture_id: TextureId,
-        pos: Vector2,
-        size: Vector2,
-        tint: Color,
+        pos: Vec2,
+        size: Vec2,
+        tint: colors::Color,
         layer: u8,
     },
     Shader {
         shader_id: ShaderId,
-        pos: Vector2,
-        size: Vector2,
-        color: Color,
+        pos: Vec2,
+        size: Vec2,
+        color: colors::Color,
         layer: u8,
     },
     ShaderTexture {
         shader_id: ShaderId,
         texture_id: TextureId,
-        pos: Vector2,
-        size: Vector2,
-        tint: Color,
+        pos: Vec2,
+        size: Vec2,
+        tint: colors::Color,
         layer: u8,
     },
     NinePatch {
         texture_id: TextureId,
-        pos: Vector2,
-        size: Vector2,
+        pos: Vec2,
+        size: Vec2,
         margins: NinePatchMargins,
-        tint: Color,
+        tint: colors::Color,
         layer: u8,
     },
     Text {
         text: String,
-        pos: Vector2,
+        pos: Vec2,
         font_size: f32,
-        color: Color,
+        color: colors::Color,
         layer: u8,
     },
 }
@@ -124,7 +134,11 @@ impl DrawCommandBuffer {
                                 DrawCommand::Shader {
                                     pos, size, color, ..
                                 } => {
-                                    shader_mode.draw_rectangle_v(*pos, *size, *color);
+                                    shader_mode.draw_rectangle_v(
+                                        to_raylib_vec2(*pos),
+                                        to_raylib_vec2(*size),
+                                        to_raylib_color(*color),
+                                    );
                                 }
                                 DrawCommand::ShaderTexture {
                                     texture_id,
@@ -152,7 +166,7 @@ impl DrawCommandBuffer {
                                             dest,
                                             Vector2::zero(),
                                             0.0,
-                                            *tint,
+                                            to_raylib_color(*tint),
                                         );
                                     }
                                 }
@@ -167,7 +181,11 @@ impl DrawCommandBuffer {
                 DrawCommand::Rect {
                     pos, size, color, ..
                 } => {
-                    d.draw_rectangle_v(*pos, *size, *color);
+                    d.draw_rectangle_v(
+                        to_raylib_vec2(*pos),
+                        to_raylib_vec2(*size),
+                        to_raylib_color(*color),
+                    );
                     i += 1;
                 }
                 DrawCommand::Texture {
@@ -190,7 +208,14 @@ impl DrawCommandBuffer {
                             width: size.x,
                             height: size.y,
                         };
-                        d.draw_texture_pro(texture, source, dest, Vector2::zero(), 0.0, *tint);
+                        d.draw_texture_pro(
+                            texture,
+                            source,
+                            dest,
+                            Vector2::zero(),
+                            0.0,
+                            to_raylib_color(*tint),
+                        );
                     }
                     i += 1;
                 }
@@ -230,7 +255,7 @@ impl DrawCommandBuffer {
                             dest,
                             Vector2::zero(),
                             0.0,
-                            *tint,
+                            to_raylib_color(*tint),
                         );
                     }
                     i += 1;
@@ -242,7 +267,13 @@ impl DrawCommandBuffer {
                     color,
                     ..
                 } => {
-                    d.draw_text(text, pos.x as i32, pos.y as i32, *font_size as i32, *color);
+                    d.draw_text(
+                        text,
+                        pos.x as i32,
+                        pos.y as i32,
+                        *font_size as i32,
+                        to_raylib_color(*color),
+                    );
                     i += 1;
                 }
             }

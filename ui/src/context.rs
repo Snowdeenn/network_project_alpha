@@ -1,9 +1,8 @@
 use std::collections::{HashSet, VecDeque};
 
-use raylib::math::Vector2;
 use raylib::prelude::Rectangle;
 
-use crate::draw::{DrawCommand, DrawCommandBuffer};
+use crate::draw::{DrawCommand, DrawCommandBuffer, to_raylib_vec2};
 use crate::event::UIEvent;
 use crate::input::Interact;
 use crate::input::InteractState;
@@ -16,6 +15,7 @@ use crate::{
     node::{Anchor, LayoutProps, UiNode, VisualProps},
 };
 use shared::arena::*;
+use shared::math::Vec2;
 
 pub struct UiContext {
     arena: Arena<UiNode>,
@@ -36,8 +36,8 @@ impl UiContext {
         ));
 
         if let Some(root_node) = arena.get_mut(root_id) {
-            root_node.layout.computed_pos = Vector2::zero();
-            root_node.layout.computed_size = Vector2::new(screen_w, screen_h);
+            root_node.layout.computed_pos = Vec2::zero();
+            root_node.layout.computed_size = Vec2::new(screen_w, screen_h);
             root_node.visual.visible = false;
         }
 
@@ -299,7 +299,7 @@ impl UiContext {
 
     pub fn process_input(
         &mut self,
-        mouse_pos: Vector2,
+        mouse_pos: Vec2,
         mouse_pressed: bool,
         mouse_released: bool,
     ) -> Vec<UIOutputEvent> {
@@ -321,7 +321,7 @@ impl UiContext {
                 height: node.layout.computed_size.y,
             };
 
-            let hovered = bounds.check_collision_point_rec(mouse_pos);
+            let hovered = bounds.check_collision_point_rec(to_raylib_vec2(mouse_pos));
 
             let new_state = if hovered && mouse_pressed {
                 InteractState::Pressed
@@ -425,7 +425,7 @@ mod test {
         ui_ctx.resolve_layout();
 
         let node = ui_ctx.arena.get(node_id).expect("node devrait exister");
-        let expected = Vector2::new(1720.0, 20.0);
+        let expected = Vec2::new(1720.0, 20.0);
         assert_eq!(node.layout.computed_pos, expected);
     }
 }

@@ -1,4 +1,4 @@
-use raylib::color::Color;
+use shared::colors::Color;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum InteractState {

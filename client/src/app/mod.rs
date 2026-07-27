@@ -1,27 +1,28 @@
 // src/app/mod.rs
-pub mod states;
-pub mod resources;
 pub mod input;
+pub mod resources;
+pub mod states;
 
+use raylib::ffi::KeyboardKey;
 use std::time::Instant;
-use raylib::ffi::{KeyboardKey};
 
 use ui::context::UiContext;
 use ui::draw::DrawCommandBuffer;
 
 use crate::app;
 use crate::app::resources::Resources;
+use crate::app::states::in_game::{GuiContext, InGameIds, InGameScene};
+use crate::app::states::main_menu::MenuAction;
 use crate::core::client::GameNetClient;
 use crate::core::event::AppScreen;
 use crate::graphic_data::asset_manager::AssetManager;
+use crate::rendering::Renderer;
+use crate::rendering::shader_manager::ShaderManager;
+use crate::rendering::types::RenderContext;
 use crate::rendering::vfx::particle::ParticlePool;
 use crate::rendering::vfx::vfx_manager::VfxManager;
 use crate::ui::hud;
-use crate::rendering::shader_manager::ShaderManager;
-use crate::rendering::types::RenderContext;
-use crate::rendering::Renderer;
-use crate::app::states::in_game::{GuiContext, InGameIds, InGameScene};
-use crate::app::states::main_menu::MenuAction;
+use shared::buffer::BufferManager;
 
 pub struct App {
     client_id: u64,
@@ -50,9 +51,21 @@ impl App {
         let mut asset_manager = AssetManager::new();
         let mut resource = Resources::new();
 
-
         let last_frame = Instant::now();
         let is_solo = false;
+        asset_manager.load_animations(
+            &mut renderer.rl,
+            &renderer.thread,
+            "assets/config/animations.json",
+        );
+
+        // --- Resource insertion ---
+        {
+            resource.insert(asset_manager);
+            resource.insert(VfxManager::new());
+            resource.insert(ParticlePool::new());
+            resource.insert(BufferManager::with_capacity(16));
+        }
 
         // Scène de jeu
         let ingame_scene = InGameScene::default();
@@ -68,20 +81,10 @@ impl App {
         let shop_ids = hud::init_shop(&mut ui_ctx);
 
         let ingame_ids = InGameIds {
-            shop: shop_ids,
-            hud: hud_node_id,
-            shader: sh_pr_id,
-        };
-        asset_manager.load_animations(&mut renderer.rl, &renderer.thread, "assets/config/animations.json");
-        
-        // --- Resource insertion ---
-        {
-           resource.insert(asset_manager);
-           resource.insert(VfxManager::new());
-           resource.insert(ParticlePool::new());
-
-        }
-        
+                shop: shop_ids,
+                hud: hud_node_id,
+                shader: sh_pr_id,
+            };
 
         Self {
             client_id,
@@ -109,7 +112,11 @@ impl App {
                 c.update(frame_delta);
 
                 while let Some(msg) = c.recv_lobby_message() {
-                    app::states::lobby::handle_lobby_message(msg, &mut self.screen, &mut self.is_solo);
+                    app::states::lobby::handle_lobby_message(
+                        msg,
+                        &mut self.screen,
+                        &mut self.is_solo,
+                    );
                 }
             }
 
@@ -183,7 +190,7 @@ impl App {
                             shader_manager: &mut self.shader_manager,
                             ui_ctx: &mut self.ui_ctx,
                         },
-                        &mut self.resource
+                        &mut self.resource,
                     );
                 }
             }

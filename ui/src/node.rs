@@ -1,6 +1,6 @@
 use std::ops::{Add, Div, Mul, Sub};
-
-use raylib::prelude::{Color, Vector2};
+use shared::math::Vec2;
+use shared::colors;
 
 use crate::NodeId;
 use crate::draw::NinePatchMargins;
@@ -20,8 +20,8 @@ pub struct LayoutProps {
     pub anchor: Anchor,
     pub offset: UiVec2,
     pub size: UiVec2,
-    pub(crate) computed_pos: Vector2,
-    pub(crate) computed_size: Vector2,
+    pub(crate) computed_pos: Vec2,
+    pub(crate) computed_size: Vec2,
 }
 
 impl LayoutProps {
@@ -30,8 +30,8 @@ impl LayoutProps {
             anchor,
             offset,
             size,
-            computed_pos: Vector2::zero(),
-            computed_size: Vector2::zero(),
+            computed_pos: Vec2::zero(),
+            computed_size: Vec2::zero(),
         }
     }
 }
@@ -61,7 +61,7 @@ pub enum VisualKind {
 
 pub struct VisualProps {
     pub kind: VisualKind,
-    pub color: Color,
+    pub color: colors::Color,
     pub visible: bool,
     pub opacity: f32,
 }
@@ -70,7 +70,7 @@ impl Default for VisualProps {
     fn default() -> Self {
         VisualProps {
             kind: VisualKind::Rect,
-            color: Color::WHITE,
+            color: colors::Color::WHITE,
             visible: true,
             opacity: 1.0,
         }

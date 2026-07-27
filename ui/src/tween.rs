@@ -1,4 +1,5 @@
-use raylib::{color::Color, math::Vector2};
+use shared::colors;
+use shared::math::Vec2;
 
 use crate::{NodeId, event::UIEvent, node::UiVec2};
 
@@ -45,20 +46,20 @@ pub mod easing {
     }
 }
 
-pub fn lerp_color(from: Color, to: Color, t: f32) -> Color {
+pub fn lerp_color(from: colors::Color, to: colors::Color, t: f32) -> colors::Color {
     let r = from.r as f32 + (to.r as f32 - from.r as f32) * t;
     let g = from.g as f32 + (to.g as f32 - from.g as f32) * t;
     let b = from.b as f32 + (to.b as f32 - from.b as f32) * t;
     let a = from.a as f32 + (to.a as f32 - from.a as f32) * t;
 
-    Color::new(r as u8, g as u8, b as u8, a as u8)
+    colors::Color::new(r as u8, g as u8, b as u8, a as u8)
 }
 
 pub enum TweenProperty {
-    Position { from: Vector2, to: Vector2 },
-    Size { from: Vector2, to: Vector2 },
+    Position { from: Vec2, to: Vec2 },
+    Size { from: Vec2, to: Vec2 },
     Opacity { from: f32, to: f32 },
-    Color { from: Color, to: Color },
+    Color { from: colors::Color, to: colors::Color },
 }
 
 pub struct Tween {

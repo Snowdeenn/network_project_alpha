@@ -5,8 +5,7 @@
 //! les réallocations fréquentes sur le tas.
 
 use std::{
-    any,
-    collections::{HashMap, HashSet},
+    any::{self}, collections::{HashMap, HashSet},
 };
 
 use crate::{
@@ -54,6 +53,18 @@ impl<T: 'static + Send + Sync> AnyBuffer for HashSet<T> {
 }
 
 impl<K: 'static + Send + Sync, V: 'static + Send + Sync> AnyBuffer for HashMap<K, V> {
+    fn as_any(&self) -> &dyn any::Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn any::Any {
+        self
+    }
+    fn clear(&mut self) {
+        self.clear();
+    }
+}
+
+impl AnyBuffer for String {
     fn as_any(&self) -> &dyn any::Any {
         self
     }

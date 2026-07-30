@@ -11,3 +11,11 @@ pub enum GpuContextError {
     #[error("Échec lors de la récupération du périphérique GPU (Device) : {0}")]
     DeviceRequest(#[from] wgpu::RequestDeviceError),
 }
+
+#[derive(Error, Debug)]
+pub enum TextRendererError {
+    #[error("Impossible de préparer les rendu glyphon")]
+    PrepareError(#[from] glyphon::PrepareError),
+    #[error("Echec du rendu glyphon")]
+    RenderError(#[from] glyphon::RenderError),
+}

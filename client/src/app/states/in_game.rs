@@ -1,4 +1,5 @@
 use raylib::prelude::*;
+use shared::math::Vec2;
 use std::time::{Duration, Instant};
 use ui::{prelude::*};
 
@@ -296,7 +297,7 @@ impl InGameScene {
             .rl
             .is_mouse_button_released(MouseButton::MOUSE_BUTTON_LEFT);
 
-        gui.ui_ctx.process_input(mouse_pos, pressed, released);
+        gui.ui_ctx.process_input(Vec2::new(mouse_pos.x, mouse_pos.y), pressed, released);
 
         client_state.debug.cleared = false;
     }

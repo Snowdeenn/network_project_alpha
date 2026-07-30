@@ -24,7 +24,7 @@ pub fn init_hud(ui_ctx: &mut UiContext, hp_shader_id: ShaderId) -> HudIds {
         size: UiVec2::screen(0.2, 0.05),
         content: "Vague 0 | 0 ennemis",
         font_size: 24.0,
-        color: Color::WHITE,
+        color: shared::colors::Color::WHITE,
     };
 
     let (hp_bg_id, hp_fill_id) = progress_bar! {
@@ -33,8 +33,8 @@ pub fn init_hud(ui_ctx: &mut UiContext, hp_shader_id: ShaderId) -> HudIds {
         anchor: Anchor::TopLeft,
         offset: UiVec2::screen(HUD_PADDING_X, HUD_BAR_Y),
         size: UiVec2::screen(HUD_BAR_W, HUD_BAR_H),
-        bg: Color::DARKGRAY,
-        fill_color: Color::WHITE,
+        bg: shared::colors::Color::DARKGRAY,
+        fill_color: shared::colors::Color::WHITE,
         shader: hp_shader_id,
     };
 
@@ -46,7 +46,7 @@ pub fn init_hud(ui_ctx: &mut UiContext, hp_shader_id: ShaderId) -> HudIds {
         size: UiVec2::new(UiUnit::ParentPercent(1.0), UiUnit::ParentPercent(1.0)),
         content: "100/100",
         font_size: 16.0,
-        color: Color::WHITE,
+        color: shared::colors::Color::WHITE,
     };
 
     let gold_label_id = text_label! {
@@ -57,7 +57,7 @@ pub fn init_hud(ui_ctx: &mut UiContext, hp_shader_id: ShaderId) -> HudIds {
         size: UiVec2::screen(0.1, 0.03),
         content: "Or : 0",
         font_size: 24.0,
-        color: Color::GOLD,
+        color: shared::colors::Color::GOLD,
     };
 
     HudIds {
@@ -97,7 +97,7 @@ pub fn init_shop(ui_ctx: &mut UiContext) -> ShopHudIds {
         ),
         VisualProps {
             kind: VisualKind::Rect,
-            color: Color::new(0, 0, 0, 150),
+            color: shared::colors::Color::new(0, 0, 0, 150),
             visible: false,
             opacity: 1.0,
         },
@@ -111,7 +111,7 @@ pub fn init_shop(ui_ctx: &mut UiContext) -> ShopHudIds {
         size: UiVec2::screen(0.3, SHOP_TITLE_FONT_SIZE),
         content: SHOP_TITLE_TEXT,
         font_size: SHOP_TITLE_FONT_SIZE * REFERENCE_H,
-        color: Color::GOLD,
+        color: shared::colors::Color::GOLD,
     };
 
     let card_w_unit = UiUnit::ScreenWidth(SHOP_CARD_W);
@@ -134,7 +134,7 @@ pub fn init_shop(ui_ctx: &mut UiContext) -> ShopHudIds {
             ),
             VisualProps {
                 kind: VisualKind::Rect,
-                color: Color::DARKGRAY,
+                color: shared::colors::Color::DARKGRAY,
                 visible: true,
                 opacity: 1.0,
             },
@@ -153,7 +153,7 @@ pub fn init_shop(ui_ctx: &mut UiContext) -> ShopHudIds {
             ),
             VisualProps {
                 kind: VisualKind::Rect,
-                color: Color::BLACK,
+                color: shared::colors::Color::BLACK,
                 visible: true,
                 opacity: 1.0,
             },
@@ -168,7 +168,7 @@ pub fn init_shop(ui_ctx: &mut UiContext) -> ShopHudIds {
             ),
             VisualProps {
                 kind: VisualKind::Rect,
-                color: Color::DARKGRAY,
+                color: shared::colors::Color::DARKGRAY,
                 visible: true,
                 opacity: 1.0,
             },
@@ -182,7 +182,7 @@ pub fn init_shop(ui_ctx: &mut UiContext) -> ShopHudIds {
             size: UiVec2::screen(SHOP_ART_W, SHOP_NAME_FONT_SIZE),
             content: "",
             font_size: SHOP_NAME_FONT_SIZE * REFERENCE_H,
-            color: Color::WHITE,
+            color: shared::colors::Color::WHITE,
         };
 
         let desc_id = text_label! {
@@ -193,7 +193,7 @@ pub fn init_shop(ui_ctx: &mut UiContext) -> ShopHudIds {
             size: UiVec2::screen(SHOP_ART_W, 0.05),
             content: "",
             font_size: 0.018 * REFERENCE_H,
-            color: Color::LIGHTGRAY,
+            color: shared::colors::Color::LIGHTGRAY,
         };
 
         let price_id = text_label! {
@@ -204,7 +204,7 @@ pub fn init_shop(ui_ctx: &mut UiContext) -> ShopHudIds {
             size: UiVec2::screen(SHOP_ART_W, SHOP_PRICE_FONT_SIZE),
             content: "",
             font_size: SHOP_PRICE_FONT_SIZE * REFERENCE_H,
-            color: Color::GOLD,
+            color: shared::colors::Color::GOLD,
         };
 
         let sold_overlay_id = ui_ctx.add_node(
@@ -216,7 +216,7 @@ pub fn init_shop(ui_ctx: &mut UiContext) -> ShopHudIds {
             ),
             VisualProps {
                 kind: VisualKind::Rect,
-                color: Color::new(20, 220, 60, 255),
+                color: shared::colors::Color::new(20, 220, 60, 255),
                 visible: false,
                 opacity: 0.0,
             },
@@ -230,7 +230,7 @@ pub fn init_shop(ui_ctx: &mut UiContext) -> ShopHudIds {
             size: UiVec2::screen(0.1, 0.03),
             content: "",
             font_size: 35.0,
-            color: Color::WHITE,
+            color: shared::colors::Color::WHITE,
         };
 
         let error_overlay_id = ui_ctx.add_node(
@@ -242,7 +242,7 @@ pub fn init_shop(ui_ctx: &mut UiContext) -> ShopHudIds {
             ),
             VisualProps {
                 kind: VisualKind::Rect,
-                color: Color::new(220, 20, 60, 255),
+                color: shared::colors::Color::new(220, 20, 60, 255),
                 visible: false,
                 opacity: 0.0,
             },
@@ -268,7 +268,7 @@ pub fn init_shop(ui_ctx: &mut UiContext) -> ShopHudIds {
         size: UiVec2::screen(0.2, CLOSE_SHOP_FONT),
         content: "G — Fermer",
         font_size: CLOSE_SHOP_FONT,
-        color: Color::GRAY,
+        color: shared::colors::Color::GRAY,
     };
 
     let cards = [

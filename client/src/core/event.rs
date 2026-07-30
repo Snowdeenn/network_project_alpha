@@ -279,10 +279,10 @@ pub fn handle_shop_ui_event(event: &GameEvent, ui_ctx: &mut UiContext, shop_ids:
             for (slot, item_opt) in inventory.iter().enumerate() {
                 if let Some(item) = item_opt {
                     let border_color = match item.effect_type {
-                        EffectType::Health => Color::DARKGREEN,
-                        EffectType::Damage => Color::MAROON,
-                        EffectType::Speed => Color::DARKBLUE,
-                        EffectType::Gold => Color::GOLD,
+                        EffectType::Health => shared::colors::Color::DARKGREEN,
+                        EffectType::Damage => shared::colors::Color::MAROON,
+                        EffectType::Speed => shared::colors::Color::DARKBLUE,
+                        EffectType::Gold => shared::colors::Color::GOLD,
                     };
                     ui_ctx.send_event(UIEvent::SetColor {
                         target: shop_ids.cards[slot].root,
@@ -337,7 +337,7 @@ pub fn handle_shop_ui_event(event: &GameEvent, ui_ctx: &mut UiContext, shop_ids:
                 on_complete: vec![
                     UIEvent::SetColor {
                         target: shop_ids.cards[*slot].sold_overlay,
-                        color: Color::new(40, 40, 40, 255),
+                        color: shared::colors::Color::new(40, 40, 40, 255),
                     },
                     UIEvent::SetOpacity {
                         target: shop_ids.cards[*slot].sold_overlay,

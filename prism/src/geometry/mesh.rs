@@ -1,25 +1,18 @@
 #[repr(C)]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct VertexColored {
-    pub pos: [f32; 2],
-    pub color: [f32; 4],
-}
-
-#[repr(C)]
-#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct VertexTextured {
+pub struct Vertex {
     pub pos: [f32; 2],
     pub uv: [f32; 2],
     pub color: [f32; 4],
 }
 
 #[derive(Debug, Default, Clone)]
-pub struct RawMesh<V> {
-    vertices: Vec<V>,
+pub struct RawMesh{
+    vertices: Vec<Vertex>,
     indices: Vec<u32>,
 }
 
-impl<V: Copy + bytemuck::Pod> RawMesh<V> {
+impl RawMesh {
     pub fn new() -> Self {
         Self {
             vertices: Vec::new(),
@@ -34,7 +27,7 @@ impl<V: Copy + bytemuck::Pod> RawMesh<V> {
         }
     }
 
-    pub fn push_vertex(&mut self, v: V) -> u32 {
+    pub fn push_vertex(&mut self, v: Vertex) -> u32 {
         let idx = self.vertices.len();
         self.vertices.push(v);
         idx as u32

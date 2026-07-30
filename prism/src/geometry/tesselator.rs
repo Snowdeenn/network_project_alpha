@@ -1,15 +1,12 @@
 use crate::geometry::{
-    mesh::{RawMesh, VertexColored, VertexTextured},
-    shape::{Shape, UvRect},
+    mesh::{RawMesh, Vertex}, shape::{Shape, UvRect},
 };
 
-pub type ColoredMesh = RawMesh<VertexColored>;
-pub type TexturedMesh = RawMesh<VertexTextured>;
 
 pub struct Tesselator;
 
 impl Tesselator {
-    pub fn tesselate_textured(shape: &Shape, mesh: &mut TexturedMesh) {
+    pub fn tesselate_textured(shape: &Shape, mesh: &mut RawMesh) {
         match shape {
             Shape::Quad {
                 pos,
@@ -56,22 +53,22 @@ impl Tesselator {
                     }
                 }
 
-                let i0 = mesh.push_vertex(VertexTextured {
+                let i0 = mesh.push_vertex(Vertex {
                     pos: [cx + local_pts[0][0], cy + local_pts[0][1]],
                     uv: [u0, v0],
                     color: *color,
                 });
-                let i1 = mesh.push_vertex(VertexTextured {
+                let i1 = mesh.push_vertex(Vertex {
                     pos: [cx + local_pts[1][0], cy + local_pts[1][1]],
                     uv: [u1, v0],
                     color: *color,
                 });
-                let i2 = mesh.push_vertex(VertexTextured {
+                let i2 = mesh.push_vertex(Vertex {
                     pos: [cx + local_pts[2][0], cy + local_pts[2][1]],
                     uv: [u0, v1],
                     color: *color,
                 });
-                let i3 = mesh.push_vertex(VertexTextured {
+                let i3 = mesh.push_vertex(Vertex {
                     pos: [cx + local_pts[3][0], cy + local_pts[3][1]],
                     uv: [u1, v1],
                     color: *color,
@@ -83,7 +80,7 @@ impl Tesselator {
         };
     }
 
-    pub fn tesselate_colored(shape: &Shape, mesh: &mut ColoredMesh) {
+    pub fn tesselate_colored(shape: &Shape, mesh: &mut RawMesh) {
         match shape {
             Shape::Line {
                 start,
@@ -109,20 +106,24 @@ impl Tesselator {
                 let p2 = [start[0] - nx, start[1] - ny];
                 let p3 = [end[0] - nx, end[1] - ny];
 
-                let i0 = mesh.push_vertex(VertexColored {
+                let i0 = mesh.push_vertex(Vertex {
                     pos: p0,
+                    uv: [0.0, 0.0],
                     color: *color,
                 });
-                let i1 = mesh.push_vertex(VertexColored {
+                let i1 = mesh.push_vertex(Vertex {
                     pos: p1,
+                    uv: [0.0, 0.0],
                     color: *color,
                 });
-                let i2 = mesh.push_vertex(VertexColored {
+                let i2 = mesh.push_vertex(Vertex {
                     pos: p2,
+                    uv: [0.0, 0.0],
                     color: *color,
                 });
-                let i3 = mesh.push_vertex(VertexColored {
+                let i3 = mesh.push_vertex(Vertex {
                     pos: p3,
+                    uv: [0.0, 0.0],
                     color: *color,
                 });
 
@@ -138,8 +139,9 @@ impl Tesselator {
                 let cx = center[0];
                 let cy = center[1];
 
-                let ci = mesh.push_vertex(VertexColored {
+                let ci = mesh.push_vertex(Vertex {
                     pos: [cx, cy],
+                    uv: [0.0, 0.0],
                     color: *color,
                 });
 
@@ -148,8 +150,9 @@ impl Tesselator {
                     let angle = i as f32 * (2.0 * std::f32::consts::PI / *sides as f32);
                     let x = cx + radius * angle.cos();
                     let y = cy + radius * angle.sin();
-                    rim.push(mesh.push_vertex(VertexColored {
+                    rim.push(mesh.push_vertex(Vertex {
                         pos: [x, y],
+                        uv: [0.0, 0.0],
                         color: *color,
                     }));
                 }
@@ -192,20 +195,24 @@ impl Tesselator {
                         center[1] + outer_r * a1.sin(),
                     ];
 
-                    let i0 = mesh.push_vertex(VertexColored {
+                    let i0 = mesh.push_vertex(Vertex {
                         pos: inner0,
+                        uv: [0.0, 0.0],
                         color: *color,
                     });
-                    let i1 = mesh.push_vertex(VertexColored {
+                    let i1 = mesh.push_vertex(Vertex {
                         pos: inner1,
+                        uv: [0.0, 0.0],
                         color: *color,
                     });
-                    let i2 = mesh.push_vertex(VertexColored {
+                    let i2 = mesh.push_vertex(Vertex {
                         pos: outer0,
+                        uv: [0.0, 0.0],
                         color: *color,
                     });
-                    let i3 = mesh.push_vertex(VertexColored {
+                    let i3 = mesh.push_vertex(Vertex {
                         pos: outer1,
+                        uv: [0.0, 0.0],
                         color: *color,
                     });
 
@@ -224,20 +231,24 @@ impl Tesselator {
                 let x1 = pos[0] + size[0];
                 let y1 = pos[1] + size[1];
 
-                let i0 = mesh.push_vertex(VertexColored {
+                let i0 = mesh.push_vertex(Vertex {
                     pos: [x0 + *skew, y0],
+                    uv: [0.0, 0.0],
                     color: *color,
                 });
-                let i1 = mesh.push_vertex(VertexColored {
+                let i1 = mesh.push_vertex(Vertex {
                     pos: [x1 + skew, y0],
+                    uv: [0.0, 0.0],
                     color: *color,
                 });
-                let i2 = mesh.push_vertex(VertexColored {
+                let i2 = mesh.push_vertex(Vertex {
                     pos: [x0, y1],
+                    uv: [0.0, 0.0],
                     color: *color,
                 });
-                let i3 = mesh.push_vertex(VertexColored {
+                let i3 = mesh.push_vertex(Vertex {
                     pos: [x1, y1],
+                    uv: [0.0, 0.0],
                     color: *color,
                 });
 
@@ -275,8 +286,9 @@ impl Tesselator {
                 let cx = (x0 + x1) * 0.5;
                 let cy = (y0 + y1) * 0.5;
 
-                let center_idx = mesh.push_vertex(VertexColored {
+                let center_idx = mesh.push_vertex(Vertex {
                     pos: [cx, cy],
+                    uv: [0.0, 0.0],
                     color: *color,
                 });
 
@@ -292,8 +304,9 @@ impl Tesselator {
                         let x = ccx + radius * angle.cos();
                         let y = ccy + radius * angle.sin();
 
-                        let idx = mesh.push_vertex(VertexColored {
+                        let idx = mesh.push_vertex(Vertex {
                             pos: [x, y],
+                            uv: [0.0, 0.0],
                             color: *color,
                         });
 

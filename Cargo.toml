@@ -4,4 +4,6 @@ members = [
     "server",
     "shared",
     "ui",
+    "prism",
 ]
+workspace.resolver = "3"

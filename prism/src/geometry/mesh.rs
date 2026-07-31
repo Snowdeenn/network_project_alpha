@@ -7,7 +7,7 @@ pub struct Vertex {
 }
 
 #[derive(Debug, Default, Clone)]
-pub struct RawMesh{
+pub struct RawMesh {
     vertices: Vec<Vertex>,
     indices: Vec<u32>,
 }
@@ -50,5 +50,20 @@ impl RawMesh {
 
     pub fn indices_bytes(&self) -> &[u8] {
         bytemuck::cast_slice(&self.indices)
+    }
+
+    pub fn vertices(&self) -> &[Vertex] {
+        &self.vertices
+    }
+
+    pub fn indices(&self) -> &[u32] {
+        &self.indices
+    }
+
+    pub fn append(&mut self, other: &RawMesh) {
+        let offset = self.vertices.len() as u32;
+        self.vertices.extend_from_slice(other.vertices());
+        self.indices
+            .extend(other.indices().iter().map(|i| i + offset));
     }
 }

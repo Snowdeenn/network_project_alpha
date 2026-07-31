@@ -1,5 +1,5 @@
 use legion::{Entity, EntityStore, World, world::SubWorld};
-use shared::{
+use utils::{
     arena::*,
     ids::{CoinTag, EnemyTag},
 };

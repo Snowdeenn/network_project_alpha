@@ -6,7 +6,9 @@ pub struct DrawCommandBuffer {
 
 impl DrawCommandBuffer {
     pub fn new(capacity: usize) -> Self {
-        Self { commands: Vec::with_capacity(capacity) }
+        Self {
+            commands: Vec::with_capacity(capacity),
+        }
     }
 
     pub fn push(&mut self, command: DrawCommand) {
@@ -26,11 +28,20 @@ impl DrawCommandBuffer {
     }
 }
 
-fn sort_key(cmd: &DrawCommand) -> u8 {
-    match cmd {
-        DrawCommand::Mesh {  layer, .. } => *layer,
-        DrawCommand::Shape { layer, .. } => *layer,
-        DrawCommand::Text {  layer, .. } => *layer,
-        DrawCommand::Texture { layer, .. } => *layer,
-    }
+fn sort_key(cmd: &DrawCommand) -> u64 {
+    let (layer, blend, shader_id, texture_id) = match cmd {
+        DrawCommand::Shape { layer, blend, .. } => (*layer, *blend as u8, 0u16, 0u32),
+        DrawCommand::Mesh { layer, blend, .. } => (*layer, *blend as u8, 0u16, 0u32),
+        DrawCommand::Texture {
+            layer, blend, id, ..
+        } => {
+            (*layer, *blend as u8, 0u16, id.index as u32)
+        }
+        DrawCommand::Text { layer, .. } => (*layer, 0u8, 1u16, 0u32),
+    };
+
+    ((layer as u64) << 56)
+        | ((blend as u64) << 48)
+        | ((shader_id as u64) << 32)
+        | (texture_id as u64)
 }

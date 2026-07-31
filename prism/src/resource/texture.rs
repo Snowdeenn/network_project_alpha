@@ -1,4 +1,4 @@
-use shared::{
+use utils::{
     arena::Arena,
     ids::{TextureId, TextureTag},
 };

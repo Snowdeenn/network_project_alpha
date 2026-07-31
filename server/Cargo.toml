@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-shared    = { path = "../shared" }
+utils    = { path = "../utils" }
 renet      = "2.0.0"
 renet_netcode  = "2.0.0"
 tokio      = { version = "1.52", features = ["full"] }

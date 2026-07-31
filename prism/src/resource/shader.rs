@@ -1,5 +1,5 @@
-use shared::arena::Arena;
-use shared::ids::{ShaderId, ShaderTag};
+use utils::arena::Arena;
+use utils::ids::{ShaderId, ShaderTag};
 
 use crate::context::GpuContext;
 

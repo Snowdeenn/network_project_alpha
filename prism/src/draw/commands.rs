@@ -1,4 +1,4 @@
-use shared::ids::TextureId;
+use utils::ids::TextureId;
 use crate::geometry::mesh::RawMesh;
 use crate::geometry::shape::Shape;
 use crate::resource::pipeline::BlendMode;

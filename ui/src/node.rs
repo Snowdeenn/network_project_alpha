@@ -1,11 +1,11 @@
 use std::ops::{Add, Div, Mul, Sub};
-use shared::math::Vec2;
-use shared::colors;
+use utils::math::Vec2;
+use utils::colors;
 
 use crate::NodeId;
 use crate::draw::NinePatchMargins;
 use crate::input::Interact;
-use shared::ids::{ShaderId, TextureId};
+use utils::ids::{ShaderId, TextureId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Anchor {

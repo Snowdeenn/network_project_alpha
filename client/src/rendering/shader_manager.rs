@@ -1,8 +1,8 @@
 // src/renderer/shader_manager.rs
 
 use raylib::prelude::*;
-use shared::arena::Arena;
-use shared::ids::{ShaderId, ShaderTag};
+use utils::arena::Arena;
+use utils::ids::{ShaderId, ShaderTag};
 use std::collections::HashMap;
 use ui::provider::ShaderProvider;
 

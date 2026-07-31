@@ -1,4 +1,4 @@
-use shared::protocol::StateSnapshot;
+use utils::protocol::StateSnapshot;
 use std::time::Instant;
 use ui::{context::UiContext, draw::DrawCommandBuffer};
 

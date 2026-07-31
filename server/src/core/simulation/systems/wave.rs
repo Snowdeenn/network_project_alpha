@@ -8,8 +8,8 @@ use crate::core::simulation::systems::spawn;
 use legion::systems::CommandBuffer;
 use legion::world::SubWorld;
 use legion::*;
-use shared::ids::EnemyTag;
-use shared::protocol::{GameEvent, GameEventKind};
+use utils::ids::EnemyTag;
+use utils::protocol::{GameEvent, GameEventKind};
 use std::str::FromStr;
 use std::time::Duration;
 

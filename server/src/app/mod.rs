@@ -6,9 +6,9 @@ use std::time::{Duration, Instant};
 use legion::{Entity, EntityStore, Resources, Schedule, world::World};
 use renet::ServerEvent;
 
-use shared::buffer::BufferManager;
-use shared::config::{ClassConfig, ClassRegistery, GameConfig, PlayerClass};
-use shared::protocol::*;
+use utils::buffer::BufferManager;
+use utils::config::{ClassConfig, ClassRegistery, GameConfig, PlayerClass};
+use utils::protocol::*;
 
 use crate::core::config::*;
 use crate::core::lobby;

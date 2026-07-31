@@ -4,8 +4,8 @@ use crate::core::simulation::components::*;
 use crate::core::simulation::event::*;
 use legion::world::SubWorld;
 use legion::*;
-use shared::buffer::BufferManager;
-use shared::protocol::{GameEvent, GameEventKind};
+use utils::buffer::BufferManager;
+use utils::protocol::{GameEvent, GameEventKind};
 
 #[system]
 #[write_component(Health)]

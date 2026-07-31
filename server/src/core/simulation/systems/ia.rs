@@ -4,7 +4,7 @@ use crate::core::simulation::event::DamageEvent;
 use arrayvec::ArrayVec;
 use legion::world::SubWorld;
 use legion::*;
-use shared::buffer::BufferManager;
+use utils::buffer::BufferManager;
 use std::collections::HashMap;
 
 #[system]

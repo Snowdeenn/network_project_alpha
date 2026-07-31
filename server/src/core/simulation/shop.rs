@@ -1,5 +1,5 @@
 use rand::prelude::IndexedRandom;
-use shared::protocol::ShopItem;
+use utils::protocol::ShopItem;
 use std::collections::HashMap;
 
 pub struct PlayerShops {

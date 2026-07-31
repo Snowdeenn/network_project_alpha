@@ -1,4 +1,4 @@
-use shared::math::Vec2;
+use utils::math::Vec2;
 
 use crate::node::Anchor;
 use crate::node::{UiUnit, UiVec2};

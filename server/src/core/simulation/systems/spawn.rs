@@ -2,7 +2,7 @@ use crate::app::next_id;
 use crate::core::simulation::components::*;
 use legion::world::{EntryMut, World};
 use legion::*; 
-use shared::config::ClassRegistery;
+use utils::config::ClassRegistery;
 use std::time::Duration;
 use std::f64::consts::PI;
 
@@ -12,7 +12,7 @@ pub fn spawn_player(
     world: &mut World,
     player_game_id: u64,
     registry: &ClassRegistery,
-    class: shared::config::PlayerClass,
+    class: utils::config::PlayerClass,
     spawn_pos: Position,
 ) -> Entity {
     let config = registry

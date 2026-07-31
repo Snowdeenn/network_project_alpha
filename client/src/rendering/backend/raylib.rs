@@ -1,5 +1,5 @@
 // Dans rendering/backend/raylib.rs
-use shared::{colors, math};
+use utils::{colors, math};
 use raylib;
 
 pub fn to_raylib_color(c: colors::Color) -> raylib::prelude::Color {

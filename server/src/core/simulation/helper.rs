@@ -5,7 +5,7 @@ use legion::{Entity, world::SubWorld};
 use crate::core::queue::Queue;
 use crate::core::simulation::components::{Collider, Geometry, Position, Velocity};
 use crate::core::simulation::event::{CoinEvent, DamageEvent, EnemyDied};
-use shared::protocol::GameEvent;
+use utils::protocol::GameEvent;
 
 #[derive(Debug)]
 pub struct Resolution {

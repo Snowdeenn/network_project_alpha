@@ -9,8 +9,8 @@ use crate::core::simulation::systems::spawn::spawn_player;
 use crate::core::simulation::wave::{WaveManager, WaveState};
 use legion::Resources;
 use legion::World;
-use shared::config::{ClassRegistery, GameConfig};
-use shared::protocol::{GameEvent, GameEventKind, LobbyMessage, SessionErrorKind};
+use utils::config::{ClassRegistery, GameConfig};
+use utils::protocol::{GameEvent, GameEventKind, LobbyMessage, SessionErrorKind};
 use std::time::Duration;
 
 pub fn handle_lobby_message(

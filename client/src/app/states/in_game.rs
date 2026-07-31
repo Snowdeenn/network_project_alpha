@@ -1,10 +1,10 @@
 use raylib::prelude::*;
-use shared::math::Vec2;
+use utils::math::Vec2;
 use std::time::{Duration, Instant};
 use ui::{prelude::*};
 
-use shared::ids::{ShaderId};
-use shared::protocol::{
+use utils::ids::{ShaderId};
+use utils::protocol::{
     EntityKind, GameEvent, GameEventKind, ShopAction, ShopActionKind, StateSnapshot,
 };
 

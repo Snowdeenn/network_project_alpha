@@ -21,7 +21,7 @@ use crate::core::event::GamePhase;
 use crate::rendering::vfx::vfx_manager::VfxManager;
 use raylib::prelude::*;
 use raylib_imgui::RaylibGui;
-use shared::protocol::{EntityKind, EntityState, StateSnapshot};
+use utils::protocol::{EntityKind, EntityState, StateSnapshot};
 
 #[derive(Clone, Copy)]
 pub struct ScreenScale {
@@ -241,7 +241,7 @@ fn render_world(
     prev: Option<&StateSnapshot>,
     curr: &StateSnapshot,
     t: f32,
-    dt: f32,
+    _dt: f32,
 ) {
     let assets = resources.read_resource::<AssetManager>();
     let particle_pool = resources.read_resource::<ParticlePool>();

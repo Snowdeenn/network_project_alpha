@@ -3,9 +3,9 @@
 use std::collections::HashMap;
 use raylib::{RaylibHandle, RaylibThread};
 use serde::Deserialize;
-use shared::arena::Arena;
-use shared::ids::{AnimId, AnimTag, TextureId};
-use shared::protocol::BossKind;
+use utils::arena::Arena;
+use utils::ids::{AnimId, AnimTag, TextureId};
+use utils::protocol::BossKind;
 
 use crate::graphic_data::texture_manager::TextureManager;
 

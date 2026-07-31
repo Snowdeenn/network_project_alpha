@@ -1,6 +1,6 @@
 use crate::{core::queue::Queue, core::simulation::components::*};
 use legion::*;
-use shared::protocol::{GameEvent, GameEventKind};
+use utils::protocol::{GameEvent, GameEventKind};
 
 #[system(for_each)]
 #[filter(component::<Player>())]

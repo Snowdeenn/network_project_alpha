@@ -1,4 +1,4 @@
-use shared::colors::Color;
+use utils::colors::Color;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum InteractState {

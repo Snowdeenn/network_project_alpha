@@ -1,5 +1,5 @@
-use shared::colors;
-use shared::math::Vec2;
+use utils::colors;
+use utils::math::Vec2;
 
 use crate::{NodeId, event::UIEvent, node::UiVec2};
 

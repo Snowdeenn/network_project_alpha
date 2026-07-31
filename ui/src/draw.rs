@@ -1,8 +1,8 @@
 use crate::provider::{ShaderProvider, TextureProvider};
 use raylib::prelude::*;
-use shared::colors;
-use shared::ids::{ShaderId, TextureId};
-use shared::math::Vec2;
+use utils::colors;
+use utils::ids::{ShaderId, TextureId};
+use utils::math::Vec2;
 
 pub fn to_raylib_color(c: colors::Color) -> raylib::prelude::Color {
     raylib::prelude::Color::new(c.r, c.g, c.b, c.a)

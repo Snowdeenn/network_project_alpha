@@ -1,86 +1,12 @@
 use crate::geometry::{
-    mesh::{RawMesh, Vertex}, shape::{Shape, UvRect},
+    mesh::{RawMesh, Vertex},
+    shape::{Shape, UvRect},
 };
-
 
 pub struct Tesselator;
 
 impl Tesselator {
-    pub fn tesselate_textured(shape: &Shape, mesh: &mut RawMesh) {
-        match shape {
-            Shape::Quad {
-                pos,
-                size,
-                rotation,
-                color,
-                uv,
-            } => {
-                let uv_rect = uv.unwrap_or(UvRect {
-                    x: 0.0,
-                    y: 0.0,
-                    w: 1.0,
-                    h: 1.0,
-                });
-
-                let u0 = uv_rect.x;
-                let v0 = uv_rect.y;
-                let u1 = uv_rect.x + uv_rect.w;
-                let v1 = uv_rect.y + uv_rect.h;
-
-                let half_w = size[0] * 0.5;
-                let half_h = size[1] * 0.5;
-
-                let cx = pos[0] + half_w;
-                let cy = pos[1] + half_h;
-
-                let mut local_pts = [
-                    [-half_w, -half_h], // Haut-Gauche
-                    [half_w, -half_h],  // Haut-Droit
-                    [-half_w, half_h],  // Bas-Gauche
-                    [half_w, half_h],   // Bas-Droit
-                ];
-
-                if *rotation != 0.0 {
-                    let cos = rotation.cos();
-                    let sin = rotation.sin();
-
-                    for pt in &mut local_pts {
-                        let x = pt[0];
-                        let y = pt[1];
-
-                        pt[0] = x * cos - y * sin;
-                        pt[1] = x * sin + y * cos;
-                    }
-                }
-
-                let i0 = mesh.push_vertex(Vertex {
-                    pos: [cx + local_pts[0][0], cy + local_pts[0][1]],
-                    uv: [u0, v0],
-                    color: *color,
-                });
-                let i1 = mesh.push_vertex(Vertex {
-                    pos: [cx + local_pts[1][0], cy + local_pts[1][1]],
-                    uv: [u1, v0],
-                    color: *color,
-                });
-                let i2 = mesh.push_vertex(Vertex {
-                    pos: [cx + local_pts[2][0], cy + local_pts[2][1]],
-                    uv: [u0, v1],
-                    color: *color,
-                });
-                let i3 = mesh.push_vertex(Vertex {
-                    pos: [cx + local_pts[3][0], cy + local_pts[3][1]],
-                    uv: [u1, v1],
-                    color: *color,
-                });
-                mesh.push_triangle(i0, i1, i2);
-                mesh.push_triangle(i1, i3, i2);
-            }
-            _ => (),
-        };
-    }
-
-    pub fn tesselate_colored(shape: &Shape, mesh: &mut RawMesh) {
+    pub fn tesselate(shape: &Shape, mesh: &mut RawMesh) {
         match shape {
             Shape::Line {
                 start,
@@ -129,7 +55,7 @@ impl Tesselator {
 
                 mesh.push_triangle(i0, i1, i2);
                 mesh.push_triangle(i1, i3, i2);
-            }
+            },
             Shape::Polygon {
                 center,
                 sides,
@@ -161,7 +87,7 @@ impl Tesselator {
                     let next = (i + 1) % *sides as usize;
                     mesh.push_triangle(ci, rim[i], rim[next]);
                 }
-            }
+            },
             Shape::Ring {
                 center,
                 inner_r,
@@ -219,7 +145,7 @@ impl Tesselator {
                     mesh.push_triangle(i0, i1, i2);
                     mesh.push_triangle(i1, i3, i2);
                 }
-            }
+            },
             Shape::SlantedQuad {
                 pos,
                 size,
@@ -254,7 +180,7 @@ impl Tesselator {
 
                 mesh.push_triangle(i0, i1, i2);
                 mesh.push_triangle(i1, i3, i2);
-            }
+            },
             Shape::RoundedRect {
                 pos,
                 size,
@@ -324,8 +250,75 @@ impl Tesselator {
                 if let (Some(prev), Some(first)) = (prev_idx, first_idx) {
                     mesh.push_triangle(center_idx, prev, first);
                 }
+            },
+            Shape::Quad {
+                pos,
+                size,
+                rotation,
+                color,
+                uv,
+            } => {
+                let uv_rect = uv.unwrap_or(UvRect {
+                    x: 0.0,
+                    y: 0.0,
+                    w: 1.0,
+                    h: 1.0,
+                });
+
+                let u0 = uv_rect.x;
+                let v0 = uv_rect.y;
+                let u1 = uv_rect.x + uv_rect.w;
+                let v1 = uv_rect.y + uv_rect.h;
+
+                let half_w = size[0] * 0.5;
+                let half_h = size[1] * 0.5;
+
+                let cx = pos[0] + half_w;
+                let cy = pos[1] + half_h;
+
+                let mut local_pts = [
+                    [-half_w, -half_h], // Haut-Gauche
+                    [half_w, -half_h],  // Haut-Droit
+                    [-half_w, half_h],  // Bas-Gauche
+                    [half_w, half_h],   // Bas-Droit
+                ];
+
+                if *rotation != 0.0 {
+                    let cos = rotation.cos();
+                    let sin = rotation.sin();
+
+                    for pt in &mut local_pts {
+                        let x = pt[0];
+                        let y = pt[1];
+
+                        pt[0] = x * cos - y * sin;
+                        pt[1] = x * sin + y * cos;
+                    }
+                }
+
+                let i0 = mesh.push_vertex(Vertex {
+                    pos: [cx + local_pts[0][0], cy + local_pts[0][1]],
+                    uv: [u0, v0],
+                    color: *color,
+                });
+                let i1 = mesh.push_vertex(Vertex {
+                    pos: [cx + local_pts[1][0], cy + local_pts[1][1]],
+                    uv: [u1, v0],
+                    color: *color,
+                });
+                let i2 = mesh.push_vertex(Vertex {
+                    pos: [cx + local_pts[2][0], cy + local_pts[2][1]],
+                    uv: [u0, v1],
+                    color: *color,
+                });
+                let i3 = mesh.push_vertex(Vertex {
+                    pos: [cx + local_pts[3][0], cy + local_pts[3][1]],
+                    uv: [u1, v1],
+                    color: *color,
+                });
+                mesh.push_triangle(i0, i1, i2);
+                mesh.push_triangle(i1, i3, i2);
             }
-            _ => (),
         }
     }
 }

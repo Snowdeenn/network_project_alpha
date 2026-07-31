@@ -1,7 +1,7 @@
 use crate::NodeId;
 use crate::node::UiVec2;
-use shared::colors;
-use shared::ids::{ShaderId, TextureId};
+use utils::colors;
+use utils::ids::{ShaderId, TextureId};
 
 #[derive(Clone)]
 pub enum UIEvent {

@@ -1,6 +1,6 @@
 use crate::core::config::ServerConfig;
 use rand::seq::IndexedRandom;
-use shared::{
+use utils::{
     config::{GameConfig, PlayerClass},
     protocol::{LobbyPhaseInfo, LobbySlotInfo},
 };

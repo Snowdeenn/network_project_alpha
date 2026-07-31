@@ -1,7 +1,7 @@
 // src/player_registry.rs
 use legion::Entity;
-use shared::arena::{Arena, Id};
-use shared::ids::PlayerTag;
+use utils::arena::{Arena, Id};
+use utils::ids::PlayerTag;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]

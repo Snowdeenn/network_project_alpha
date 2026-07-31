@@ -3,7 +3,7 @@ use crate::core::player_registry::PlayerRegistry;
 use crate::core::simulation::components::{Active, EntityId, Health, IA, Player, Position, Projectile};
 use crate::core::simulation::wave::{WaveManager, WaveState as SimWaveState};
 use legion::*;
-use shared::protocol::{EntityKind, EntityState, PlayerInfo, WaveInfo, WaveState};
+use utils::protocol::{EntityKind, EntityState, PlayerInfo, WaveInfo, WaveState};
 
 pub fn build_wave_info(resources: &Resources) -> WaveInfo {
     resources

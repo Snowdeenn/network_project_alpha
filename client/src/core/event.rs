@@ -2,9 +2,8 @@ use std::time::Duration;
 
 use crate::core::config::SOLD_ANIM_DURATION;
 use crate::ui::hud::ShopHudIds;
-use raylib::prelude::Color;
-use shared::protocol::EffectType;
-use shared::{
+use utils::protocol::EffectType;
+use utils::{
     config::PlayerClass,
     protocol::{GameEvent, GameEventKind, LobbyPhaseInfo, LobbySlotInfo, ShopItem},
 };
@@ -279,10 +278,10 @@ pub fn handle_shop_ui_event(event: &GameEvent, ui_ctx: &mut UiContext, shop_ids:
             for (slot, item_opt) in inventory.iter().enumerate() {
                 if let Some(item) = item_opt {
                     let border_color = match item.effect_type {
-                        EffectType::Health => shared::colors::Color::DARKGREEN,
-                        EffectType::Damage => shared::colors::Color::MAROON,
-                        EffectType::Speed => shared::colors::Color::DARKBLUE,
-                        EffectType::Gold => shared::colors::Color::GOLD,
+                        EffectType::Health => utils::colors::Color::DARKGREEN,
+                        EffectType::Damage => utils::colors::Color::MAROON,
+                        EffectType::Speed => utils::colors::Color::DARKBLUE,
+                        EffectType::Gold => utils::colors::Color::GOLD,
                     };
                     ui_ctx.send_event(UIEvent::SetColor {
                         target: shop_ids.cards[slot].root,
@@ -337,7 +336,7 @@ pub fn handle_shop_ui_event(event: &GameEvent, ui_ctx: &mut UiContext, shop_ids:
                 on_complete: vec![
                     UIEvent::SetColor {
                         target: shop_ids.cards[*slot].sold_overlay,
-                        color: shared::colors::Color::new(40, 40, 40, 255),
+                        color: utils::colors::Color::new(40, 40, 40, 255),
                     },
                     UIEvent::SetOpacity {
                         target: shop_ids.cards[*slot].sold_overlay,

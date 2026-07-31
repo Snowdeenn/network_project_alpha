@@ -1,5 +1,5 @@
 use raylib::prelude::{Shader, Texture2D};
-use shared::ids::{ShaderId, TextureId};
+use utils::ids::{ShaderId, TextureId};
 
 pub trait ShaderProvider {
     fn get_shader(&self, id: ShaderId) -> Option<&Shader>;

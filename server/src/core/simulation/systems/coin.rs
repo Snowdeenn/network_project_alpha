@@ -9,8 +9,8 @@ use crate::core::simulation::spatial_grid::SpatialGrid;
 use legion::systems::CommandBuffer;
 use legion::world::SubWorld;
 use legion::*;
-use shared::buffer::BufferManager;
-use shared::ids::CoinTag;
+use utils::buffer::BufferManager;
+use utils::ids::CoinTag;
 
 #[system]
 #[read_component(Position)]

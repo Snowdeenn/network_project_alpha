@@ -3,7 +3,7 @@ use crate::core::simulation::helper::{Resolution, aabb_overlap, apply_resolution
 use crate::core::simulation::spatial_grid::SpatialGrid;
 use legion::world::SubWorld;
 use legion::*;
-use shared::buffer::BufferManager;
+use utils::buffer::BufferManager;
 use std::time::Duration;
 
 const FRICTION: f64 = 0.85;

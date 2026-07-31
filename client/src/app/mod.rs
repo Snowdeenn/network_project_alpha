@@ -22,7 +22,7 @@ use crate::rendering::types::RenderContext;
 use crate::rendering::vfx::particle::ParticlePool;
 use crate::rendering::vfx::vfx_manager::VfxManager;
 use crate::ui::hud;
-use shared::buffer::BufferManager;
+use utils::buffer::BufferManager;
 
 pub struct App {
     client_id: u64,

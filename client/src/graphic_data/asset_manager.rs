@@ -1,7 +1,7 @@
     // src/renderer/asset_manager.rs
 
 use raylib::prelude::{RaylibHandle, RaylibThread};
-use shared::ids::{TextureId};
+use utils::ids::{TextureId};
 
 use crate::graphic_data::animation_manager::AnimationManager;
 use crate::graphic_data::texture_manager::TextureManager;

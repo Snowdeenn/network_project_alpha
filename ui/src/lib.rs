@@ -22,5 +22,5 @@ pub mod prelude {
 }
 
 use crate::node::UiNode;
-pub use shared::arena::{Arena, Id};
+pub use utils::arena::{Arena, Id};
 pub type NodeId = Id<UiNode>;

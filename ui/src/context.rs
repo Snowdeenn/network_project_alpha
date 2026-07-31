@@ -14,8 +14,8 @@ use crate::{
     layout::compute_anchor_pos,
     node::{Anchor, LayoutProps, UiNode, VisualProps},
 };
-use shared::arena::*;
-use shared::math::Vec2;
+use utils::arena::*;
+use utils::math::Vec2;
 
 pub struct UiContext {
     arena: Arena<UiNode>,

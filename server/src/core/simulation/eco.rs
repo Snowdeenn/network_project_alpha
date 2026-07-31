@@ -1,4 +1,4 @@
-use shared::protocol::ShopItem;
+use utils::protocol::ShopItem;
 
 #[derive(Debug)]
 pub struct ItemPool {

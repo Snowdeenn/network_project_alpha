@@ -1,5 +1,5 @@
 use raylib::prelude::*;
-use shared::{
+use utils::{
     config::PlayerClass,
     protocol::{LobbyMessage, LobbyPhaseInfo},
 };

@@ -1,8 +1,8 @@
 use crate::core::event::ClientState;
 use crate::core::client::GameNetClient;
 use raylib::prelude::*;
-use shared::protocol::InputPacket;
-use shared::protocol::{ShopAction, ShopActionKind};
+use utils::protocol::InputPacket;
+use utils::protocol::{ShopAction, ShopActionKind};
 
 pub fn read_input(rl: &RaylibHandle, tick_id: u64, screen_w: i32, screen_h: i32) -> InputPacket {
     let move_dir = {

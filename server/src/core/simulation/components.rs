@@ -1,5 +1,5 @@
 use legion::Entity;
-use shared::arena::Id;
+use utils::arena::Id;
 use std::time::Duration;
 
 pub struct Player;

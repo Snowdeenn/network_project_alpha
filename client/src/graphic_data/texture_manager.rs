@@ -1,8 +1,8 @@
 // src/renderer/texture_manager.rs
 
 use raylib::prelude::{RaylibHandle, RaylibThread, Texture2D};
-use shared::arena::Arena;
-use shared::ids::{TextureId, TextureTag};
+use utils::arena::Arena;
+use utils::ids::{TextureId, TextureTag};
 use ui::provider::TextureProvider;
 
 pub struct TextureManager {

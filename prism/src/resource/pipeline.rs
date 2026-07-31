@@ -1,5 +1,6 @@
-use shared::ids::ShaderId;
+use utils::ids::ShaderId;
 use std::collections::HashMap;
+use std::sync::Arc;
 use wgpu::VertexBufferLayout;
 
 use crate::{context::GpuContext, resource::shader::ShaderManager};
@@ -12,6 +13,7 @@ pub struct PipelineKey {
     pub vertex_format: VertexFormat,
 }
 
+#[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BlendMode {
     Alpha,    // rendu normal avec transparence
@@ -27,7 +29,7 @@ pub enum VertexFormat {
 }
 
 pub struct PipelineManager {
-    pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
+    pipelines: HashMap<PipelineKey, Arc<wgpu::RenderPipeline>>,
     surface_format: wgpu::TextureFormat,
 }
 
@@ -44,12 +46,12 @@ impl PipelineManager {
         ctx: &GpuContext,
         shaders: &ShaderManager,
         key: PipelineKey,
-    ) -> &wgpu::RenderPipeline {
+    ) -> Arc<wgpu::RenderPipeline> {
         if !self.pipelines.contains_key(&key) {
-            let pipeline = self.create_pipeline(ctx, shaders, &key);
+            let pipeline = Arc::new(self.create_pipeline(ctx, shaders, &key));
             self.pipelines.insert(key.clone(), pipeline);
         }
-        self.pipelines.get(&key).unwrap()
+        self.pipelines.get(&key).unwrap().clone()
     }
 
     pub fn invalidate_shader(&mut self, shader_id: ShaderId) {
@@ -76,7 +78,7 @@ impl PipelineManager {
         let pipline_layout = ctx
             .device
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render pipeline layout"),
+                label: None,
                 bind_group_layouts: &[],
                 immediate_size: 0,
             });
@@ -84,7 +86,7 @@ impl PipelineManager {
         let pipeline = ctx
             .device
             .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some("Render Pipeline"),
+                label: None,
                 layout: Some(&pipline_layout),
                 vertex: wgpu::VertexState {
                     module: &vertex_shader.module,

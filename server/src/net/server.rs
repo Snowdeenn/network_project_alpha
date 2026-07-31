@@ -2,10 +2,10 @@ use renet::{RenetServer, ServerEvent};
 use renet_netcode::{NetcodeServerTransport, ServerAuthentication, ServerConfig};
 use std::net::{SocketAddr, UdpSocket};
 
-use shared::net::{
+use utils::net::{
     CHANNEL_EVENT, CHANNEL_INPUT, CHANNEL_LOBBY, CHANNEL_SHOP, CHANNEL_STATE, connection_config,
 };
-use shared::protocol::{GameEvent, InputPacket, LobbyMessage, ShopAction, StateSnapshot};
+use utils::protocol::{GameEvent, InputPacket, LobbyMessage, ShopAction, StateSnapshot};
 
 const MAX_CLIENTS: usize = 4;
 const SERVER_ADDR: &str = "127.0.0.1:7777";

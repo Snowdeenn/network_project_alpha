@@ -69,11 +69,14 @@ impl HudPass {
             text_renderer,
         }
     }
+    pub fn text_renderer(&self) -> &TextRenderer {
+        &self.text_renderer
+    }
 }
 
 impl Pass for HudPass {
-    type Input = HudInput<'static>;
-    fn prepare(&mut self, ctx: &GpuContext, buffers: &mut GpuBufferManager, input: &Self::Input) {
+    type Input<'a> = HudInput<'a>;
+    fn prepare<'a>(&mut self, ctx: &GpuContext, buffers: &mut GpuBufferManager, input: &Self::Input<'a> ) {
         self.mesh.clear();
         for cmd in input.commands.commands() {
             match cmd {

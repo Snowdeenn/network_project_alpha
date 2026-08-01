@@ -67,8 +67,8 @@ impl WorldPass {
 }
 
 impl Pass for WorldPass {
-    type Input = WorldInput<'static>;
-    fn prepare(&mut self, ctx: &GpuContext, buffers: &mut GpuBufferManager, input: &Self::Input) {
+    type Input<'a> = WorldInput<'a>;
+    fn prepare<'a>(&mut self, ctx: &GpuContext, buffers: &mut GpuBufferManager, input: &Self::Input<'a>) {
         self.mesh.clear();
         for cmd in input.commands.commands() {
             match cmd {

@@ -66,8 +66,8 @@ impl VfxPass {
 }
 
 impl Pass for VfxPass {
-    type Input = VfxInput<'static>;
-    fn prepare(&mut self, ctx: &GpuContext, buffers: &mut GpuBufferManager, input: &Self::Input) {
+    type Input<'a> = VfxInput<'a>;
+    fn prepare<'a>(&mut self, ctx: &GpuContext, buffers: &mut GpuBufferManager, input: &Self::Input<'a>) {
         self.mesh.clear();
         for cmd in input.commands.commands() {
             match cmd {

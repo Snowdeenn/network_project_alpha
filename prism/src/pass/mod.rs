@@ -1,6 +1,7 @@
 pub mod world;
 pub mod vfx;
 pub mod hud;
+pub mod post_process;
 
 use crate::context::GpuContext;
 use crate::draw::batch::DrawCommandBuffer;
@@ -8,14 +9,16 @@ use crate::resource::buffer::GpuBufferManager;
 use crate::draw::text::TextRenderer;
 use utils::math::Mat4;
 pub trait Pass {
-    type Input;
+    type Input<'a>
+    where
+        Self: 'a;
 
     /// Prépare les données CPU — tesselle, uploade vers le GPU
-    fn prepare(
+    fn prepare<'a>(
         &mut self,
         ctx: &GpuContext,
         buffers: &mut GpuBufferManager,
-        input: &Self::Input,
+        input: &Self::Input<'a>,
     );
 
     /// Exécute la passe — crée le render pass, bind pipeline, draw
@@ -41,10 +44,10 @@ pub struct VfxInput<'a> {
 // HudPass  
 pub struct HudInput<'a> {
     pub commands: &'a DrawCommandBuffer,
-    pub text: &'a TextRenderer,
 }
 
 // PostProcessPass
-pub struct PostProcessInput {
-    pub source: wgpu::TextureView, // output de la WorldPass+VfxPass
+pub struct PostProcessInput<'a> {
+    pub source: &'a wgpu::TextureView,
+    pub target: &'a wgpu::TextureView,
 }

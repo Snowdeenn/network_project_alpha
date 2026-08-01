@@ -29,7 +29,7 @@ pub struct GpuContext {
 }
 
 impl GpuContext {
-    async fn new(window: Arc<winit::window::Window>) -> Result<Self, errors::GpuContextError> {
+    pub async fn new(window: Arc<winit::window::Window>) -> Result<Self, errors::GpuContextError> {
         let size = window.inner_size();
 
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
@@ -61,7 +61,7 @@ impl GpuContext {
             })
             .await?;
         let surface_cap = surface.get_capabilities(&adapter);
-        let surfce_format = surface_cap
+        let surface_format = surface_cap
             .formats
             .iter()
             .find(|f| f.is_srgb())
@@ -69,7 +69,7 @@ impl GpuContext {
             .unwrap_or(surface_cap.formats[0]);
         let surface_config = wgpu::SurfaceConfiguration {
             usage: TextureUsages::RENDER_ATTACHMENT,
-            format: surfce_format,
+            format: surface_format,
             width: size.width,
             height: size.height,
             present_mode: surface_cap.present_modes[0],
@@ -103,7 +103,7 @@ impl GpuContext {
         self.surface.get_current_texture()
     }
 
-    pub fn reconfigure(&mut self) {
+    pub fn reconfigure(&self) {
         self.surface.configure(&self.device, &self.surface_config);
     }
 
@@ -124,5 +124,9 @@ impl GpuContext {
         self.is_surface_configured
             && self.surface_config.width > 0
             && self.surface_config.height > 0
+    }
+
+    pub fn surface_format(&self) -> wgpu::TextureFormat {
+        self.surface_config.format
     }
 }

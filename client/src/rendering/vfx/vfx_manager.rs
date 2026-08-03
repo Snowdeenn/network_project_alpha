@@ -1,25 +1,23 @@
-use raylib::prelude::*;
 use std::collections::HashMap;
-
+use utils::math::Vec2;
 
 pub(crate) const MAX_SLASHES: usize = 16;
 pub(crate) const MAX_FLASHES: usize = 32;
 pub(crate) const MAX_DASH_GHOSTS: usize = 16;
 pub(crate) const TRAIL_POINTS: usize = 12;
 
-
 /// Arc DrawRing orienté selon l'AttackBox du joueur.
 /// `start_angle` et `end_angle` sont en degrés, dans le repère monde.
 #[derive(Clone, Copy, Default)]
 struct SlashVfx {
-    pos: Vector2,
+    pos: Vec2,
     inner_r: f32,
     outer_r: f32,
     start_angle: f32,
     end_angle: f32,
     lifetime: f32,
     lt_max: f32,
-    color: Color,
+    color: utils::colors::Color,
 }
 
 /// Override couleur sur une entité pendant `timer` secondes.
@@ -32,7 +30,7 @@ struct FlashVfx {
 
 #[derive(Clone, Copy)]
 struct TrailPoint {
-    pos: Vector2,
+    pos: Vec2,
     age: f32,
 }
 
@@ -43,14 +41,14 @@ struct SwordTrail {
     points: [TrailPoint; TRAIL_POINTS],
     head: usize,
     count: usize,
-    color: Color,
+    color: utils::colors::Color,
 }
 
 impl SwordTrail {
-    fn new(color: Color) -> Self {
+    fn new(color: utils::colors::Color) -> Self {
         Self {
             points: [TrailPoint {
-                pos: Vector2::zero(),
+                pos: Vec2::zero(),
                 age: 0.0,
             }; TRAIL_POINTS],
             head: 0,
@@ -60,7 +58,7 @@ impl SwordTrail {
     }
 
     /// Pousse une nouvelle position dans le ring buffer.
-    fn push(&mut self, pos: Vector2) {
+    fn push(&mut self, pos: Vec2) {
         self.head = (self.head + 1) % TRAIL_POINTS;
         self.points[self.head] = TrailPoint { pos, age: 0.0 };
         if self.count < TRAIL_POINTS {
@@ -78,7 +76,7 @@ impl SwordTrail {
 
     /// Itère les points du plus récent au plus ancien avec leur ratio d'âge [0..1].
     /// `trail_duration` est la durée totale du trail en secondes.
-    fn iter_with_alpha(&self, trail_duration: f32) -> impl Iterator<Item = (Vector2, f32)> + '_ {
+    fn iter_with_alpha(&self, trail_duration: f32) -> impl Iterator<Item = (Vec2, f32)> + '_ {
         (0..self.count).map(move |i| {
             let idx = (self.head + TRAIL_POINTS - i) % TRAIL_POINTS;
             let p = self.points[idx];
@@ -88,16 +86,14 @@ impl SwordTrail {
     }
 }
 
-
 /// Copie semi-transparente de la position du joueur au moment du dash.
 #[derive(Clone, Copy, Default)]
 struct DashGhost {
-    pos: Vector2,
+    pos: Vec2,
     lifetime: f32,
     lt_max: f32,
-    color: Color,
+    color: utils::colors::Color,
 }
-
 
 struct Pool<T: Copy, const N: usize> {
     slots: [(bool, T); N],
@@ -139,7 +135,6 @@ impl<T: Copy + Default, const N: usize> Pool<T, N> {
     }
 }
 
-
 pub struct VfxManager {
     slashes: Pool<SlashVfx, MAX_SLASHES>,
     flashes: Pool<FlashVfx, MAX_FLASHES>,
@@ -161,13 +156,13 @@ impl VfxManager {
     /// `half_arc` est la demi-ouverture de l'arc en degrés.
     pub fn spawn_slash(
         &mut self,
-        pos: Vector2,
+        pos: Vec2,
         angle_deg: f32,
         inner_r: f32,
         outer_r: f32,
         half_arc: f32,
         duration: f32,
-        color: Color,
+        color: utils::colors::Color,
     ) {
         self.slashes.spawn(SlashVfx {
             pos,
@@ -190,12 +185,15 @@ impl VfxManager {
                 return;
             }
         }
-        self.flashes.spawn(FlashVfx { entity_id, timer: duration });
+        self.flashes.spawn(FlashVfx {
+            entity_id,
+            timer: duration,
+        });
     }
 
     /// Pousse une nouvelle position dans le trail de l'entité `entity_id`.
     /// Le trail est créé automatiquement s'il n'existe pas encore.
-    pub fn push_trail_point(&mut self, entity_id: u64, pos: Vector2, color: Color) {
+    pub fn push_trail_point(&mut self, entity_id: u64, pos: Vec2, color: utils::colors::Color) {
         self.sword_trails
             .entry(entity_id)
             .or_insert_with(|| SwordTrail::new(color))
@@ -203,7 +201,7 @@ impl VfxManager {
     }
 
     /// Spawn d'un ghost de dash à la position `pos`.
-    pub fn spawn_dash_ghost(&mut self, pos: Vector2, duration: f32, color: Color) {
+    pub fn spawn_dash_ghost(&mut self, pos: Vec2, duration: f32, color: utils::colors::Color) {
         self.dash_ghosts.spawn(DashGhost {
             pos,
             lifetime: duration,
@@ -212,13 +210,10 @@ impl VfxManager {
         });
     }
 
-
     /// Retourne `true` si l'entité est actuellement en état de flash.
     /// À appeler au moment du rendu de l'entité pour appliquer l'override couleur.
     pub fn is_flashing(&self, entity_id: u64) -> bool {
-        self.flashes
-            .iter_active()
-            .any(|f| f.entity_id == entity_id)
+        self.flashes.iter_active().any(|f| f.entity_id == entity_id)
     }
 
     pub fn update(&mut self, dt: f32) {
@@ -276,7 +271,7 @@ impl VfxManager {
 
     fn draw_sword_trails<D: RaylibDraw>(&self, d: &mut RaylibMode2D<D>) {
         for trail in self.sword_trails.values() {
-            let mut prev: Option<(Vector2, f32)> = None;
+            let mut prev: Option<(Vec2, f32)> = None;
 
             for (pos, alpha) in trail.iter_with_alpha(Self::TRAIL_DURATION) {
                 if let Some((prev_pos, prev_alpha)) = prev {
@@ -310,8 +305,8 @@ impl VfxManager {
 mod tests_vfx {
     use super::*;
 
-    fn v(x: f32, y: f32) -> Vector2 {
-        Vector2::new(x, y)
+    fn v(x: f32, y: f32) -> Vec2 {
+        Vec2::new(x, y)
     }
 
     // -------------------------------------------------------------------------
@@ -403,9 +398,9 @@ mod tests_vfx {
     fn flash_reset_on_same_entity() {
         let mut vfx = VfxManager::new();
         vfx.spawn_flash(7, 0.05);
-        vfx.update(0.03);         // consomme une partie du timer
+        vfx.update(0.03); // consomme une partie du timer
         vfx.spawn_flash(7, 0.1); // doit reset le timer
-        vfx.update(0.07);         // ne devrait pas expirer encore
+        vfx.update(0.07); // ne devrait pas expirer encore
         assert!(vfx.is_flashing(7));
     }
 
@@ -416,14 +411,30 @@ mod tests_vfx {
     #[test]
     fn slash_active_after_spawn() {
         let mut vfx = VfxManager::new();
-        vfx.spawn_slash(v(0.0, 0.0), 90.0, 10.0, 30.0, 45.0, 0.15, Color::WHITE);
+        vfx.spawn_slash(
+            v(0.0, 0.0),
+            90.0,
+            10.0,
+            30.0,
+            45.0,
+            0.15,
+            utils::colors::Color::WHITE,
+        );
         assert_eq!(vfx.slashes.iter_active().count(), 1);
     }
 
     #[test]
     fn slash_expires_after_update() {
         let mut vfx = VfxManager::new();
-        vfx.spawn_slash(v(0.0, 0.0), 0.0, 5.0, 20.0, 30.0, 0.1, Color::WHITE);
+        vfx.spawn_slash(
+            v(0.0, 0.0),
+            0.0,
+            5.0,
+            20.0,
+            30.0,
+            0.1,
+            utils::colors::Color::WHITE,
+        );
         vfx.update(0.2);
         assert_eq!(vfx.slashes.iter_active().count(), 0);
     }
@@ -431,7 +442,15 @@ mod tests_vfx {
     #[test]
     fn slash_still_active_mid_lifetime() {
         let mut vfx = VfxManager::new();
-        vfx.spawn_slash(v(0.0, 0.0), 0.0, 5.0, 20.0, 30.0, 0.3, Color::WHITE);
+        vfx.spawn_slash(
+            v(0.0, 0.0),
+            0.0,
+            5.0,
+            20.0,
+            30.0,
+            0.3,
+            utils::colors::Color::WHITE,
+        );
         vfx.update(0.1);
         assert_eq!(vfx.slashes.iter_active().count(), 1);
     }
@@ -442,7 +461,7 @@ mod tests_vfx {
 
     #[test]
     fn trail_push_count() {
-        let mut trail = SwordTrail::new(Color::WHITE);
+        let mut trail = SwordTrail::new(utils::colors::Color::WHITE);
         trail.push(v(0.0, 0.0));
         trail.push(v(1.0, 0.0));
         trail.push(v(2.0, 0.0));
@@ -451,7 +470,7 @@ mod tests_vfx {
 
     #[test]
     fn trail_count_caps_at_max() {
-        let mut trail = SwordTrail::new(Color::WHITE);
+        let mut trail = SwordTrail::new(utils::colors::Color::WHITE);
         for i in 0..(TRAIL_POINTS + 5) {
             trail.push(v(i as f32, 0.0));
         }
@@ -460,7 +479,7 @@ mod tests_vfx {
 
     #[test]
     fn trail_ring_overwrites_oldest() {
-        let mut trail = SwordTrail::new(Color::WHITE);
+        let mut trail = SwordTrail::new(utils::colors::Color::WHITE);
         for i in 0..TRAIL_POINTS {
             trail.push(v(i as f32, 0.0));
         }
@@ -473,7 +492,7 @@ mod tests_vfx {
 
     #[test]
     fn trail_alpha_decreases_with_age() {
-        let mut trail = SwordTrail::new(Color::WHITE);
+        let mut trail = SwordTrail::new(utils::colors::Color::WHITE);
         trail.push(v(0.0, 0.0));
         trail.push(v(1.0, 0.0));
         trail.update(0.05); // vieillit tous les points
@@ -487,7 +506,7 @@ mod tests_vfx {
     fn trail_via_vfx_manager_created_on_first_push() {
         let mut vfx = VfxManager::new();
         assert!(vfx.sword_trails.is_empty());
-        vfx.push_trail_point(42, v(0.0, 0.0), Color::WHITE);
+        vfx.push_trail_point(42, v(0.0, 0.0), utils::colors::Color::WHITE);
         assert_eq!(vfx.sword_trails.len(), 1);
     }
 
@@ -498,14 +517,14 @@ mod tests_vfx {
     #[test]
     fn dash_ghost_active_after_spawn() {
         let mut vfx = VfxManager::new();
-        vfx.spawn_dash_ghost(v(10.0, 20.0), 0.2, Color::BLUE);
+        vfx.spawn_dash_ghost(v(10.0, 20.0), 0.2, utils::colors::Color::BLUE);
         assert_eq!(vfx.dash_ghosts.iter_active().count(), 1);
     }
 
     #[test]
     fn dash_ghost_expires_after_update() {
         let mut vfx = VfxManager::new();
-        vfx.spawn_dash_ghost(v(0.0, 0.0), 0.1, Color::BLUE);
+        vfx.spawn_dash_ghost(v(0.0, 0.0), 0.1, utils::colors::Color::BLUE);
         vfx.update(0.2);
         assert_eq!(vfx.dash_ghosts.iter_active().count(), 0);
     }
@@ -518,8 +537,16 @@ mod tests_vfx {
     fn update_clears_expired_across_all_pools() {
         let mut vfx = VfxManager::new();
         vfx.spawn_flash(1, 0.05);
-        vfx.spawn_slash(v(0.0, 0.0), 0.0, 5.0, 15.0, 30.0, 0.05, Color::WHITE);
-        vfx.spawn_dash_ghost(v(0.0, 0.0), 0.05, Color::RED);
+        vfx.spawn_slash(
+            v(0.0, 0.0),
+            0.0,
+            5.0,
+            15.0,
+            30.0,
+            0.05,
+            utils::colors::Color::WHITE,
+        );
+        vfx.spawn_dash_ghost(v(0.0, 0.0), 0.05, utils::colors::Color::RED);
 
         vfx.update(0.1);
 
@@ -528,4 +555,3 @@ mod tests_vfx {
         assert_eq!(vfx.dash_ghosts.iter_active().count(), 0);
     }
 }
-

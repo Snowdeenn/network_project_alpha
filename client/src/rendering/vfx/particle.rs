@@ -1,17 +1,16 @@
-use raylib::prelude::*;
-
+use utils::math::Vec2;
 const PARTICLE_POOL_SIZE: usize = 512;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Particle {
-    pub pos: Vector2,
-    pub velocity: Vector2,
+    pub pos: Vec2,
+    pub velocity: Vec2,
     pub friction: f32,
     pub lifetime: f32,
     pub lt_max: f32,
     pub scale: f32,
     pub growth: f32,
-    pub color: Color,
+    pub color: utils::colors::Color,
 }
 
 struct Slot {
@@ -26,14 +25,14 @@ pub struct ParticlePool {
 impl ParticlePool {
     pub fn new() -> Self {
         let dummy = Particle {
-            pos: Vector2::zero(),
-            velocity: Vector2::zero(),
+            pos: Vec2::zero(),
+            velocity: Vec2::zero(),
             friction: 0.0,
             lifetime: 0.0,
             lt_max: 1.0,
             scale: 0.0,
             growth: 0.0,
-            color: Color::WHITE,
+            color: utils::colors::Color::WHITE,
         };
 
         Self {
@@ -100,14 +99,14 @@ mod tests_particle {
 
     fn dummy_particle(lifetime: f32) -> Particle {
         Particle {
-            pos: Vector2::zero(),
-            velocity: Vector2::new(10.0, 0.0),
+            pos: Vec2::zero(),
+            velocity: Vec2::new(10.0, 0.0),
             friction: 0.0,
             lifetime,
             lt_max: lifetime,
             scale: 0.1,
             growth: 1.0,
-            color: Color::WHITE,
+            color: utils::colors::Color::WHITE,
         }
     }
 
@@ -151,14 +150,14 @@ mod tests_particle {
     fn update_moves_particle() {
         let mut pool = ParticlePool::new();
         pool.spawn(Particle {
-            pos: Vector2::zero(),
-            velocity: Vector2::new(100.0, 0.0),
+            pos: Vec2::zero(),
+            velocity: Vec2::new(100.0, 0.0),
             friction: 0.0,
             lifetime: 1.0,
             lt_max: 1.0,
             scale: 0.1,
             growth: 0.0,
-            color: Color::WHITE,
+            color: utils::colors::Color::WHITE,
         });
         pool.update(0.1);
         let p = pool.slots.iter().find(|s| s.active).unwrap();
@@ -180,14 +179,14 @@ mod tests_particle {
     fn friction_slows_velocity() {
         let mut pool = ParticlePool::new();
         pool.spawn(Particle {
-            pos: Vector2::zero(),
-            velocity: Vector2::new(100.0, 0.0),
+            pos: Vec2::zero(),
+            velocity: Vec2::new(100.0, 0.0),
             friction: 5.0,
             lifetime: 1.0,
             lt_max: 1.0,
             scale: 0.1,
             growth: 0.0,
-            color: Color::WHITE,
+            color: utils::colors::Color::WHITE,
         });
         pool.update(0.1);
         let p = pool.slots.iter().find(|s| s.active).unwrap();
@@ -198,14 +197,14 @@ mod tests_particle {
     fn growth_increases_scale() {
         let mut pool = ParticlePool::new();
         pool.spawn(Particle {
-            pos: Vector2::zero(),
-            velocity: Vector2::zero(),
+            pos: Vec2::zero(),
+            velocity: Vec2::zero(),
             friction: 0.0,
             lifetime: 1.0,
             lt_max: 1.0,
             scale: 0.1,
             growth: 10.0,
-            color: Color::WHITE,
+            color: utils::colors::Color::WHITE,
         });
         pool.update(0.1);
         let p = pool.slots.iter().find(|s| s.active).unwrap();

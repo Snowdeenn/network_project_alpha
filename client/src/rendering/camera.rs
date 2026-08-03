@@ -1,6 +1,4 @@
-use raylib::prelude::*;
-use utils::protocol::{EntityKind, StateSnapshot};
-
+use utils::{protocol::{EntityKind, StateSnapshot}};
 fn lerp(a: f32, b: f32, t: f32) -> f32 {
     a + (b - a) * t
 }
@@ -20,7 +18,7 @@ fn lerp(a: f32, b: f32, t: f32) -> f32 {
 //   let offset = shake.offset();    // appliqué à cam.target
 // =========================================================================
 
-pub struct CameraShake {
+struct CameraShake {
     trauma: f32,
     /// Vitesse de décroissance du trauma par seconde
     decay: f32,
@@ -53,9 +51,9 @@ impl CameraShake {
 
     /// Offset à appliquer sur `cam.target` ou `cam.offset`.
     /// Retourne `Vector2::zero()` quand le trauma est épuisé.
-    pub fn offset(&self) -> Vector2 {
+    pub fn offset(&self) -> utils::math::Vec2 {
         if self.trauma <= 0.0 {
-            return Vector2::zero();
+            return utils::math::Vec2::zero();
         }
 
         let shake = self.trauma * self.trauma; // falloff quadratique
@@ -65,7 +63,7 @@ impl CameraShake {
         let dx = pseudo_noise(self.time * 13.7) * self.max_offset * shake;
         let dy = pseudo_noise(self.time * 11.3 + 42.0) * self.max_offset * shake;
 
-        Vector2::new(dx, dy)
+        utils::math::Vec2::new(dx, dy)
     }
 
     pub fn is_active(&self) -> bool {
@@ -76,8 +74,8 @@ impl CameraShake {
 impl Default for CameraShake {
     fn default() -> Self {
         Self::new(
-            1.8,   // decay — trauma épuisé en ~0.5s à pleine intensité
-            18.0,  // max_offset — pixels monde au zoom actuel
+            1.8,  // decay — trauma épuisé en ~0.5s à pleine intensité
+            18.0, // max_offset — pixels monde au zoom actuel
         )
     }
 }
@@ -88,16 +86,46 @@ fn pseudo_noise(t: f32) -> f32 {
     (t.sin() * 43758.545).fract() * 2.0 - 1.0
 }
 
+pub struct Camera {
+    pos: utils::math::Vec2,
+    view: utils::math::Mat4,
+    shake: CameraShake,
+}
+
+impl Default for Camera {
+    fn default() -> Self {
+        Self {
+            pos: utils::math::Vec2::zero(),
+            view: utils::math::Mat4::identity(),
+            shake: CameraShake::default(),
+        }
+    }
+}
+
+impl Camera {
+    pub fn get_view_proj(&self, screen_w: f32, screen_h: f32) -> utils::math::Mat4 {
+        let proj = utils::math::Mat4::orthographic(0.0, screen_w, screen_h, 0.0, -1.0, 1.0);
+        let view = utils::math::Mat4::translation(
+            -self.pos.x + self.shake.offset().x,
+            -self.pos.y + self.shake.offset().y,
+            0.0,
+        );
+        proj.multiply(view)
+    }
+    pub fn set_pos(&mut self, x: f32, y: f32) {
+        self.pos = utils::math::Vec2::new(x, y);
+        self.view = utils::math::Mat4::translation(-x, -y, 0.0);
+    }
+}
 // =========================================================================
 // Update caméra
 // =========================================================================
 
 pub fn update(
-    cam: &mut Camera2D,
+    cam: &mut Camera,
     prev: Option<&StateSnapshot>,
     current: &StateSnapshot,
     t: f32,
-    shake: &CameraShake,
 ) {
     let curr_player = current
         .entities
@@ -113,12 +141,13 @@ pub fn update(
     if let Some(curr) = curr_player {
         let prev_pos = prev_player.map(|p| p.position).unwrap_or(curr.position);
 
-        let base_target = Vector2::new(
+        let base_target = utils::math::Vec2::new(
             lerp(prev_pos[0], curr.position[0], t),
             lerp(prev_pos[1], curr.position[1], t),
         );
 
-        cam.target = base_target + shake.offset();
+        let new_cam_pos = base_target + cam.shake.offset();
+        cam.set_pos(new_cam_pos.x, new_cam_pos.y);
     }
 }
 

@@ -1,6 +1,3 @@
-// src/renderer/pipeline.rs
-
-use raylib::prelude::*;
 use crate::rendering::shader_manager::{PassKind, ShaderManager};
 
 pub struct RenderPipeline {

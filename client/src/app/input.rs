@@ -1,22 +1,83 @@
-use crate::core::event::ClientState;
 use crate::core::client::GameNetClient;
-use raylib::prelude::*;
+use crate::core::event::ClientState;
 use utils::protocol::InputPacket;
 use utils::protocol::{ShopAction, ShopActionKind};
+use std::collections::HashSet;
+use winit::{event::MouseButton, keyboard::KeyCode};
 
-pub fn read_input(rl: &RaylibHandle, tick_id: u64, screen_w: i32, screen_h: i32) -> InputPacket {
+#[derive(Debug, Clone, Default)]
+pub struct Input {
+    hash_set_kb: HashSet<KeyCode>,
+    hash_set_kb_just_pressed: HashSet<KeyCode>,
+
+    hash_set_mouse: HashSet<MouseButton>,
+    mouse_position: (f32, f32),
+}
+
+impl Input {
+    pub fn new() -> Input {
+        Default::default()
+    }
+
+    pub fn pressed(&mut self, key_code: KeyCode) {
+        self.hash_set_kb.insert(key_code);
+        self.hash_set_kb_just_pressed.insert(key_code);
+    }
+
+    pub fn released(&mut self, key_code: KeyCode) {
+        self.hash_set_kb.remove(&key_code);
+    }
+
+    pub fn is_pressed(&self, key_code: KeyCode) -> bool {
+        self.hash_set_kb.contains(&key_code)
+    }
+
+    pub fn is_just_pressed(&self, key_code: KeyCode) -> bool {
+        self.hash_set_kb_just_pressed.contains(&key_code)
+    }
+
+    pub fn mouse_pressed(&mut self, button: MouseButton) {
+        self.hash_set_mouse.insert(button);
+    }
+
+    pub fn mouse_release(&mut self, button: MouseButton) {
+        self.hash_set_mouse.remove(&button);
+    }
+
+    pub fn is_mouse_pressed(&self, button: MouseButton) -> bool {
+        self.hash_set_mouse.contains(&button)
+    }
+
+    pub fn is_mousew_released(&self, button: MouseButton) -> bool {
+        !self.hash_set_mouse.contains(&button)
+    }
+
+    pub fn set_mouse_position(&mut self, x: f32, y: f32) {
+        self.mouse_position = (x, y);
+    }
+
+    pub fn mouse_position(&self) -> (f32, f32) {
+        self.mouse_position
+    }
+
+    pub fn end_frame(&mut self) {
+        self.hash_set_kb_just_pressed.clear();
+    }
+}
+
+pub fn read_input(input_state: &Input, tick_id: u64, screen_w: i32, screen_h: i32) -> InputPacket {
     let move_dir = {
         let mut dir = [0.0f32, 0.0f32];
-        if rl.is_key_down(KeyboardKey::KEY_D) {
+        if input_state.is_pressed(winit::keyboard::KeyCode::KeyD) {
             dir[0] += 1.0;
         }
-        if rl.is_key_down(KeyboardKey::KEY_A) {
+        if input_state.is_pressed(winit::keyboard::KeyCode::KeyA) {
             dir[0] -= 1.0;
         }
-        if rl.is_key_down(KeyboardKey::KEY_S) {
+        if input_state.is_pressed(winit::keyboard::KeyCode::KeyS) {
             dir[1] += 1.0;
         }
-        if rl.is_key_down(KeyboardKey::KEY_W) {
+        if input_state.is_pressed(winit::keyboard::KeyCode::KeyW) {
             dir[1] -= 1.0;
         }
         let len = (dir[0] * dir[0] + dir[1] * dir[1]).sqrt();
@@ -27,10 +88,10 @@ pub fn read_input(rl: &RaylibHandle, tick_id: u64, screen_w: i32, screen_h: i32)
         }
     };
 
-    let mouse = rl.get_mouse_position();
+    let mouse = input_state.mouse_position();
     let aim_dir = {
-        let dx = mouse.x - screen_w as f32 / 2.0;
-        let dy = mouse.y - screen_h as f32 / 2.0;
+        let dx = mouse.0 - screen_w as f32 / 2.0;
+        let dy = mouse.1 - screen_h as f32 / 2.0;
         let len = (dx * dx + dy * dy).sqrt();
         if len > 0.0 {
             [dx / len, dy / len]
@@ -39,8 +100,8 @@ pub fn read_input(rl: &RaylibHandle, tick_id: u64, screen_w: i32, screen_h: i32)
         }
     };
 
-    let dash = rl.is_key_pressed(KeyboardKey::KEY_SPACE);
-    let attack = rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT);
+    let dash = input_state.is_just_pressed(winit::keyboard::KeyCode::Space);
+    let attack = input_state.is_mouse_pressed(winit::event::MouseButton::Left);
 
     InputPacket {
         tick_id,
@@ -59,11 +120,11 @@ pub enum ShopInputAction {
 }
 
 pub fn handle_shop_input(
-    rl: &RaylibHandle,
+    input_state: &Input,
     client: &mut GameNetClient,
     state: &mut ClientState,
 ) -> ShopInputAction {
-    if !rl.is_key_pressed(KeyboardKey::KEY_G) {
+    if !input_state.is_just_pressed(winit::keyboard::KeyCode::KeyG) {
         return ShopInputAction::None;
     }
 

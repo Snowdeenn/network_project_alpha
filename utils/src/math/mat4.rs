@@ -1,7 +1,8 @@
 use crate::math::vec3::Vec3;
 use crate::math::vec4::Vec4;
 
-#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Mat4 {
     pub columns: [f32; 16],
 }

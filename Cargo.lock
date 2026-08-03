@@ -522,15 +522,16 @@ dependencies = [
  "bincode",
  "bytes",
  "imgui",
+ "pollster",
+ "prism",
  "rand 0.10.1",
- "raylib",
- "raylib_imgui",
  "renet",
  "renet_netcode",
  "serde",
  "serde_json",
  "ui",
  "utils",
+ "winit",
 ]
 
 [[package]]
@@ -2679,16 +2680,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "raylib_imgui"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c620bcb6c9032f532b3be6afd24b85d608b1cda5fb8c9a857130bd8e5aba136d"
-dependencies = [
- "imgui",
- "raylib",
-]
-
-[[package]]
 name = "rayon"
 version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3515,6 +3506,7 @@ name = "utils"
 version = "0.1.0"
 dependencies = [
  "bincode",
+ "bytemuck",
  "renet",
  "serde",
  "serde_json",

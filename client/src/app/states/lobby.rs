@@ -1,12 +1,14 @@
-use raylib::prelude::*;
 use utils::{
     config::PlayerClass,
     protocol::{LobbyMessage, LobbyPhaseInfo},
 };
 
 use crate::{
-    core::event::{AppScreen, ClientState, LobbyScreenState},
-    core::client::GameNetClient,
+    app::input::Input,
+    core::{
+        client::GameNetClient,
+        event::{AppScreen, ClientState, LobbyScreenState},
+    },
     rendering::ScreenScale,
 };
 
@@ -40,16 +42,16 @@ pub fn handle_lobby_message(msg: LobbyMessage, screen: &mut AppScreen, is_solo: 
     }
 }
 
-pub fn handle_input(rl: &RaylibHandle, state: &mut LobbyScreenState, client: &mut GameNetClient) {
+pub fn handle_input(input_state: &Input, state: &mut LobbyScreenState, client: &mut GameNetClient) {
     let class_keys = [
-        (KeyboardKey::KEY_ONE, PlayerClass::Warrior),
-        (KeyboardKey::KEY_TWO, PlayerClass::Assassin),
-        (KeyboardKey::KEY_THREE, PlayerClass::Mage),
-        (KeyboardKey::KEY_FOUR, PlayerClass::Tank),
+        (winit::keyboard::KeyCode::Key1, PlayerClass::Warrior),
+        (winit::keyboard::KeyCode::Key2, PlayerClass::Assassin),
+        (winit::keyboard::KeyCode::Key3, PlayerClass::Mage),
+        (winit::keyboard::KeyCode::Key4, PlayerClass::Tank),
     ];
 
     for (key, class) in class_keys {
-        if rl.is_key_pressed(key) {
+        if input_state.is_just_pressed(key) {
             println!("Classe selected : {:?}", class);
             state.my_class = Some(class);
             client.send_lobby_message(&LobbyMessage::ClassSelected { class });
@@ -62,7 +64,10 @@ pub fn handle_input(rl: &RaylibHandle, state: &mut LobbyScreenState, client: &mu
         }
     }
 
-    if !state.is_solo && rl.is_key_pressed(KeyboardKey::KEY_SPACE) && state.my_class.is_some() {
+    if !state.is_solo
+        && input_state.is_just_pressed(winit::keyboard::KeyCode::Space)
+        && state.my_class.is_some()
+    {
         println!("Envoi ToggleReady");
         state.ready = !state.ready;
         client.send_lobby_message(&LobbyMessage::ToggleReady);

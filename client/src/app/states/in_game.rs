@@ -1,14 +1,12 @@
-use raylib::prelude::*;
-use utils::math::Vec2;
 use std::time::{Duration, Instant};
-use ui::{prelude::*};
+use utils::math::Vec2;
 
-use utils::ids::{ShaderId};
+use utils::ids::ShaderId;
 use utils::protocol::{
     EntityKind, GameEvent, GameEventKind, ShopAction, ShopActionKind, StateSnapshot,
 };
 
-use crate::app::input::{self, ShopInputAction};
+use crate::app::input::{self, Input, ShopInputAction};
 use crate::app::resources::Resources;
 use crate::core::client::GameNetClient;
 use crate::core::config;
@@ -92,7 +90,6 @@ pub struct InGameScene {
     pub ticks: Ticks,
     pub shake: CameraShake,
     pub hud_buffers: HudBuffers,
-
 }
 
 impl Default for InGameScene {
@@ -106,7 +103,6 @@ impl Default for InGameScene {
     }
 }
 
-
 impl InGameScene {
     pub fn update(
         &mut self,
@@ -115,17 +111,18 @@ impl InGameScene {
         renderer: &mut Renderer,
         client_state: &mut ClientState,
         gui: &mut GuiContext,
+        input_state: &Input,
         dt: f32,
     ) {
-        if renderer.rl.is_key_pressed(KeyboardKey::KEY_F2) {
+        if input_state.is_pressed(winit::keyboard::KeyCode::F2) {
             client_state.debug.cycle();
         }
 
         self.process_snapshots(client, gui, resources);
         self.process_game_event(client, client_state, gui, resources);
-        self.handle_ui(renderer, client_state, gui);
-        self.handle_shop(client, renderer, client_state, gui);
-        self.process_network_ticks(client, renderer);
+        self.handle_ui(client_state, gui, input_state);
+        self.handle_shop(client, client_state, gui, input_state);
+        self.process_network_ticks(client, renderer, input_state);
 
         // Mises à jour logiques
         client_state.update_timers(dt);
@@ -133,7 +130,6 @@ impl InGameScene {
             resources.write_resource::<ParticlePool>().update(dt);
             resources.write_resource::<VfxManager>().update(dt);
         }
-
 
         // Caméra & UI
         self.update_camera(renderer);
@@ -172,7 +168,7 @@ impl InGameScene {
 
         if let Some(snap) = &self.snapshots.last_snapshot {
             // MAJ hud
-           hud::update(gui, snap, &mut self.hud_buffers);
+            hud::update(gui, snap, &mut self.hud_buffers);
 
             // Particules de déplacement des joueurs
             for entity in &snap.entities {
@@ -258,7 +254,7 @@ impl InGameScene {
                     })
                 }
                 self.shake.add_trauma(0.4);
-            },
+            }
             GameEventKind::SpawnRect {
                 x,
                 y,
@@ -285,19 +281,15 @@ impl InGameScene {
     /// Traitement des entrées utilisateur globales et dépouillement des événements réseau
     fn handle_ui(
         &mut self,
-        renderer: &Renderer,
         client_state: &mut ClientState,
         gui: &mut GuiContext,
+        input_state: &Input,
     ) {
-        let mouse_pos = renderer.rl.get_mouse_position();
-        let pressed = renderer
-            .rl
-            .is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT);
-        let released = renderer
-            .rl
-            .is_mouse_button_released(MouseButton::MOUSE_BUTTON_LEFT);
-
-        gui.ui_ctx.process_input(Vec2::new(mouse_pos.x, mouse_pos.y), pressed, released);
+        let mouse_pos = input_state.mouse_position();
+        let pressed = input_state.is_mouse_pressed(winit::event::MouseButton::Left);
+        let released = input_state.is_mousew_released(winit::event::MouseButton::Left);
+        gui.ui_ctx
+            .process_input(Vec2::new(mouse_pos.0, mouse_pos.1), pressed, released);
 
         client_state.debug.cleared = false;
     }
@@ -306,11 +298,11 @@ impl InGameScene {
     fn handle_shop(
         &mut self,
         client: &mut GameNetClient,
-        renderer: &Renderer,
         client_state: &mut ClientState,
         gui: &mut GuiContext,
+        input_state: &Input,
     ) {
-        match input::handle_shop_input(&renderer.rl, client, client_state) {
+        match input::handle_shop_input(input_state, client, client_state) {
             ShopInputAction::Close => {
                 gui.ui_ctx.send_event(UIEvent::SetVisible {
                     target: gui.ids.shop.root,
@@ -322,21 +314,20 @@ impl InGameScene {
         }
 
         if client_state.phase.can_show_shop()
-            && renderer
-                .rl
-                .is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT)
+            && input_state
+                .is_mouse_pressed(winit::event::MouseButton::Left)
         {
-            let mouse_pos = renderer.rl.get_mouse_position();
+            let mouse_pos = input_state.mouse_position();
             let card_y = renderer.screen_scale.y(config::SHOP_CARD_Y);
             let card_w = renderer.screen_scale.w(config::SHOP_CARD_W);
             let card_h = renderer.screen_scale.h(config::SHOP_CARD_H);
 
             let clicked = config::SHOP_SLOTS_X.iter().enumerate().find(|&(_, &x)| {
                 let card_x = renderer.screen_scale.x(x);
-                mouse_pos.x as i32 >= card_x
-                    && mouse_pos.x as i32 <= card_x + card_w
-                    && mouse_pos.y as i32 >= card_y
-                    && mouse_pos.y as i32 <= card_y + card_h
+                mouse_pos.1 as i32 >= card_x
+                    && mouse_pos.0 as i32 <= card_x + card_w
+                    && mouse_pos.1 as i32 >= card_y
+                    && mouse_pos.1 as i32 <= card_y + card_h
             });
 
             if let Some((slot, _)) = clicked {
@@ -349,13 +340,18 @@ impl InGameScene {
     }
 
     /// Envoi régulier des inputs au serveur (20 Hz)
-    fn process_network_ticks(&mut self, client: &mut GameNetClient, renderer: &Renderer) {
+    fn process_network_ticks(
+        &mut self,
+        client: &mut GameNetClient,
+        renderer: &Renderer,
+        input_state: &Input,
+    ) {
         if self.ticks.last_tick.elapsed() >= Ticks::TICK_DURATION {
             self.ticks.last_tick = Instant::now();
 
             if client.is_connected() {
                 let packet = input::read_input(
-                    &renderer.rl,
+                    input_state,
                     self.ticks.tick_id,
                     renderer.screen_w,
                     renderer.screen_h,

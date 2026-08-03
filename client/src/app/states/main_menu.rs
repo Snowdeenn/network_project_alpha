@@ -1,10 +1,5 @@
-use raylib::RaylibHandle;
-use raylib::drawing::RaylibDrawHandle;
-use raylib::ffi::KeyboardKey;
-use raylib::prelude::*;
-
 use crate::core::client::GameNetClient;
-
+use crate::app::input::Input;
 pub enum MenuAction {
     None,
     Solo,
@@ -12,7 +7,7 @@ pub enum MenuAction {
 }
 
 pub fn handle_input(
-    rl: &RaylibHandle,
+    input_state: &Input,
     client: &mut Option<GameNetClient>,
     client_id: u64,
 ) -> MenuAction {
@@ -20,12 +15,12 @@ pub fn handle_input(
         return MenuAction::None; // connexion déjà en cours
     }
 
-    if rl.is_key_pressed(KeyboardKey::KEY_ENTER) {
+    if input_state.is_just_pressed(winit::keyboard::KeyCode::Enter) {
         *client = Some(GameNetClient::new(client_id));
         return MenuAction::Solo;
     }
 
-    if rl.is_key_pressed(KeyboardKey::KEY_M) {
+    if input_state.is_just_pressed(winit::keyboard::KeyCode::M) {
         *client = Some(GameNetClient::new(client_id));
         return MenuAction::Multi;
     }

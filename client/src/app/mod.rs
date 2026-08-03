@@ -1,203 +1,147 @@
-// src/app/mod.rs
-pub mod input;
 pub mod resources;
+pub mod input;
 pub mod states;
+use std::sync::Arc;
 
-use raylib::ffi::KeyboardKey;
-use std::time::Instant;
-
-use ui::context::UiContext;
-use ui::draw::DrawCommandBuffer;
-
-use crate::app;
-use crate::app::resources::Resources;
-use crate::app::states::in_game::{GuiContext, InGameIds, InGameScene};
-use crate::app::states::main_menu::MenuAction;
-use crate::core::client::GameNetClient;
-use crate::core::event::AppScreen;
-use crate::graphic_data::asset_manager::AssetManager;
-use crate::rendering::Renderer;
-use crate::rendering::shader_manager::ShaderManager;
-use crate::rendering::types::RenderContext;
-use crate::rendering::vfx::particle::ParticlePool;
-use crate::rendering::vfx::vfx_manager::VfxManager;
-use crate::ui::hud;
 use utils::buffer::BufferManager;
 
+use crate::app::resources::Resources;
+use crate::app::input::Input;
+use crate::app::states::in_game::{InGameIds, InGameScene};
+use crate::core::event::AppScreen;
+use crate::graphic_data::asset_manager::AssetManager;
+use crate::rendering::vfx::particle::ParticlePool;
+use crate::rendering::vfx::vfx_manager::VfxManager;
 pub struct App {
-    client_id: u64,
-    renderer: Renderer,
+    window: Option<Arc<winit::window::Window>>,
+    renderer: Option<prism::Renderer>,
+    ui_ctx: Option<ui::UiContext>,
     client: Option<GameNetClient>,
-    screen: AppScreen,
-    draw_buffer: DrawCommandBuffer,
-    shader_manager: ShaderManager,
-    ui_ctx: UiContext,
-    last_frame: Instant,
-    is_solo: bool,
-    ingame_scene: InGameScene,
-    ingame_ids: InGameIds,
+    asset_manager: Option<AssetManager>,
     resource: Resources,
+    event_loop: winit::EventLoop,
+    client_id: u64,
+    in_game_scene: InGameScene,
+    screen: AppScreen,
+    in_game_ids: Option<InGameIds>,
+    is_solo: bool,
+    input_state: Input,
 }
 
 impl App {
-    pub fn new() -> Self {
-        let client_id = rand::random::<u64>();
-        let mut renderer = Renderer::new(1280, 720);
-        let client: Option<GameNetClient> = None;
-        let screen = AppScreen::MainMenu;
-        let draw_buffer = DrawCommandBuffer::new(4046);
-        let mut ui_ctx = UiContext::new(renderer.screen_w as f32, renderer.screen_h as f32);
-        let mut shader_manager = ShaderManager::new();
-        let mut asset_manager = AssetManager::new();
+    pub fn new(event_loop: winit::EventLoop) -> Self {
         let mut resource = Resources::new();
-
-        let last_frame = Instant::now();
-        let is_solo = false;
-        asset_manager.load_animations(
-            &mut renderer.rl,
-            &renderer.thread,
-            "assets/config/animations.json",
-        );
-
-        // --- Resource insertion ---
-        {
-            resource.insert(asset_manager);
-            resource.insert(VfxManager::new());
-            resource.insert(ParticlePool::new());
-            resource.insert(BufferManager::with_capacity(16));
-        }
-
-        // Scène de jeu
-        let ingame_scene = InGameScene::default();
-
-        // Shaders & UI HUD
-        let sh_pr_bar = include_str!("../graphic_data/shader/progress_bar.frag");
-        let raw_sh = renderer
-            .rl
-            .load_shader_from_memory(&renderer.thread, None, Some(sh_pr_bar));
-        let sh_pr_id = shader_manager.register(raw_sh);
-
-        let hud_node_id = hud::init_hud(&mut ui_ctx, sh_pr_id);
-        let shop_ids = hud::init_shop(&mut ui_ctx);
-
-        let ingame_ids = InGameIds {
-                shop: shop_ids,
-                hud: hud_node_id,
-                shader: sh_pr_id,
-            };
+        resource.insert(VfxManager::new());
+        resource.insert(BufferManager::with_capacity(16));
+        resource.insert(ParticlePool::new());
 
         Self {
-            client_id,
-            renderer,
-            client,
-            screen,
-            draw_buffer,
-            shader_manager,
-            ui_ctx,
-            last_frame,
-            is_solo,
-            ingame_scene,
-            ingame_ids,
+            window: None,
+            renderer: None,
+            ui_ctx: None,
+            client: None,
+            asset_manager: None,
             resource,
+            event_loop,
+            client_id: rand::random::<u64>(),
+            in_game_scene: InGameScene::default(),
+            screen: AppScreen::MainMenu,
+            in_game_ids: None,
+            is_solo: false,
+            input_state: Input::new(),
         }
     }
+}
 
-    pub fn run(&mut self) {
-        while !self.renderer.rl.window_should_close() {
-            let frame_delta = self.last_frame.elapsed();
-            self.last_frame = Instant::now();
-            let dt = self.renderer.rl.get_frame_time();
-
-            if let Some(ref mut c) = self.client {
-                c.update(frame_delta);
-
-                while let Some(msg) = c.recv_lobby_message() {
-                    app::states::lobby::handle_lobby_message(
-                        msg,
-                        &mut self.screen,
-                        &mut self.is_solo,
-                    );
-                }
-            }
-
-            match &mut self.screen {
-                AppScreen::MainMenu => {
-                    let action = app::states::main_menu::handle_input(
-                        &self.renderer.rl,
-                        &mut self.client,
-                        self.client_id,
-                    );
-
-                    match action {
-                        MenuAction::Solo => {
-                            self.is_solo = true;
-                            println!("SOLO");
-                        }
-                        MenuAction::Multi => {
-                            self.is_solo = false;
-                            println!("MULTI");
-                        }
-                        MenuAction::None => {}
+impl winit::application::ApplicationHandler for App {
+    fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        let window_attribute =
+            winit::window::Window::default_attributes().with_title("Project Alpha");
+        let window = event_loop.create_window(window_attribute).unwrap();
+        let window = Arc::new(window);
+        let renderer = prism::Renderer::new(
+            window.clone(),
+            "../graphic_data/shader/default.vert.wgsl",
+            "../graphic_data/shader/default.frag.wgsl",
+            "../graphic_data/shader/default_post.vert.wgsl",
+            "../graphic_data/shader/default_post.frag.wgsl",
+        );
+        let ui_ctx = ui::UiContext::new(
+            window.inner_size().width as f32,
+            window.inner_size().height as f32,
+        );
+        let asset_manager = AssetManager::new();
+        self.window = Some(window);
+        self.renderer = Some(renderer);
+        self.ui_ctx = Some(ui_ctx);
+        self.asset_manager = Some(asset_manager);
+    }
+    fn window_event(
+        &mut self,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        _window_id: winit::window::WindowId,
+        event: winit::event::WindowEvent,
+    ) {
+        match event {
+            winit::event::WindowEvent::CloseRequested => {
+                event_loop.exit();
+            },
+            winit::event::WindowEvent::Resized(s) => {
+                self.renderer.as_mut().unwrap().resize(s.width, s.height);
+                self.ui_ctx
+                    .as_mut()
+                    .unwrap()
+                    .resize(s.width as f32, s.height as f32);
+            },
+            winit::event::WindowEvent::KeyboardInput { event, .. } => {
+                match (event.physical_key, event.state) {
+                    (
+                        winit::keyboard::PhysicalKey::Code(key),
+                        winit::event::ElementState::Pressed,
+                    ) => {
+                        self.input_state.pressed(key);
                     }
-
-                    // Rendu Main Menu
-                    let mut d = self.renderer.rl.begin_drawing(&self.renderer.thread);
-                    match &self.client {
-                        None => app::states::main_menu::render(&mut d, &self.renderer.screen_scale),
-                        Some(_) => app::states::main_menu::render_connecting(
-                            &mut d,
-                            &self.renderer.screen_scale,
-                        ),
+                    (
+                        winit::keyboard::PhysicalKey::Code(key),
+                        winit::event::ElementState::Released,
+                    ) => {
+                        self.input_state.released(key);
                     }
+                    (winit::keyboard::PhysicalKey::Unidentified(_), _) => (),
                 }
-
-                AppScreen::Lobby(state) => {
-                    if let Some(ref mut c) = self.client {
-                        app::states::lobby::handle_input(&self.renderer.rl, state, c);
-                        c.flush();
+            },
+            winit::event::WindowEvent::MouseInput { state, button, .. } => {
+                match (button, state) {
+                    (winit::event::MouseButton::Left, winit::event::ElementState::Pressed) => {
+                        self.input_state.mouse_pressed(winit::event::MouseButton::Left);
                     }
-
-                    // Rendu Lobby
-                    let mut d = self.renderer.rl.begin_drawing(&self.renderer.thread);
-                    app::states::lobby::render(&mut d, state, &self.renderer.screen_scale);
-                }
-
-                AppScreen::InGame(client_state) => {
-                    let client = self.client.as_mut().expect("InGame sans client réseau");
-
-                    let mut gui_ctx = GuiContext {
-                        ui_ctx: &mut self.ui_ctx,
-                        shader_manager: &mut self.shader_manager,
-                        ids: &self.ingame_ids,
-                    };
-
-                    // Mise à jour logique de la partie
-                    self.ingame_scene.update(
-                        &mut self.resource,
-                        client,
-                        &mut self.renderer,
-                        client_state,
-                        &mut gui_ctx,
-                        dt,
-                    );
-
-                    // Rendu de la frame
-                    self.ingame_scene.render(
-                        &mut self.renderer,
-                        client_state,
-                        &mut RenderContext {
-                            buffer: &mut self.draw_buffer,
-                            shader_manager: &mut self.shader_manager,
-                            ui_ctx: &mut self.ui_ctx,
-                        },
-                        &mut self.resource,
-                    );
-                }
+                    (winit::event::MouseButton::Left, winit::event::ElementState::Released) => {
+                        self.input_state.mouse_release(winit::event::MouseButton::Left);
+                    }
+                    (winit::event::MouseButton::Right, winit::event::ElementState::Pressed) => {
+                        self.input_state.mouse_pressed(winit::event::MouseButton::Right);
+                    }
+                    (winit::event::MouseButton::Right, winit::event::ElementState::Released) => {
+                        self.input_state.mouse_release(winit::event::MouseButton::Right);
+                    }
+                    _ => (),
+                };
+            },
+            winit::event::WindowEvent::CursorMoved { position, .. } => {
+                self.input_state
+                    .set_mouse_position(position.x as f32, position.y as f32);
             }
-
-            if self.renderer.rl.is_key_pressed(KeyboardKey::KEY_ESCAPE) {
-                std::process::exit(0);
-            }
+            winit::event::WindowEvent::RedrawRequested => {
+                let frame = self
+                    .renderer
+                    .as_mut()
+                    .unwrap()
+                    .frame_manager()
+                    .pop()
+                    .unwrap();
+                self.renderer.as_mut().unwrap().render(frame);
+            },
+            _ => (),
         }
     }
 }

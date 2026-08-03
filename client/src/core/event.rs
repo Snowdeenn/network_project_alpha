@@ -7,7 +7,6 @@ use utils::{
     config::PlayerClass,
     protocol::{GameEvent, GameEventKind, LobbyPhaseInfo, LobbySlotInfo, ShopItem},
 };
-use ui::prelude::*;
 
 pub enum GamePhase {
     Wave,

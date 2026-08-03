@@ -1,13 +1,11 @@
 // src/renderer/animation_manager.rs
 
-use std::collections::HashMap;
-use raylib::{RaylibHandle, RaylibThread};
+use prism::GpuContext;
 use serde::Deserialize;
+use std::collections::HashMap;
 use utils::arena::Arena;
 use utils::ids::{AnimId, AnimTag, TextureId};
 use utils::protocol::BossKind;
-
-use crate::graphic_data::texture_manager::TextureManager;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum PlayerState {
@@ -75,9 +73,8 @@ impl AnimationManager {
 
     pub fn load_from_config(
         &mut self,
-        textures: &mut TextureManager,
-        rl: &mut RaylibHandle,
-        thread: &RaylibThread,
+        ctx: &prism::GpuContext,
+        textures: &mut prism::TextureManager,
         config_path: &str,
     ) {
         let json = std::fs::read_to_string(config_path)
@@ -89,7 +86,7 @@ impl AnimationManager {
             let mut frame_ids = Vec::new();
 
             for path in &cfg.frames {
-                if let Some(tex_id) = textures.load(rl, thread, path) {
+                if let Some(tex_id) = textures.load(ctx, path) {
                     frame_ids.push(tex_id);
                 }
             }

@@ -130,11 +130,13 @@ impl Renderer {
             &mut self.buffers,
             &crate::VfxInput {
                 commands: &frame.vfx,
+                camera: frame.camera,
             },
         );
         self.vfx.execute(&mut encoder, target, &self.buffers);
 
-        for pass in &mut self.post_process_passes {
+        let last = self.post_process_passes.len().saturating_sub(1);
+        for i in 0..self.post_process_passes.len() {
             self.current_source = self.current_source.swap();
             let (src, tgt) = match self.current_source {
                 DoubleBufferIndex::Primary => {
@@ -144,7 +146,10 @@ impl Renderer {
                     (&self.intermediate_view_b, &self.intermediate_view_a)
                 }
             };
-            pass.prepare(
+
+            let render_target = if i == last { &surface_view } else { tgt };
+
+            self.post_process_passes[i].prepare(
                 &self.ctx,
                 &mut self.buffers,
                 &crate::PostProcessInput {
@@ -152,7 +157,7 @@ impl Renderer {
                     target: tgt,
                 },
             );
-            pass.execute(&mut encoder, tgt, &self.buffers);
+            self.post_process_passes[i].execute(&mut encoder, render_target, &self.buffers);
         }
 
         self.hud.prepare(
@@ -199,6 +204,31 @@ impl Renderer {
         self.intermediate_view_a = intermediate_view_a;
         self.intermediate_b = intermediate_b;
         self.intermediate_view_b = intermediate_view_b;
+    }
+
+    pub fn texture_mut(&mut  self) -> &mut crate::TextureManager {
+        &mut self.textures
+    }
+    pub fn texture(&self) -> &crate::TextureManager {
+        &self.textures
+    }
+    pub fn shader_mut(&mut self) -> &mut crate::ShaderManager {
+        &mut self.shaders
+    }
+    pub fn shader(&self) -> &crate::ShaderManager {
+        &self.shaders
+    }
+    pub fn ctx(&self) -> &crate::GpuContext {
+        &self.ctx
+    }
+    pub fn ctx_mut(&mut self) -> &mut crate::GpuContext {
+        &mut self.ctx
+    }
+    pub fn pipeline_mut(&mut self) -> &mut crate::PipelineManager {
+        &mut self.pipelines
+    }
+    pub fn pipeline(&self) -> &crate::PipelineManager {
+        &self.pipelines
     }
 }
 

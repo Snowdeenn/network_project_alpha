@@ -53,6 +53,7 @@ impl HudPass {
                 fragment_shader: frag_shader,
                 blend_mode: BlendMode::Alpha,
                 vertex_format: VertexFormat::Pos2UvColor,
+                bind_groups: &[],
             },
         );
         let text_renderer = TextRenderer::new(ctx, surface_format);

@@ -1,6 +1,34 @@
-pub mod context;
-pub mod errors;
-pub mod resource;
-pub mod geometry;
-pub mod draw;
-pub mod pass;
+mod context;
+mod draw;
+mod errors;
+mod frame;
+mod geometry;
+mod pass;
+mod renderer;
+mod resource;
+
+pub use context::GpuContext;
+pub use draw::{batch::DrawCommandBuffer, commands::DrawCommand, text::TextRenderer};
+pub use errors::{GpuContextError, TextRendererError};
+pub use frame::{frame::Frame, manager::FrameManager};
+pub use geometry::{
+    mesh::{RawMesh, Vertex},
+    shape::{Shape, UvRect},
+    tesselator::Tesselator,
+};
+pub use pass::{
+    HudInput, PostProcessInput, VfxInput, WorldInput, hud::HudPass, post_process::PostProcessPass,
+    vfx::VfxPass, world::WorldPass,
+};
+pub use renderer::{DoubleBufferIndex, Renderer};
+pub use resource::{
+    buffer::{GpuBuffer, GpuBufferManager},
+    pipeline::{
+        BindGroupLayoutEntryKey, BindingTypeKey, BlendMode, PipelineKey, PipelineManager,
+        VertexFormat,
+    },
+    shader::{GpuShader, ShaderManager},
+    texture::{GpuTexture, TextureManager},
+};
+
+pub use pass::DEFAULT_BIND_GROUPS;

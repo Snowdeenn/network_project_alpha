@@ -1,9 +1,22 @@
-use utils::ids::ShaderId;
 use std::collections::HashMap;
 use std::sync::Arc;
+use utils::ids::ShaderId;
 use wgpu::VertexBufferLayout;
 
 use crate::{context::GpuContext, resource::shader::ShaderManager};
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct BindGroupLayoutEntryKey {
+    pub binding: u32,
+    pub visibility: wgpu::ShaderStages,
+    pub ty: BindingTypeKey,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum BindingTypeKey {
+    UniformBuffer,
+    Texture2D,
+    Sampler,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PipelineKey {
@@ -11,6 +24,7 @@ pub struct PipelineKey {
     pub fragment_shader: ShaderId,
     pub blend_mode: BlendMode,
     pub vertex_format: VertexFormat,
+    pub bind_groups: &'static [&'static [BindGroupLayoutEntryKey]],
 }
 
 #[repr(u8)]
@@ -30,6 +44,7 @@ pub enum VertexFormat {
 
 pub struct PipelineManager {
     pipelines: HashMap<PipelineKey, Arc<wgpu::RenderPipeline>>,
+    layouts: HashMap<PipelineKey, Vec<wgpu::BindGroupLayout>>,
     surface_format: wgpu::TextureFormat,
 }
 
@@ -37,6 +52,7 @@ impl PipelineManager {
     pub fn new(surface_format: wgpu::TextureFormat) -> Self {
         Self {
             pipelines: HashMap::new(),
+            layouts: HashMap::new(),
             surface_format,
         }
     }
@@ -48,8 +64,10 @@ impl PipelineManager {
         key: PipelineKey,
     ) -> Arc<wgpu::RenderPipeline> {
         if !self.pipelines.contains_key(&key) {
-            let pipeline = Arc::new(self.create_pipeline(ctx, shaders, &key));
-            self.pipelines.insert(key.clone(), pipeline);
+            let layouts = Self::create_bind_group_layouts(ctx, key.bind_groups);
+            let pipeline = self.create_pipeline(ctx, shaders, &key);
+            self.layouts.insert(key.clone(), layouts);
+            self.pipelines.insert(key.clone(), Arc::new(pipeline));
         }
         self.pipelines.get(&key).unwrap().clone()
     }
@@ -61,6 +79,10 @@ impl PipelineManager {
 
     pub fn invalidate_all(&mut self) {
         self.pipelines.clear();
+    }
+
+    pub fn get_layouts(&self, key: &PipelineKey) -> Option<&[wgpu::BindGroupLayout]> {
+        self.layouts.get(key).map(|v| v.as_slice())
     }
 
     fn create_pipeline(
@@ -75,11 +97,15 @@ impl PipelineManager {
         let vertex_shader = shaders.get(key.vertex_shader).unwrap();
         let frag_shader = shaders.get(key.fragment_shader).unwrap();
 
-        let pipline_layout = ctx
+        let bind_group_layouts = Self::create_bind_group_layouts(ctx, key.bind_groups);
+        let bind_group_layout_refs: Vec<Option<&wgpu::BindGroupLayout>> =
+            bind_group_layouts.iter().map(Some).collect();
+
+        let pipeline_layout = ctx
             .device
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: None,
-                bind_group_layouts: &[],
+                bind_group_layouts: &bind_group_layout_refs,
                 immediate_size: 0,
             });
 
@@ -87,7 +113,7 @@ impl PipelineManager {
             .device
             .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: None,
-                layout: Some(&pipline_layout),
+                layout: Some(&pipeline_layout),
                 vertex: wgpu::VertexState {
                     module: &vertex_shader.module,
                     entry_point: Some("vs_main"),
@@ -190,5 +216,45 @@ impl PipelineManager {
                 ],
             },
         }
+    }
+
+    fn create_bind_group_layouts(
+        ctx: &GpuContext,
+        groups: &[&[BindGroupLayoutEntryKey]],
+    ) -> Vec<wgpu::BindGroupLayout> {
+        groups
+            .iter()
+            .map(|entries| {
+                let wgpu_entries: Vec<wgpu::BindGroupLayoutEntry> = entries
+                    .iter()
+                    .map(|e| wgpu::BindGroupLayoutEntry {
+                        binding: e.binding,
+                        visibility: e.visibility,
+                        ty: match e.ty {
+                            BindingTypeKey::UniformBuffer => wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            BindingTypeKey::Texture2D => wgpu::BindingType::Texture {
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                multisampled: false,
+                            },
+                            BindingTypeKey::Sampler => {
+                                wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering)
+                            }
+                        },
+                        count: None,
+                    })
+                    .collect();
+
+                ctx.device
+                    .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                        label: None,
+                        entries: &wgpu_entries,
+                    })
+            })
+            .collect()
     }
 }

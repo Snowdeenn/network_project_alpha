@@ -366,6 +366,17 @@ impl UiContext {
             node.interact = Some(interact);
         }
     }
+    pub fn resize(&mut self, width: f32, height: f32) {
+        self.screen_w = width;
+        self.screen_h = height;
+
+        if let Some(root_node) = self.arena.get_mut(self.root) {
+            root_node.layout.size = UiVec2::pixels(width, height);
+            root_node.layout.computed_size = Vec2::new(width, height);
+        }
+
+        self.resolve_layout();
+    }
 }
 
 #[cfg(test)]

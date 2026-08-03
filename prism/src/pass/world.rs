@@ -1,5 +1,3 @@
-use utils::ids::{BufferId, ShaderId};
-use std::sync::Arc;
 
 use crate::{
     context::GpuContext,
@@ -12,6 +10,8 @@ use crate::{
         shader::ShaderManager,
     },
 };
+use std::sync::Arc;
+use utils::ids::{BufferId, ShaderId};
 
 pub struct WorldPass {
     vert_shader: ShaderId,
@@ -23,6 +23,8 @@ pub struct WorldPass {
     index_count: u32,
     mesh: RawMesh,
     pipeline: Arc<wgpu::RenderPipeline>,
+    camera_buffer: wgpu::Buffer,
+    camera_bind_group: wgpu::BindGroup,
 }
 
 impl WorldPass {
@@ -39,19 +41,32 @@ impl WorldPass {
         let index_buffer = buffers.create_buffer(ctx, index_buffer_size, wgpu::BufferUsages::INDEX);
         let vertex_buffer =
             buffers.create_buffer(ctx, vertex_buffer_size, wgpu::BufferUsages::VERTEX);
+        let camera_buffer = ctx.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Camera Uniform"),
+            size: std::mem::size_of::<utils::math::Mat4>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
 
         let mesh = RawMesh::with_capacity(1024, 3072);
         let index_count = mesh.indices().len() as u32;
-        let pipeline = pipelines.get_or_create(
-            ctx,
-            shaders,
-            PipelineKey {
-                vertex_shader: vert_shader,
-                fragment_shader: frag_shader,
-                blend_mode: BlendMode::Alpha,
-                vertex_format: VertexFormat::Pos2UvColor,
-            },
-        );
+        let pipeline_key = PipelineKey {
+            vertex_shader: vert_shader,
+            fragment_shader: frag_shader,
+            blend_mode: BlendMode::Alpha,
+            vertex_format: VertexFormat::Pos2UvColor,
+            bind_groups: crate::pass::DEFAULT_BIND_GROUPS,
+        };
+        let pipeline = pipelines.get_or_create(ctx, shaders, pipeline_key.clone());
+        let layouts = pipelines.get_layouts(&pipeline_key).unwrap();
+        let camera_bind_group = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Camera BindGroup"),
+            layout: &layouts[0],
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
+        });
         Self {
             vert_shader,
             frag_shader,
@@ -62,14 +77,26 @@ impl WorldPass {
             index_count,
             mesh,
             pipeline,
+            camera_buffer,
+            camera_bind_group,
         }
     }
 }
 
 impl Pass for WorldPass {
     type Input<'a> = WorldInput<'a>;
-    fn prepare<'a>(&mut self, ctx: &GpuContext, buffers: &mut GpuBufferManager, input: &Self::Input<'a>) {
+    fn prepare<'a>(
+        &mut self,
+        ctx: &GpuContext,
+        buffers: &mut GpuBufferManager,
+        input: &Self::Input<'a>,
+    ) {
         self.mesh.clear();
+        ctx.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::cast_slice(&[input.camera]),
+        );
         for cmd in input.commands.commands() {
             match cmd {
                 DrawCommand::Shape { shape, .. } => Tesselator::tesselate(shape, &mut self.mesh),
@@ -155,6 +182,7 @@ impl Pass for WorldPass {
             .get(self.vertex_buffer)
             .expect("[GpuBufferManager] devrait retourner le vertex buffer de la WorldPass");
         world_render_pass.set_pipeline(&self.pipeline);
+        world_render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
         world_render_pass
             .set_index_buffer(index_buffer.buffer.slice(..), wgpu::IndexFormat::Uint32);
         world_render_pass.set_vertex_buffer(0, vertex_buffer.buffer.slice(..));

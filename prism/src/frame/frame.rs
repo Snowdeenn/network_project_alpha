@@ -1,9 +1,9 @@
 use crate::DrawCommandBuffer;
 
 pub struct Frame {
-    pub world: DrawCommandBuffer,
-    pub vfx: DrawCommandBuffer,
-    pub hud: DrawCommandBuffer,
+    pub(crate) world: DrawCommandBuffer,
+    pub(crate) vfx: DrawCommandBuffer,
+    pub(crate) hud: DrawCommandBuffer,
     pub camera: utils::math::Mat4,
 }
 
@@ -21,5 +21,17 @@ impl Frame {
         self.world.clear();
         self.vfx.clear();
         self.hud.clear();
+    }
+
+    pub fn push_world(&mut self, cmd: crate::DrawCommand) {
+        self.world.push(cmd);
+    }
+
+    pub fn push_vfx(&mut self, cmd: crate::DrawCommand) {
+        self.vfx.push(cmd);
+    }
+
+    pub fn push_hud(&mut self, cmd: crate::DrawCommand) {
+        self.hud.push(cmd);
     }
 }

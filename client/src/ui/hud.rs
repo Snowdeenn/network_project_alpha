@@ -1,39 +1,36 @@
-use raylib::prelude::*;
 use std::fmt::Write;
 use crate::app::states::in_game::{GuiContext, HudBuffers};
 use crate::core::config::*;
 use utils::ids::ShaderId;
 use utils::protocol::StateSnapshot;
-use ui::prelude::*;
-use ui::*;
 
 pub struct HudIds {
-    pub wave_label_id: NodeId,
-    pub hp_bg_id: NodeId,
-    pub hp_fill_id: NodeId,
-    pub hp_text_id: NodeId,
-    pub gold_label_id: NodeId,
+    pub wave_label_id: ui::NodeId,
+    pub hp_bg_id: ui::NodeId,
+    pub hp_fill_id: ui::NodeId,
+    pub hp_text_id: ui::NodeId,
+    pub gold_label_id: ui::NodeId,
 }
 
-pub fn init_hud(ui_ctx: &mut UiContext, hp_shader_id: ShaderId) -> HudIds {
-    let wave_label_id = text_label! {
+pub fn init_hud(ui_ctx: &mut ui::UiContext, hp_shader_id: ShaderId) -> HudIds {
+    let wave_label_id = ui::text_label! {
         ctx: ui_ctx,
         parent: ui_ctx.root,
-        anchor: Anchor::TopLeft,
-        offset: UiVec2::screen(HUD_PADDING_X, HUD_WAVE_Y),
-        size: UiVec2::screen(0.2, 0.05),
+        anchor: ui::Anchor::TopLeft,
+        offset: ui::UiVec2::screen(HUD_PADDING_X, HUD_WAVE_Y),
+        size: ui::UiVec2::screen(0.2, 0.05),
         content: "Vague 0 | 0 ennemis",
         font_size: 24.0,
         color: utils
     ::colors::Color::WHITE,
     };
 
-    let (hp_bg_id, hp_fill_id) = progress_bar! {
+    let (hp_bg_id, hp_fill_id) = ui::progress_bar! {
         ctx: ui_ctx,
         parent: ui_ctx.root,
-        anchor: Anchor::TopLeft,
-        offset: UiVec2::screen(HUD_PADDING_X, HUD_BAR_Y),
-        size: UiVec2::screen(HUD_BAR_W, HUD_BAR_H),
+        anchor: ui::Anchor::TopLeft,
+        offset: ui::UiVec2::screen(HUD_PADDING_X, HUD_BAR_Y),
+        size: ui::UiVec2::screen(HUD_BAR_W, HUD_BAR_H),
         bg: utils
     ::colors::Color::DARKGRAY,
         fill_color: utils
@@ -41,24 +38,24 @@ pub fn init_hud(ui_ctx: &mut UiContext, hp_shader_id: ShaderId) -> HudIds {
         shader: hp_shader_id,
     };
 
-    let hp_text_id = text_label! {
+    let hp_text_id = ui::text_label! {
         ctx: ui_ctx,
         parent: hp_bg_id,
-        anchor: Anchor::TopLeft,
-        offset: UiVec2::pixels(5.0, 2.0),
-        size: UiVec2::new(UiUnit::ParentPercent(1.0), UiUnit::ParentPercent(1.0)),
+        anchor: ui::Anchor::TopLeft,
+        offset: ui::UiVec2::pixels(5.0, 2.0),
+        size: ui::UiVec2::new(ui::UiUnit::ParentPercent(1.0), ui::UiUnit::ParentPercent(1.0)),
         content: "100/100",
         font_size: 16.0,
         color: utils
     ::colors::Color::WHITE,
     };
 
-    let gold_label_id = text_label! {
+    let gold_label_id = ui::text_label! {
         ctx: ui_ctx,
         parent: ui_ctx.root,
-        anchor: Anchor::TopLeft,
-        offset: UiVec2::screen(HUD_PADDING_X, HUD_GOLD_Y),
-        size: UiVec2::screen(0.1, 0.03),
+        anchor: ui::Anchor::TopLeft,
+        offset: ui::UiVec2::screen(HUD_PADDING_X, HUD_GOLD_Y),
+        size: ui::UiVec2::screen(0.1, 0.03),
         content: "Or : 0",
         font_size: 24.0,
         color: utils
@@ -75,33 +72,33 @@ pub fn init_hud(ui_ctx: &mut UiContext, hp_shader_id: ShaderId) -> HudIds {
 }
 
 pub struct ShopCardIds {
-    pub root: NodeId,
-    pub art: NodeId,
-    pub name: NodeId,
-    pub desc: NodeId,
-    pub price: NodeId,
-    pub sold_overlay: NodeId,
-    pub error_overlay: NodeId,
-    pub sold_text: NodeId,
+    pub root: ui::NodeId,
+    pub art: ui::NodeId,
+    pub name: ui::NodeId,
+    pub desc: ui::NodeId,
+    pub price: ui::NodeId,
+    pub sold_overlay: ui::NodeId,
+    pub error_overlay: ui::NodeId,
+    pub sold_text: ui::NodeId,
 }
 
 pub struct ShopHudIds {
-    pub root: NodeId,
+    pub root: ui::NodeId,
     pub cards: [ShopCardIds; 3],
-    pub title: NodeId,
-    pub close: NodeId,
+    pub title: ui::NodeId,
+    pub close: ui::NodeId,
 }
 
-pub fn init_shop(ui_ctx: &mut UiContext) -> ShopHudIds {
+pub fn init_shop(ui_ctx: &mut ui::UiContext) -> ShopHudIds {
     let shop_root = ui_ctx.add_node(
         ui_ctx.root,
-        LayoutProps::new(
-            Anchor::TopLeft,
-            UiVec2::pixels(0.0, 0.0),
-            UiVec2::new(UiUnit::ParentPercent(1.0), UiUnit::ParentPercent(1.0)),
+        ui::LayoutProps::new(
+            ui::Anchor::TopLeft,
+            ui::UiVec2::pixels(0.0, 0.0),
+            ui::UiVec2::new(ui::UiUnit::ParentPercent(1.0), ui::UiUnit::ParentPercent(1.0)),
         ),
-        VisualProps {
-            kind: VisualKind::Rect,
+        ui::VisualProps {
+            kind: ui::VisualKind::Rect,
             color: utils
         ::colors::Color::new(0, 0, 0, 150),
             visible: false,
@@ -109,21 +106,21 @@ pub fn init_shop(ui_ctx: &mut UiContext) -> ShopHudIds {
         },
     );
 
-    let title_id = text_label! {
+    let title_id = ui::text_label! {
         ctx: ui_ctx,
         parent: shop_root,
-        anchor: Anchor::TopLeft,
-        offset: UiVec2::screen(SHOP_TITLE_X, SHOP_TITLE_Y),
-        size: UiVec2::screen(0.3, SHOP_TITLE_FONT_SIZE),
+        anchor: ui::Anchor::TopLeft,
+        offset: ui::UiVec2::screen(SHOP_TITLE_X, SHOP_TITLE_Y),
+        size: ui::UiVec2::screen(0.3, SHOP_TITLE_FONT_SIZE),
         content: SHOP_TITLE_TEXT,
         font_size: SHOP_TITLE_FONT_SIZE * REFERENCE_H,
         color: utils
     ::colors::Color::GOLD,
     };
 
-    let card_w_unit = UiUnit::ScreenWidth(SHOP_CARD_W);
-    let card_h_unit = UiUnit::ScreenHeight(SHOP_CARD_H);
-    let card_y_unit = UiUnit::ScreenHeight(SHOP_CARD_Y);
+    let card_w_unit = ui::UiUnit::ScreenWidth(SHOP_CARD_W);
+    let card_h_unit = ui::UiUnit::ScreenHeight(SHOP_CARD_H);
+    let card_y_unit = ui::UiUnit::ScreenHeight(SHOP_CARD_Y);
 
     let gap_unit = (1.0 - card_w_unit * 3.0) / 4.0;
 
@@ -134,13 +131,13 @@ pub fn init_shop(ui_ctx: &mut UiContext) -> ShopHudIds {
 
         let card_root = ui_ctx.add_node(
             shop_root,
-            LayoutProps::new(
-                Anchor::TopLeft,
-                UiVec2::new(card_x_unit, card_y_unit),
-                UiVec2::new(card_w_unit, card_h_unit),
+            ui::LayoutProps::new(
+               ui::Anchor::TopLeft,
+                ui::UiVec2::new(card_x_unit, card_y_unit),
+                ui::UiVec2::new(card_w_unit, card_h_unit),
             ),
-            VisualProps {
-                kind: VisualKind::Rect,
+            ui::VisualProps {
+                kind: ui::VisualKind::Rect,
                 color: utils
             ::colors::Color::DARKGRAY,
                 visible: true,
@@ -148,19 +145,19 @@ pub fn init_shop(ui_ctx: &mut UiContext) -> ShopHudIds {
             },
         );
 
-        let border = UiUnit::ScreenHeight(SHOP_BORDER_OFFSET);
+        let border = ui::UiUnit::ScreenHeight(SHOP_BORDER_OFFSET);
         let card_inner = ui_ctx.add_node(
             card_root,
-            LayoutProps::new(
-                Anchor::TopLeft,
-                UiVec2::new(UiUnit::ScreenWidth(SHOP_BORDER_OFFSET), border),
-                UiVec2::new(
-                    UiUnit::ScreenWidth(SHOP_CARD_W - SHOP_BORDER_OFFSET * 2.0),
-                    UiUnit::ScreenHeight(SHOP_CARD_H - SHOP_BORDER_OFFSET * 2.0),
+            ui::LayoutProps::new(
+                ui::Anchor::TopLeft,
+                ui::UiVec2::new(ui::UiUnit::ScreenWidth(SHOP_BORDER_OFFSET), border),
+                ui::UiVec2::new(
+                    ui::UiUnit::ScreenWidth(SHOP_CARD_W - SHOP_BORDER_OFFSET * 2.0),
+                    ui::UiUnit::ScreenHeight(SHOP_CARD_H - SHOP_BORDER_OFFSET * 2.0),
                 ),
             ),
-            VisualProps {
-                kind: VisualKind::Rect,
+            ui::VisualProps {
+                kind: ui::VisualKind::Rect,
                 color: utils
             ::colors::Color::BLACK,
                 visible: true,
@@ -170,13 +167,13 @@ pub fn init_shop(ui_ctx: &mut UiContext) -> ShopHudIds {
 
         let art_id = ui_ctx.add_node(
             card_inner,
-            LayoutProps::new(
-                Anchor::TopLeft,
-                UiVec2::screen(SHOP_ART_OFFSET_X, SHOP_ART_OFFSET_Y),
-                UiVec2::screen(SHOP_ART_W, SHOP_ART_H),
+            ui::LayoutProps::new(
+                ui::Anchor::TopLeft,
+                ui::UiVec2::screen(SHOP_ART_OFFSET_X, SHOP_ART_OFFSET_Y),
+                ui::UiVec2::screen(SHOP_ART_W, SHOP_ART_H),
             ),
-            VisualProps {
-                kind: VisualKind::Rect,
+            ui::VisualProps {
+                kind: ui::VisualKind::Rect,
                 color: utils
             ::colors::Color::DARKGRAY,
                 visible: true,
@@ -184,36 +181,36 @@ pub fn init_shop(ui_ctx: &mut UiContext) -> ShopHudIds {
             },
         );
 
-        let name_id = text_label! {
+        let name_id = ui::text_label! {
             ctx: ui_ctx,
             parent: card_inner,
-            anchor: Anchor::TopLeft,
-            offset: UiVec2::screen(SHOP_TEXT_PADDING_X, SHOP_NAME_OFFSET_Y),
-            size: UiVec2::screen(SHOP_ART_W, SHOP_NAME_FONT_SIZE),
+            anchor: ui::Anchor::TopLeft,
+            offset: ui::UiVec2::screen(SHOP_TEXT_PADDING_X, SHOP_NAME_OFFSET_Y),
+            size: ui::UiVec2::screen(SHOP_ART_W, SHOP_NAME_FONT_SIZE),
             content: "",
             font_size: SHOP_NAME_FONT_SIZE * REFERENCE_H,
             color: utils
         ::colors::Color::WHITE,
         };
 
-        let desc_id = text_label! {
+        let desc_id = ui::text_label! {
             ctx: ui_ctx,
             parent: card_inner,
-            anchor: Anchor::TopLeft,
-            offset: UiVec2::screen(SHOP_TEXT_PADDING_X, SHOP_NAME_OFFSET_Y + SHOP_NAME_FONT_SIZE + (4.0 / 1080.0)),
-            size: UiVec2::screen(SHOP_ART_W, 0.05),
+            anchor: ui::Anchor::TopLeft,
+            offset: ui::UiVec2::screen(SHOP_TEXT_PADDING_X, SHOP_NAME_OFFSET_Y + SHOP_NAME_FONT_SIZE + (4.0 / 1080.0)),
+            size: ui::UiVec2::screen(SHOP_ART_W, 0.05),
             content: "",
             font_size: 0.018 * REFERENCE_H,
             color: utils
         ::colors::Color::LIGHTGRAY,
         };
 
-        let price_id = text_label! {
+        let price_id = ui::text_label! {
             ctx: ui_ctx,
             parent: card_inner,
-            anchor: Anchor::TopLeft,
-            offset: UiVec2::screen(SHOP_TEXT_PADDING_X, SHOP_PRICE_OFFSET_Y),
-            size: UiVec2::screen(SHOP_ART_W, SHOP_PRICE_FONT_SIZE),
+            anchor: ui::Anchor::TopLeft,
+            offset: ui::UiVec2::screen(SHOP_TEXT_PADDING_X, SHOP_PRICE_OFFSET_Y),
+            size: ui::UiVec2::screen(SHOP_ART_W, SHOP_PRICE_FONT_SIZE),
             content: "",
             font_size: SHOP_PRICE_FONT_SIZE * REFERENCE_H,
             color: utils
@@ -222,13 +219,13 @@ pub fn init_shop(ui_ctx: &mut UiContext) -> ShopHudIds {
 
         let sold_overlay_id = ui_ctx.add_node(
             card_inner,
-            LayoutProps::new(
-                Anchor::TopLeft,
-                UiVec2::pixels(0.0, 0.0),
-                UiVec2::new(UiUnit::ParentPercent(1.0), UiUnit::ParentPercent(1.0)),
+            ui::LayoutProps::new(
+                ui::Anchor::TopLeft,
+                ui::UiVec2::pixels(0.0, 0.0),
+                ui::UiVec2::new(ui::UiUnit::ParentPercent(1.0), ui::UiUnit::ParentPercent(1.0)),
             ),
-            VisualProps {
-                kind: VisualKind::Rect,
+            ui::VisualProps {
+                kind: ui::VisualKind::Rect,
                 color: utils
             ::colors::Color::new(20, 220, 60, 255),
                 visible: false,
@@ -236,12 +233,12 @@ pub fn init_shop(ui_ctx: &mut UiContext) -> ShopHudIds {
             },
         );
 
-        let sold_text_id = text_label! {
+        let sold_text_id = ui::text_label! {
             ctx: ui_ctx,
             parent: sold_overlay_id,
-            anchor: Anchor::Center,
-            offset: UiVec2::pixels(30.0, 0.0),
-            size: UiVec2::screen(0.1, 0.03),
+            anchor: ui::Anchor::Center,
+            offset: ui::UiVec2::pixels(30.0, 0.0),
+            size: ui::UiVec2::screen(0.1, 0.03),
             content: "",
             font_size: 35.0,
             color: utils
@@ -250,13 +247,13 @@ pub fn init_shop(ui_ctx: &mut UiContext) -> ShopHudIds {
 
         let error_overlay_id = ui_ctx.add_node(
             card_inner,
-            LayoutProps::new(
-                Anchor::TopLeft,
-                UiVec2::pixels(0.0, 0.0),
-                UiVec2::new(UiUnit::ParentPercent(1.0), UiUnit::ParentPercent(1.0)),
+            ui::LayoutProps::new(
+                ui::Anchor::TopLeft,
+                ui::UiVec2::pixels(0.0, 0.0),
+                ui::UiVec2::new(ui::UiUnit::ParentPercent(1.0), ui::UiUnit::ParentPercent(1.0)),
             ),
-            VisualProps {
-                kind: VisualKind::Rect,
+            ui::VisualProps {
+                kind: ui::VisualKind::Rect,
                 color: utils
             ::colors::Color::new(220, 20, 60, 255),
                 visible: false,
@@ -276,12 +273,12 @@ pub fn init_shop(ui_ctx: &mut UiContext) -> ShopHudIds {
         });
     }
 
-    let close_id = text_label! {
+    let close_id = ui::text_label! {
         ctx: ui_ctx,
         parent: shop_root,
-        anchor: Anchor::TopLeft,
-        offset: UiVec2::screen(CLOSE_SHOP_X, CLOSE_SHOP_Y),
-        size: UiVec2::screen(0.2, CLOSE_SHOP_FONT),
+        anchor: ui::Anchor::TopLeft,
+        offset: ui::UiVec2::screen(CLOSE_SHOP_X, CLOSE_SHOP_Y),
+        size: ui::UiVec2::screen(0.2, CLOSE_SHOP_FONT),
         content: "G — Fermer",
         font_size: CLOSE_SHOP_FONT,
         color: utils
@@ -324,16 +321,16 @@ pub fn update(
         )
         .unwrap();
 
-        gui.ui_ctx.send_event(UIEvent::SetSize {
+        gui.ui_ctx.send_event(ui::UIEvent::SetSize {
             target: gui.ids.hud.hp_fill_id,
-            size: UiVec2::new(UiUnit::ParentPercent(ratio), UiUnit::ParentPercent(1.0)),
+            size: ui::UiVec2::new(ui::UiUnit::ParentPercent(ratio), ui::UiUnit::ParentPercent(1.0)),
         });
-        gui.ui_ctx.send_event(UIEvent::SetText {
+        gui.ui_ctx.send_event(ui::UIEvent::SetText {
             target: gui.ids.hud.hp_text_id,
             content: bufs.hp.to_string(),
         });
 
-        gui.ui_ctx.send_event(UIEvent::SetText {
+        gui.ui_ctx.send_event(ui::UIEvent::SetText {
             target: gui.ids.hud.gold_label_id,
             content: bufs.gold.to_string(),
         });
@@ -343,7 +340,7 @@ pub fn update(
             shader.set_shader_value(loc, ratio);
         }
 
-        gui.ui_ctx.send_event(UIEvent::SetText {
+        gui.ui_ctx.send_event(ui::UIEvent::SetText {
             target: gui.ids.hud.wave_label_id,
             content: bufs.wave.to_string(),
         });

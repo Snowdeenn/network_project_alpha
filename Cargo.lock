@@ -521,6 +521,7 @@ version = "0.1.0"
 dependencies = [
  "bincode",
  "bytes",
+ "glyphon",
  "imgui",
  "pollster",
  "prism",
@@ -531,6 +532,7 @@ dependencies = [
  "serde_json",
  "ui",
  "utils",
+ "wgpu",
  "winit",
 ]
 

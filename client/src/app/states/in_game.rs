@@ -11,8 +11,8 @@ use crate::app::resources::Resources;
 use crate::core::client::GameNetClient;
 use crate::core::config;
 use crate::core::event::{ClientState, handle_shop_ui_event};
-use crate::rendering::Renderer;
-use crate::rendering::camera::{self, CameraShake};
+use crate::rendering::{Renderer, ScreenScale};
+use crate::rendering::camera::{self, Camera};
 use crate::rendering::shader_manager::ShaderManager;
 use crate::rendering::types::{FrameState, RenderContext};
 use crate::rendering::vfx::particle::{Particle, ParticlePool};
@@ -80,7 +80,7 @@ pub struct InGameIds {
 }
 
 pub struct GuiContext<'a> {
-    pub ui_ctx: &'a mut UiContext,
+    pub ui_ctx: &'a mut ui::UiContext,
     pub shader_manager: &'a mut ShaderManager,
     pub ids: &'a InGameIds,
 }
@@ -88,7 +88,6 @@ pub struct GuiContext<'a> {
 pub struct InGameScene {
     pub snapshots: Snapshots,
     pub ticks: Ticks,
-    pub shake: CameraShake,
     pub hud_buffers: HudBuffers,
 }
 
@@ -97,7 +96,6 @@ impl Default for InGameScene {
         Self {
             snapshots: Snapshots::default(),
             ticks: Ticks::default(),
-            shake: CameraShake::default(),
             hud_buffers: HudBuffers::new(),
         }
     }
@@ -108,10 +106,12 @@ impl InGameScene {
         &mut self,
         resources: &mut Resources,
         client: &mut GameNetClient,
-        renderer: &mut Renderer,
+        renderer: &mut prism::Renderer,
         client_state: &mut ClientState,
         gui: &mut GuiContext,
         input_state: &Input,
+        scale: &ScreenScale,
+        cam: &mut Camera,
         dt: f32,
     ) {
         if input_state.is_pressed(winit::keyboard::KeyCode::F2) {
@@ -121,8 +121,8 @@ impl InGameScene {
         self.process_snapshots(client, gui, resources);
         self.process_game_event(client, client_state, gui, resources);
         self.handle_ui(client_state, gui, input_state);
-        self.handle_shop(client, client_state, gui, input_state);
-        self.process_network_ticks(client, renderer, input_state);
+        self.handle_shop(scale, client, client_state, gui, input_state);
+        self.process_network_ticks(client, renderer.ctx().size, input_state);
 
         // Mises à jour logiques
         client_state.update_timers(dt);
@@ -132,7 +132,7 @@ impl InGameScene {
         }
 
         // Caméra & UI
-        self.update_camera(renderer);
+        self.update_camera(cam);
         self.shake.update(dt);
         gui.ui_ctx.update(dt);
     }
@@ -198,11 +198,11 @@ impl InGameScene {
                         if dx.abs() > 0.05 || dy.abs() > 0.05 {
                             let lifetime = rand::random_range(0.18..0.32f32);
                             resources.write_resource::<ParticlePool>().spawn(Particle {
-                                pos: Vector2 {
+                                pos: Vec2 {
                                     x: x + rand::random_range(-20.0..20.0),
                                     y: y + 20.0,
                                 },
-                                velocity: Vector2 {
+                                velocity: Vec2 {
                                     x: (-dx * 4.0) + rand::random_range(-20.0..20.0),
                                     y: rand::random_range(-50.0..-20.0),
                                 },
@@ -211,7 +211,7 @@ impl InGameScene {
                                 lt_max: lifetime,
                                 scale: 0.1,
                                 growth: 6.5,
-                                color: Color::LIGHTGRAY,
+                                color: utils::colors::Color::LIGHTGRAY,
                             });
                         }
                     }
@@ -243,14 +243,14 @@ impl InGameScene {
                     let speed = rand::random_range(80.0..160.0f32);
                     let lifetime = rand::random_range(0.1..0.25f32);
                     particle_pool.spawn(Particle {
-                        pos: Vector2::new(pos[0], pos[1]),
-                        velocity: Vector2::new(angle.cos() * speed, angle.sin() * speed),
+                        pos: Vec2::new(pos[0], pos[1]),
+                        velocity: Vec2::new(angle.cos() * speed, angle.sin() * speed),
                         friction: 6.0,
                         lifetime,
                         lt_max: lifetime,
                         scale: 0.15,
                         growth: 5.5,
-                        color: Color::DARKGOLDENROD,
+                        color: utils::colors::Color::DARKGOLDENROD,
                     })
                 }
                 self.shake.add_trauma(0.4);
@@ -265,13 +265,13 @@ impl InGameScene {
                 let mut vfx = resources.write_resource::<VfxManager>();
                 let angle_deg = dir[1].atan2(dir[0]).to_degrees();
                 vfx.spawn_slash(
-                    Vector2 { x, y },
+                    Vec2 { x, y },
                     angle_deg,
                     half_length * 0.5,
                     half_width,
                     60.0,
                     0.15,
-                    Color::WHITE,
+                    utils::colors::Color::WHITE,
                 );
             }
             _ => (),
@@ -297,6 +297,7 @@ impl InGameScene {
     /// Gestion des raccourcis et des clics d'achat dans la boutique
     fn handle_shop(
         &mut self,
+        scale: &ScreenScale,
         client: &mut GameNetClient,
         client_state: &mut ClientState,
         gui: &mut GuiContext,
@@ -304,7 +305,7 @@ impl InGameScene {
     ) {
         match input::handle_shop_input(input_state, client, client_state) {
             ShopInputAction::Close => {
-                gui.ui_ctx.send_event(UIEvent::SetVisible {
+                gui.ui_ctx.send_event(ui::UIEvent::SetVisible {
                     target: gui.ids.shop.root,
                     visible: false,
                 });
@@ -318,12 +319,12 @@ impl InGameScene {
                 .is_mouse_pressed(winit::event::MouseButton::Left)
         {
             let mouse_pos = input_state.mouse_position();
-            let card_y = renderer.screen_scale.y(config::SHOP_CARD_Y);
-            let card_w = renderer.screen_scale.w(config::SHOP_CARD_W);
-            let card_h = renderer.screen_scale.h(config::SHOP_CARD_H);
+            let card_y = scale.y(config::SHOP_CARD_Y);
+            let card_w = scale.w(config::SHOP_CARD_W);
+            let card_h = scale.h(config::SHOP_CARD_H);
 
             let clicked = config::SHOP_SLOTS_X.iter().enumerate().find(|&(_, &x)| {
-                let card_x = renderer.screen_scale.x(x);
+                let card_x = scale.x(x);
                 mouse_pos.1 as i32 >= card_x
                     && mouse_pos.0 as i32 <= card_x + card_w
                     && mouse_pos.1 as i32 >= card_y
@@ -343,7 +344,7 @@ impl InGameScene {
     fn process_network_ticks(
         &mut self,
         client: &mut GameNetClient,
-        renderer: &Renderer,
+        size: winit::dpi::PhysicalSize<u32>,
         input_state: &Input,
     ) {
         if self.ticks.last_tick.elapsed() >= Ticks::TICK_DURATION {
@@ -353,8 +354,8 @@ impl InGameScene {
                 let packet = input::read_input(
                     input_state,
                     self.ticks.tick_id,
-                    renderer.screen_w,
-                    renderer.screen_h,
+                    size.width as i32,
+                    size.height as i32,
                 );
                 client.send_input(&packet);
             }
@@ -365,17 +366,16 @@ impl InGameScene {
     }
 
     /// Mise à jour de la position de la caméra
-    fn update_camera(&self, renderer: &mut Renderer) {
+    fn update_camera(&self, cam: &mut Camera) {
         if let Some(curr) = &self.snapshots.last_snapshot {
             let t = (self.snapshots.last_snap_time.elapsed().as_secs_f32()
                 / Ticks::TICK_DURATION.as_secs_f32())
             .clamp(0.0, 1.0);
             camera::update(
-                &mut renderer.cam,
+                cam,
                 self.snapshots.prev_snapshot.as_ref(),
                 curr,
                 t,
-                &self.shake,
             );
         }
     }

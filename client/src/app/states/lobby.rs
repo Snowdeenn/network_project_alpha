@@ -74,17 +74,20 @@ pub fn handle_input(input_state: &Input, state: &mut LobbyScreenState, client: &
     }
 }
 
-pub fn render(d: &mut RaylibDrawHandle, state: &LobbyScreenState, s: &ScreenScale) {
-    d.clear_background(Color::BLACK);
-
-    // Code de session
-    d.draw_text(
-        &format!("Code : {}", state.code),
-        s.x(0.02),
-        s.y(0.02),
-        s.font(0.03),
-        Color::GOLD,
-    );
+pub fn render(frame_manager: &prism::FrameManager, state: &LobbyScreenState, s: &ScreenScale) {
+    let mut frame = prism::Frame::new();
+    frame.push_hud(prism::DrawCommand::Text {
+        content: format!("Code : {}", state.code),
+        pos: [s.x(0.02) as f32, s.y(0.02) as f32],
+        size: s.font(0.03) as f32,
+        color: [
+            utils::colors::Color::GOLD.r / 255 as f32,
+            utils::colors::Color::GOLD.g / 255 as f32,
+            utils::colors::Color::GOLD.b / 255 as f32,
+            1.0,
+        ],
+        layer: 0,
+    });
 
     // Slots joueurs
     for (i, slot) in state.slots.iter().enumerate() {
@@ -95,32 +98,49 @@ pub fn render(d: &mut RaylibDrawHandle, state: &LobbyScreenState, s: &ScreenScal
 
         // Fond du slot
         let bg = if slot.is_some() {
-            Color::DARKGRAY
+            utils::colors::Color::DARKGRAY
         } else {
-            Color::new(30, 30, 30, 255)
+            utils::colors::Color::new(30, 30, 30, 255)
         };
-        d.draw_rectangle(x, y, w, h, bg);
-
+        frame.push_hud(prism::DrawCommand::Shape {
+            shape: prism::Shape::Quad {
+                pos: [x as f32, y as f32],
+                size: [w as f32, h as f32],
+                rotation: 0.0,
+                color: [
+                    utils::colors::Color::DARKGRAY.r / 255 as f32,
+                    utils::colors::Color::DARKGRAY.g / 255 as f32,
+                    utils::colors::Color::DARKGRAY.b / 255 as f32,
+                    1.0,
+                ],
+                uv: None,
+            },
+            blend: prism::BlendMode::Opaque,
+            layer: 0,
+        });
         match slot {
             None => {
-                d.draw_text(
-                    "En attente...",
-                    x + s.x(0.02),
-                    y + s.y(0.12),
-                    s.font(0.02),
-                    Color::GRAY,
-                );
+                frame.push_hud(prism::DrawCommand::Text {
+                    content: "En attente ...".to_string(),
+                    pos: [(x + s.x(0.02)) as f32, (y + s.y(0.12)) as f32],
+                    size: s.font(0.02) as f32,
+                    color: [
+                        utils::colors::Color::GRAY.r / 255 as f32,
+                        utils::colors::Color::GRAY.b / 255 as f32,
+                        utils::colors::Color::GRAY.g / 255 as f32,
+                        1.0,
+                    ],
+                    layer: 1,
+                });
             }
             Some(info) => {
-                // Nom joueur
-                d.draw_text(
-                    &format!("Joueur {}", info.slot_index + 1),
-                    x + s.x(0.01),
-                    y + s.y(0.02),
-                    s.font(0.025),
-                    Color::WHITE,
-                );
-
+                frame.push_hud(prism::DrawCommand::Text {
+                    content: format!("Joueur {}", info.slot_index + 1),
+                    pos: [(x + s.x(0.01)) as f32, (y + s.y(0.02)) as f32],
+                    size: s.font(0.025) as f32,
+                    color: [1.0, 1.0, 1.0, 1.0], // BLANC
+                    layer: 1,
+                });
                 // Classe
                 let class_text = if info.slot_index == state.slot_index {
                     match state.my_class {
@@ -133,63 +153,126 @@ pub fn render(d: &mut RaylibDrawHandle, state: &LobbyScreenState, s: &ScreenScal
                         Some(c) => format!("{:?}", c),
                     }
                 };
-
-                d.draw_text(
-                    &class_text,
-                    x + s.x(0.01),
-                    y + s.y(0.1),
-                    s.font(0.022),
-                    Color::SKYBLUE,
-                );
-
+                frame.push_hud(prism::DrawCommand::Text {
+                    content: class_text,
+                    pos: [(x + s.x(0.01)) as f32, (y + s.y(0.1)) as f32],
+                    size: s.font(0.022) as f32,
+                    color: [
+                        utils::colors::Color::SKYBLUE.r / 255 as f32,
+                        utils::colors::Color::SKYBLUE.g / 255 as f32,
+                        utils::colors::Color::SKYBLUE.b / 255 as f32,
+                        1.0,
+                    ],
+                    layer: 1,
+                });
                 // Ready
                 let (ready_text, ready_color) = if info.slot_index == state.slot_index {
                     if state.ready {
-                        ("PRÊT ✓", Color::GREEN)
+                        ("PRÊT ✓", utils::colors::Color::GREEN)
                     } else {
-                        ("PAS PRÊT", Color::RED)
+                        ("PAS PRÊT", utils::colors::Color::RED)
                     }
                 } else {
                     if info.ready {
-                        ("PRÊT ✓", Color::GREEN)
+                        ("PRÊT ✓", utils::colors::Color::GREEN)
                     } else {
-                        ("PAS PRÊT", Color::RED)
+                        ("PAS PRÊT", utils::colors::Color::RED)
                     }
                 };
-
-                d.draw_text(
-                    ready_text,
-                    x + s.x(0.01),
-                    y + s.y(0.2),
-                    s.font(0.022),
-                    ready_color,
-                );
-
+                frame.push_hud(prism::DrawCommand::Text {
+                    content: ready_text.to_string(),
+                    pos: [(x + s.x(0.01)) as f32, (y + s.y(0.2)) as f32],
+                    size: s.font(0.022) as f32,
+                    color: [
+                        ready_color.r / 255 as f32,
+                        ready_color.g / 255 as f32,
+                        ready_color.b / 255 as f32,
+                        1.0,
+                    ],
+                    layer: 1,
+                });
                 // Marquer le slot local
                 if info.slot_index == state.slot_index {
-                    d.draw_rectangle_lines(x, y, w, h, Color::GOLD);
+                    let mut mesh = prism::RawMesh::with_capacity(4, 4);
+                    let i0 = mesh.push_vertex(prism::Vertex {
+                        pos: [x as f32, y as f32],
+                        uv: [0.0, 0.0],
+                        color: [
+                            utils::colors::Color::GOLD.r / 255 as f32,
+                            utils::colors::Color::GOLD.g / 255 as f32,
+                            utils::colors::Color::GOLD.b / 255 as f32,
+                            1.0,
+                        ],
+                    });
+                    let i1 = mesh.push_vertex(prism::Vertex {
+                        pos: [(x + w) as f32, y as f32],
+                        uv: [0.0, 0.0],
+                        color: [
+                            utils::colors::Color::GOLD.r / 255 as f32,
+                            utils::colors::Color::GOLD.g / 255 as f32,
+                            utils::colors::Color::GOLD.b / 255 as f32,
+                            1.0,
+                        ],
+                    });
+                    let i2 = mesh.push_vertex(prism::Vertex {
+                        pos: [x as f32, (y + h) as f32],
+                        uv: [0.0, 0.0],
+                        color: [
+                            utils::colors::Color::GOLD.r / 255 as f32,
+                            utils::colors::Color::GOLD.g / 255 as f32,
+                            utils::colors::Color::GOLD.b / 255 as f32,
+                            1.0,
+                        ],
+                    });
+                    let i3 = mesh.push_vertex(prism::Vertex {
+                        pos: [(x + w) as f32, (y + h) as f32],
+                        uv: [0.0, 0.0],
+                        color: [
+                            utils::colors::Color::GOLD.r / 255 as f32,
+                            utils::colors::Color::GOLD.g / 255 as f32,
+                            utils::colors::Color::GOLD.b / 255 as f32,
+                            1.0,
+                        ],
+                    });
+                    mesh.push_triangle(i0, i1, i2);
+                    mesh.push_triangle(i1, i3, i2);
+                    frame.push_hud(prism::DrawCommand::Mesh {
+                        mesh: mesh,
+                        blend: prism::BlendMode::Opaque,
+                        layer: 1,
+                    });
                 }
             }
         }
     }
 
     // Instructions
-    d.draw_text(
-        "1/2/3/4 — Choisir une classe    ESPACE — Prêt",
-        s.x(0.25),
-        s.y(0.75),
-        s.font(0.025),
-        Color::LIGHTGRAY,
-    );
-
+    frame.push_hud(prism::DrawCommand::Text {
+        content: "1/2/3/4 — Choisir une classe    ESPACE — Prêt".to_string(),
+        pos: [s.x(0.25) as f32, s.y(0.75) as f32],
+        size: s.font(0.025) as f32,
+        color: [
+            utils::colors::Color::LIGHTGRAY.r / 255 as f32,
+            utils::colors::Color::LIGHTGRAY.g / 255 as f32,
+            utils::colors::Color::LIGHTGRAY.b / 255 as f32,
+            1.0,
+        ],
+        layer: 1,
+    });
     // Classe choisie localement
     if let Some(class) = state.my_class {
-        d.draw_text(
-            &format!("Ta classe : {:?}", class),
-            s.x(0.02),
-            s.y(0.9),
-            s.font(0.028),
-            Color::GOLD,
-        );
+        frame.push_hud(prism::DrawCommand::Text {
+            content: format!("Ta classe : {:?}", class),
+            pos: [s.x(0.02) as f32, s.y(0.9) as f32],
+            size: s.font(0.028) as f32,
+            color: [
+                utils::colors::Color::GOLD.r / 255 as f32,
+                utils::colors::Color::GOLD.g / 255 as f32,
+                utils::colors::Color::GOLD.b / 255 as f32,
+                1.0,
+            ],
+            layer: 1,
+        });
     }
+    frame_manager.push(frame);
 }

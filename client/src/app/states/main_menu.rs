@@ -1,5 +1,5 @@
-use crate::core::client::GameNetClient;
 use crate::app::input::Input;
+use crate::core::client::GameNetClient;
 pub enum MenuAction {
     None,
     Solo,
@@ -27,46 +27,66 @@ pub fn handle_input(
     MenuAction::None
 }
 
-pub fn render(d: &mut RaylibDrawHandle, s: &crate::rendering::ScreenScale) {
-    d.clear_background(Color::BLACK);
-    d.draw_text(
-        "PROJECT ALPHA",
-        s.x(0.35),
-        s.y(0.3),
-        s.font(0.08),
-        Color::WHITE,
-    );
-    d.draw_text(
-        "ENTRÉE — SOLO",
-        s.x(0.38),
-        s.y(0.55),
-        s.font(0.03),
-        Color::LIGHTGRAY,
-    );
-
-    d.draw_text(
-        "M - Multijoueur",
-        s.x(0.38),
-        s.y(0.62),
-        s.font(0.03),
-        Color::LIGHTGRAY,
-    );
-    d.draw_text(
-        "ÉCHAP — Quitter",
-        s.x(0.40),
-        s.y(0.77),
-        s.font(0.025),
-        Color::GRAY,
-    );
+pub fn render(frame_manager: &prism::FrameManager, s: &crate::rendering::ScreenScale) {
+    let mut frame = prism::Frame::new();
+    frame.push_hud(prism::DrawCommand::Text {
+        content: "Project Alpha".to_string(),
+        pos: [s.x(0.35) as f32, s.y(0.3) as f32],
+        size: s.font(0.08) as f32,
+        color: [1.0, 1.0, 1.0, 1.0], // BLANC
+        layer: 0,
+    });
+    frame.push_hud(prism::DrawCommand::Text {
+        content: "ENTREE — SOLO".to_string(),
+        pos: [s.x(0.38) as f32, s.y(0.55) as f32],
+        size: s.font(0.03) as f32,
+        color: [
+            utils::colors::Color::LIGHTGRAY.r / 255 as f32,
+            utils::colors::Color::LIGHTGRAY.g / 255 as f32,
+            utils::colors::Color::LIGHTGRAY.b / 255 as f32,
+            1.0,
+        ],
+        layer: 0,
+    });
+    frame.push_hud(prism::DrawCommand::Text {
+        content: "M - Multijoueur".to_string(),
+        pos: [s.x(0.38) as f32, s.y(0.62) as f32],
+        size: s.font(0.03) as f32,
+        color: [
+            utils::colors::Color::LIGHTGRAY.r / 255 as f32,
+            utils::colors::Color::LIGHTGRAY.g / 255 as f32,
+            utils::colors::Color::LIGHTGRAY.b / 255 as f32,
+            1.0,
+        ],
+        layer: 0,
+    });
+    frame.push_hud(prism::DrawCommand::Text {
+        content: "ECHAP - Quitter".to_string(),
+        pos: [s.x(0.40) as f32, s.y(0.77) as f32],
+        size: s.font(0.025) as f32,
+        color: [
+            utils::colors::Color::LIGHTGRAY.r / 255 as f32,
+            utils::colors::Color::LIGHTGRAY.g / 255 as f32,
+            utils::colors::Color::LIGHTGRAY.b / 255 as f32,
+            1.0,
+        ],
+        layer: 0,
+    });
+    frame_manager.push(frame);
 }
 
-pub fn render_connecting(d: &mut RaylibDrawHandle, s: &crate::rendering::ScreenScale) {
-    d.clear_background(Color::BLACK);
-    d.draw_text(
-        "Connexion en cours...",
-        s.x(0.38),
-        s.y(0.48),
-        s.font(0.035),
-        Color::LIGHTGRAY,
-    );
+pub fn render_connecting(frame_manager: &mut prism::FrameManager, s: &crate::rendering::ScreenScale) {
+    let mut frame = prism::Frame::new();
+    frame.push_hud(prism::DrawCommand::Text {
+        content: "Project Alpha".to_string(),
+        pos: [s.x(0.38) as f32, s.y(0.48) as f32],
+        size: s.font(0.035) as f32,
+        color: [
+            utils::colors::Color::LIGHTGRAY.r / 255 as f32,
+            utils::colors::Color::LIGHTGRAY.g / 255 as f32,
+            utils::colors::Color::LIGHTGRAY.b / 255 as f32,
+            1.0,
+        ],
+        layer: 0,
+    });
 }

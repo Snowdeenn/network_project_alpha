@@ -25,7 +25,7 @@ pub enum DrawCommand {
         layer: u8,
     },
     Text {
-        content: glyphon::Buffer,
+        content: String,
         pos: [f32; 2],
         size: f32,
         color: [f32; 4],

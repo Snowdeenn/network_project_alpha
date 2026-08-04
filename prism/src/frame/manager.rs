@@ -15,7 +15,10 @@ impl FrameManager {
 
     // Thread principal — pousse une frame prête
     pub fn push(&self, frame: Frame) {
-        let _ = self.queue.push(frame);
+        match self.queue.push(frame) {
+         Ok(_) => (),
+         Err(_t) => eprintln!("ArrayQueue de frame pleine"),   
+        }
     }
 
     // Thread rendu — consomme la prochaine frame

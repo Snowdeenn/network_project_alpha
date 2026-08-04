@@ -335,10 +335,10 @@ pub fn update(
             content: bufs.gold.to_string(),
         });
 
-        if let Some(shader) = gui.shader_manager.get_mut(gui.ids.shader) {
-            let loc = shader.get_shader_location("u_ratio");
-            shader.set_shader_value(loc, ratio);
-        }
+        // if let Some(shader) = gui.shader_manager.get_mut(gui.ids.shader) {
+        //     let loc = shader.module.get_shader_location("u_ratio");
+        //     shader.set_shader_value(loc, ratio);
+        // }
 
         gui.ui_ctx.send_event(ui::UIEvent::SetText {
             target: gui.ids.hud.wave_label_id,

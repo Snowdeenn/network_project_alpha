@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use utils::ids::{ShaderId, TextureId};
+
 use crate::pass::Pass;
 
 pub struct Renderer {
@@ -192,10 +194,6 @@ impl Renderer {
         (texture, view)
     }
 
-    pub fn frame_manager(&self) -> &crate::FrameManager {
-        &self.frame_manager
-    }
-
     pub fn resize(&mut self, width: u32, height: u32) {
         self.ctx.resize(width, height);
         let (intermediate_a, intermediate_view_a) = Self::create_intermediate(&self.ctx);
@@ -206,7 +204,22 @@ impl Renderer {
         self.intermediate_view_b = intermediate_view_b;
     }
 
-    pub fn texture_mut(&mut  self) -> &mut crate::TextureManager {
+    pub fn load_shader(&mut self, path: &str) -> Option<ShaderId> {
+        self.shaders.load(&self.ctx, path)
+    }
+    pub fn load_texture(&mut self, path: &str) -> Option<TextureId> {
+        self.textures.load(&self.ctx, path)
+    }
+
+    pub fn screen_size(&self) -> winit::dpi::PhysicalSize<u32> {
+        self.ctx.size
+    }
+
+    pub fn frame_manager(&self) -> &crate::FrameManager {
+        &self.frame_manager
+    }
+
+    pub fn texture_mut(&mut self) -> &mut crate::TextureManager {
         &mut self.textures
     }
     pub fn texture(&self) -> &crate::TextureManager {

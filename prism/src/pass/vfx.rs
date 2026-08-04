@@ -36,9 +36,16 @@ impl VfxPass {
     ) -> Self {
         let index_buffer_size = 1024 * 12;
         let vertex_buffer_size = 1024 * 64;
-        let index_buffer = buffers.create_buffer(ctx, index_buffer_size, wgpu::BufferUsages::INDEX);
-        let vertex_buffer =
-            buffers.create_buffer(ctx, vertex_buffer_size, wgpu::BufferUsages::VERTEX);
+        let index_buffer = buffers.create_buffer(
+            ctx,
+            index_buffer_size,
+            wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+        );
+        let vertex_buffer = buffers.create_buffer(
+            ctx,
+            vertex_buffer_size,
+            wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        );
         let camera_buffer = ctx.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Camera Uniform"),
             size: std::mem::size_of::<utils::math::Mat4>() as u64,

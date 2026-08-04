@@ -1,6 +1,4 @@
 // src/renderer/animation_manager.rs
-
-use prism::GpuContext;
 use serde::Deserialize;
 use std::collections::HashMap;
 use utils::arena::Arena;

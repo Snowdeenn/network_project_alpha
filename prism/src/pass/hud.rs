@@ -1,5 +1,5 @@
-use utils::ids::{BufferId, ShaderId};
 use std::sync::Arc;
+use utils::ids::{BufferId, ShaderId};
 
 use crate::{
     context::GpuContext,
@@ -38,9 +38,16 @@ impl HudPass {
     ) -> Self {
         let index_buffer_size = 1024 * 12;
         let vertex_buffer_size = 1024 * 64;
-        let index_buffer = buffers.create_buffer(ctx, index_buffer_size, wgpu::BufferUsages::INDEX);
-        let vertex_buffer =
-            buffers.create_buffer(ctx, vertex_buffer_size, wgpu::BufferUsages::VERTEX);
+        let index_buffer = buffers.create_buffer(
+            ctx,
+            index_buffer_size,
+            wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+        );
+        let vertex_buffer = buffers.create_buffer(
+            ctx,
+            vertex_buffer_size,
+            wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        );
 
         let mesh = RawMesh::with_capacity(1024, 3072);
         let index_count = mesh.indices().len() as u32;
@@ -53,7 +60,7 @@ impl HudPass {
                 fragment_shader: frag_shader,
                 blend_mode: BlendMode::Alpha,
                 vertex_format: VertexFormat::Pos2UvColor,
-                bind_groups: &[],
+                bind_groups: crate::DEFAULT_BIND_GROUPS,
             },
         );
         let text_renderer = TextRenderer::new(ctx, surface_format);
@@ -77,7 +84,12 @@ impl HudPass {
 
 impl Pass for HudPass {
     type Input<'a> = HudInput<'a>;
-    fn prepare<'a>(&mut self, ctx: &GpuContext, buffers: &mut GpuBufferManager, input: &Self::Input<'a> ) {
+    fn prepare<'a>(
+        &mut self,
+        ctx: &GpuContext,
+        buffers: &mut GpuBufferManager,
+        input: &Self::Input<'a>,
+    ) {
         self.mesh.clear();
         for cmd in input.commands.commands() {
             match cmd {
@@ -169,6 +181,6 @@ impl Pass for HudPass {
         hud_render_pass.set_index_buffer(index_buffer.buffer.slice(..), wgpu::IndexFormat::Uint32);
         hud_render_pass.set_vertex_buffer(0, vertex_buffer.buffer.slice(..));
         hud_render_pass.draw_indexed(0..self.index_count, 0, 0..1);
-        self.text_renderer.render(&mut hud_render_pass).unwrap();    
+        self.text_renderer.render(&mut hud_render_pass).unwrap();
     }
 }

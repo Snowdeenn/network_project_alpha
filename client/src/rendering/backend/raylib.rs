@@ -1,6 +1,5 @@
 // Dans rendering/backend/raylib.rs
 use utils::{colors, math};
-use raylib;
 
 pub fn to_raylib_color(c: colors::Color) -> raylib::prelude::Color {
     raylib::prelude::Color::new(c.r, c.g, c.b, c.a)

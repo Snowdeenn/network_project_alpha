@@ -1,7 +1,5 @@
 use utils::{protocol::{EntityKind, StateSnapshot}};
-fn lerp(a: f32, b: f32, t: f32) -> f32 {
-    a + (b - a) * t
-}
+
 
 // =========================================================================
 // CameraShake — système trauma-based
@@ -18,7 +16,7 @@ fn lerp(a: f32, b: f32, t: f32) -> f32 {
 //   let offset = shake.offset();    // appliqué à cam.target
 // =========================================================================
 
-struct CameraShake {
+pub struct CameraShake {
     trauma: f32,
     /// Vitesse de décroissance du trauma par seconde
     decay: f32,
@@ -89,7 +87,7 @@ fn pseudo_noise(t: f32) -> f32 {
 pub struct Camera {
     pos: utils::math::Vec2,
     view: utils::math::Mat4,
-    shake: CameraShake,
+    pub shake: CameraShake,
 }
 
 impl Default for Camera {
@@ -116,6 +114,7 @@ impl Camera {
         self.pos = utils::math::Vec2::new(x, y);
         self.view = utils::math::Mat4::translation(-x, -y, 0.0);
     }
+
 }
 // =========================================================================
 // Update caméra
@@ -142,8 +141,8 @@ pub fn update(
         let prev_pos = prev_player.map(|p| p.position).unwrap_or(curr.position);
 
         let base_target = utils::math::Vec2::new(
-            lerp(prev_pos[0], curr.position[0], t),
-            lerp(prev_pos[1], curr.position[1], t),
+            utils::math::lerp(prev_pos[0], curr.position[0], t),
+            utils::math::lerp(prev_pos[1], curr.position[1], t),
         );
 
         let new_cam_pos = base_target + cam.shake.offset();

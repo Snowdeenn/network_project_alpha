@@ -37,7 +37,10 @@ impl ParticlePool {
 
         Self {
             slots: (0..PARTICLE_POOL_SIZE)
-                .map(|_| Slot { active: false, data: dummy })
+                .map(|_| Slot {
+                    active: false,
+                    data: dummy,
+                })
                 .collect(),
         }
     }
@@ -72,23 +75,32 @@ impl ParticlePool {
         }
     }
 
-    pub fn draw<D: RaylibDraw>(&self, d: &mut RaylibMode2D<D>) {
+    pub fn push_draw_commands(&self, frame: &mut prism::Frame) {
         for slot in &self.slots {
             if !slot.active {
                 continue;
             }
 
             let p = &slot.data;
-            let size = (16.0 * p.scale) as i32;
+            let size = 16.0 * p.scale;
             let progress = (p.lifetime / p.lt_max).clamp(0.0, 1.0);
 
-            d.draw_rectangle(
-                p.pos.x as i32 - (size / 2),
-                p.pos.y as i32 - (size / 2),
-                size,
-                size,
-                p.color.alpha(progress),
-            );
+            frame.push_vfx(prism::DrawCommand::Shape {
+                shape: prism::Shape::Quad {
+                    pos: [p.pos.x - (size / 2.0), p.pos.y - (size / 2.0)],
+                    size: [size; 2],
+                    rotation: 0.0,
+                    color: [
+                        (p.color.r / 255) as f32,
+                        (p.color.g / 255) as f32,
+                        (p.color.b / 255) as f32,
+                        progress.clamp(0.0, 1.0) * 255.0,
+                    ],
+                    uv: None,
+                },
+                blend: prism::BlendMode::Alpha,
+                layer: 1,
+            });
         }
     }
 }

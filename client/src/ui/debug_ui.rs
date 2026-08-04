@@ -1,12 +1,10 @@
 use crate::core::event::{ClientState, DebugMode};
-use raylib::prelude::*;
 
 use imgui;
 
 pub fn process_debug(
     ui: &mut imgui::Ui,
-    d: &mut RaylibDrawHandle,
-    cam: &Camera2D,
+    frame: &mut prism::Frame,
     client_state: &mut ClientState,
 ) {
     let mode = client_state.debug.mode;
@@ -16,31 +14,39 @@ pub fn process_debug(
     }
 
     if mode == DebugMode::Overlay || mode == DebugMode::Interactive {
-        let mut d2 = d.begin_mode2D(cam);
         for rect in &client_state.debug.attack_box {
             let angle_deg = rect.dir[1].atan2(rect.dir[0]).to_degrees();
-            let raylib_rect = Rectangle {
-                x: rect.x,
-                y: rect.y,
-                width: rect.half_length * 2.0,
-                height: rect.half_width * 2.0,
-            };
-            let origin = Vector2 {
-                x: rect.half_length,
-                y: rect.half_width,
-            };
-            d2.draw_rectangle_pro(raylib_rect, origin, angle_deg, Color::new(230, 41, 55, 130));
+            frame.push_hud(prism::DrawCommand::Shape {
+                shape: prism::Shape::Quad {
+                    pos: [rect.x, rect.y],
+                    size: [rect.half_length * 2.0, rect.half_width * 2.0],
+                    rotation: angle_deg,
+                    color: [
+                        (230 / 255) as f32,
+                        (41 / 255 ) as f32,
+                        (55 / 255 ) as f32,
+                        (130 / 255) as f32,
+                    ],
+                    uv: None,
+                },
+                blend: prism::BlendMode::Alpha,
+                layer: 10,
+            });
         }
 
         {
             for collider in &mut client_state.debug.collider.drain(..) {
-                d2.draw_rectangle(
-                    collider.x as i32 - 20,
-                    collider.y as i32 - 20,
-                    40,
-                    40,
-                    Color::GREEN.alpha(50.0),
-                );
+                frame.push_hud(prism::DrawCommand::Shape {
+                    shape: prism::Shape::Quad {
+                        pos: [collider.x - 20.0, collider.y - 20.0],
+                        size: [40.0, 4.0],
+                        rotation: 0.0,
+                        color: [0.0, 1.0, 0.0, 0.5],
+                        uv: None,
+                    },
+                    blend: prism::BlendMode::Alpha,
+                    layer: 10,
+                });
             }
         }
     }

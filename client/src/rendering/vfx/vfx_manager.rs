@@ -244,32 +244,41 @@ impl VfxManager {
     /// Durée totale du trail épée en secondes — les points plus âgés que ça sont invisibles.
     const TRAIL_DURATION: f32 = 0.12;
 
-    pub fn draw<D: RaylibDraw>(&self, d: &mut RaylibMode2D<D>) {
-        self.draw_sword_trails(d);
-        self.draw_slashes(d);
-        self.draw_dash_ghosts(d);
+    pub fn push_draw_commands(&self, frame: &mut prism::Frame) {
+        self.draw_sword_trails(frame);
+        self.draw_slashes(frame);
+        self.draw_dash_ghosts(frame);
         // Les flashes ne sont pas dessinés ici — ils sont queryés lors du rendu des entités
     }
 
-    fn draw_slashes<D: RaylibDraw>(&self, d: &mut RaylibMode2D<D>) {
+    fn draw_slashes(&self, frame: &mut prism::Frame) {
         for slash in self.slashes.iter_active() {
             let progress = (slash.lifetime / slash.lt_max).clamp(0.0, 1.0);
             let color = slash.color.alpha(progress);
             let segments = 16;
 
-            d.draw_ring(
-                slash.pos,
-                slash.inner_r,
-                slash.outer_r,
-                slash.start_angle,
-                slash.end_angle,
-                segments,
-                color,
-            );
+            frame.push_vfx(prism::DrawCommand::Shape {
+                shape: prism::Shape::Ring {
+                    center: [slash.pos.x, slash.pos.y],
+                    inner_r: slash.inner_r,
+                    outer_r: slash.outer_r,
+                    start_angle: slash.start_angle,
+                    end_angle: slash.end_angle,
+                    resolution: segments,
+                    color: [
+                        (color.r / 255) as f32,
+                        (color.g / 255) as f32,
+                        (color.b / 255) as f32,
+                        1.0,
+                    ],
+                },
+                blend: prism::BlendMode::Alpha,
+                layer: 1,
+            });
         }
     }
 
-    fn draw_sword_trails<D: RaylibDraw>(&self, d: &mut RaylibMode2D<D>) {
+    fn draw_sword_trails(&self, frame: &mut prism::Frame) {
         for trail in self.sword_trails.values() {
             let mut prev: Option<(Vec2, f32)> = None;
 
@@ -278,25 +287,48 @@ impl VfxManager {
                     let color = trail.color.alpha(alpha.min(prev_alpha));
                     // Épaisseur qui diminue avec l'âge
                     let thickness = 4.0 * alpha;
-                    d.draw_line_ex(prev_pos, pos, thickness, color);
+                    frame.push_vfx(prism::DrawCommand::Shape {
+                        shape: prism::Shape::Line {
+                            start: [prev_pos.x, prev_pos.y],
+                            end: [pos.x, pos.y],
+                            thickness,
+                            color: [
+                                (color.r / 255) as f32,
+                                (color.g / 255) as f32,
+                                (color.b / 255) as f32,
+                                1.0,
+                            ],
+                        },
+                        blend: prism::BlendMode::Alpha,
+                        layer: 1,
+                    });
                 }
                 prev = Some((pos, alpha));
             }
         }
     }
 
-    fn draw_dash_ghosts<D: RaylibDraw>(&self, d: &mut RaylibMode2D<D>) {
+    fn draw_dash_ghosts(&self, frame: &mut prism::Frame) {
         for ghost in self.dash_ghosts.iter_active() {
             let progress = (ghost.lifetime / ghost.lt_max).clamp(0.0, 1.0);
             let color = ghost.color.alpha(progress * 0.5);
             // Placeholder — sera remplacé par le sprite du joueur avec tint
-            d.draw_rectangle(
-                ghost.pos.x as i32 - 20,
-                ghost.pos.y as i32 - 20,
-                40,
-                40,
-                color,
-            );
+            frame.push_vfx(prism::DrawCommand::Shape {
+                shape: prism::Shape::Quad {
+                    pos: [ghost.pos.x, ghost.pos.y],
+                    size: [40.0, 40.0],
+                    rotation: 0.0,
+                    color: [
+                        (color.r / 255) as f32,
+                        (color.g / 255) as f32,
+                        (color.b / 255) as f32,
+                        1.0,
+                    ],
+                    uv: None,
+                },
+                blend: prism::BlendMode::Alpha,
+                layer: 1,
+            });
         }
     }
 }

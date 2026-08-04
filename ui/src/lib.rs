@@ -19,6 +19,5 @@ pub use crate::output::UIOutputEvent;
 pub use crate::provider::*;
 pub use crate::tween::*;
 
-use crate::node::UiNode;
 pub use utils::arena::{Arena, Id};
 pub type NodeId = Id<UiNode>;

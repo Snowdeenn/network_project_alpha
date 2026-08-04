@@ -8,14 +8,15 @@ use utils::buffer::BufferManager;
 use crate::app::input::Input;
 use crate::app::resources::Resources;
 use crate::app::states::in_game::{InGameIds, InGameScene};
+use crate::app::states::main_menu::MenuAction;
+use crate::core::client::GameNetClient;
 use crate::core::event::AppScreen;
 use crate::graphic_data::asset_manager::AssetManager;
 use crate::rendering::ScreenScale;
+use crate::rendering::camera::Camera;
 use crate::rendering::vfx::particle::ParticlePool;
 use crate::rendering::vfx::vfx_manager::VfxManager;
 use crate::ui::hud;
-use crate::core::client::GameNetClient;
-use crate::app::states::main_menu::MenuAction;
 
 pub struct App {
     window: Option<Arc<winit::window::Window>>,
@@ -24,7 +25,6 @@ pub struct App {
     client: Option<GameNetClient>,
     asset_manager: Option<AssetManager>,
     resource: Resources,
-    event_loop: winit::event_loop::EventLoop<()>,
     client_id: u64,
     in_game_scene: InGameScene,
     screen: AppScreen,
@@ -33,10 +33,11 @@ pub struct App {
     input_state: Input,
     last_frame: std::time::Instant,
     scale: Option<ScreenScale>,
+    cam: Camera,
 }
 
 impl App {
-    pub fn new(event_loop: winit::event_loop::EventLoop<()>) -> Self {
+    pub fn new(_event_loop: &winit::event_loop::EventLoop<()>) -> Self {
         let mut resource = Resources::new();
         resource.insert(VfxManager::new());
         resource.insert(BufferManager::with_capacity(16));
@@ -49,7 +50,6 @@ impl App {
             client: None,
             asset_manager: None,
             resource,
-            event_loop,
             client_id: rand::random::<u64>(),
             in_game_scene: InGameScene::default(),
             screen: AppScreen::MainMenu,
@@ -58,6 +58,7 @@ impl App {
             input_state: Input::new(),
             last_frame,
             scale: None,
+            cam: Camera::default(),
         }
     }
 }
@@ -70,18 +71,18 @@ impl winit::application::ApplicationHandler for App {
         let window = Arc::new(window);
         let renderer = prism::Renderer::new(
             window.clone(),
-            "../graphic_data/shader/default.vert.wgsl",
-            "../graphic_data/shader/default.frag.wgsl",
-            "../graphic_data/shader/default_post.vert.wgsl",
-            "../graphic_data/shader/default_post.frag.wgsl",
+            "client/src/graphic_data/shader/default.vert.wgsl",
+            "client/src/graphic_data/shader/default.frag.wgsl",
+            "client/src/graphic_data/shader/default_post_process.vert.wgsl",
+            "client/src/graphic_data/shader/default_post_process.frag.wgsl",
         );
         let ui_ctx = ui::UiContext::new(
             window.inner_size().width as f32,
             window.inner_size().height as f32,
         );
         let scale = ScreenScale::new(
-            window.inner_size().width as i32, 
-            window.inner_size().height as i32
+            window.inner_size().width as i32,
+            window.inner_size().height as i32,
         );
         let asset_manager = AssetManager::new();
         self.window = Some(window);
@@ -93,15 +94,11 @@ impl winit::application::ApplicationHandler for App {
             .renderer
             .as_mut()
             .unwrap()
-            .shader_mut()
-            .load(
-                &self.renderer.unwrap().ctx(),
-                "../graphic_data/shader/progress_bar.frag.wgsl",
-            )
+            .load_shader("client/src/graphic_data/shader/progress_bar.frag.wgsl")
             .unwrap();
 
-        let hud_node_id = hud::init_hud(&mut self.ui_ctx.unwrap(), sh_id);
-        let shop_id = hud::init_shop(&mut self.ui_ctx.unwrap());
+        let hud_node_id = hud::init_hud(&mut self.ui_ctx.as_mut().unwrap(), sh_id);
+        let shop_id = hud::init_shop(&mut self.ui_ctx.as_mut().unwrap());
         self.in_game_ids = Some(InGameIds {
             shop: shop_id,
             hud: hud_node_id,
@@ -168,32 +165,41 @@ impl winit::application::ApplicationHandler for App {
                     .set_mouse_position(position.x as f32, position.y as f32);
             }
             winit::event::WindowEvent::RedrawRequested => {
-                let frame = self
-                    .renderer
-                    .as_mut()
-                    .unwrap()
-                    .frame_manager()
-                    .pop()
-                    .unwrap();
-                self.renderer.as_mut().unwrap().render(frame);
-                self.input_state.end_frame();
-                self.window.as_ref().unwrap().request_redraw();
+                if let Some(frame) = self.renderer.as_ref().unwrap().frame_manager().pop() {
+                    self.renderer.as_mut().unwrap().render(frame);
+                    self.input_state.end_frame();
+                    self.window.as_ref().unwrap().request_redraw();
+                } else {
+                    eprintln!("Frame est None ArrayQueue vide ?");
+                    return;
+                }
             }
             _ => (),
         }
     }
 
-    fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+    fn about_to_wait(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
         let now = std::time::Instant::now();
         let frame_delta = now.duration_since(self.last_frame);
         self.last_frame = now;
         let dt = frame_delta.as_secs_f32();
+        let mut frame = prism::Frame::new();
+        frame.camera = {
+            let size = self.renderer.as_ref().unwrap().ctx().size;
+            self.cam
+                .get_view_proj(size.width as f32, size.height as f32)
+        };
 
+        let screen_size = self.renderer.as_ref().unwrap().screen_size();
         if let Some(ref mut c) = self.client {
             c.update(frame_delta);
 
             while let Some(msg) = c.recv_lobby_message() {
-                crate::app::states::lobby::handle_lobby_message(msg, &mut self.screen, &mut self.is_solo);
+                crate::app::states::lobby::handle_lobby_message(
+                    msg,
+                    &mut self.screen,
+                    &mut self.is_solo,
+                );
             }
         }
 
@@ -218,12 +224,11 @@ impl winit::application::ApplicationHandler for App {
                 }
 
                 // Rendu Main Menu
-                let mut d = self.renderer.rl.begin_drawing(&self.renderer.thread);
                 match &self.client {
-                    None => crate::app::states::main_menu::render(&mut d, &self.renderer.screen_scale),
+                    None => crate::app::states::main_menu::render(&mut frame, &self.scale.unwrap()),
                     Some(_) => crate::app::states::main_menu::render_connecting(
-                        &mut d,
-                        &self.renderer.screen_scale,
+                        &mut frame,
+                        &self.scale.unwrap(),
                     ),
                 }
             }
@@ -235,44 +240,45 @@ impl winit::application::ApplicationHandler for App {
                 }
 
                 // Rendu Lobby
-                let mut d = self.renderer.rl.begin_drawing(&self.renderer.thread);
-                crate::app::states::lobby::render(&mut d, state, &self.renderer.screen_scale);
+                crate::app::states::lobby::render(&mut frame, state, &self.scale.unwrap());
             }
 
             AppScreen::InGame(client_state) => {
                 let client = self.client.as_mut().expect("InGame sans client réseau");
 
                 let mut gui_ctx = crate::app::states::in_game::GuiContext {
-                    ui_ctx: &mut self.ui_ctx.unwrap(),
-                    shader_manager: &mut self.shader_manager,
-                    ids: &self.ingame_ids,
+                    ui_ctx: &mut self.ui_ctx.as_mut().unwrap(),
+                    shader_manager: self.renderer.as_mut().unwrap().shader_mut(),
+                    ids: &self.in_game_ids.as_ref().unwrap(),
                 };
 
                 // Mise à jour logique de la partie
-                self.ingame_scene.update(
+                self.in_game_scene.update(
                     &mut self.resource,
                     client,
-                    &mut self.renderer,
+                    screen_size,
                     client_state,
                     &mut gui_ctx,
+                    &self.input_state,
+                    &self.scale.unwrap(),
+                    &mut self.cam,
                     dt,
                 );
 
                 // Rendu de la frame
-                self.ingame_scene.render(
-                    &mut self.renderer,
-                    client_state,
-                    &mut crate::rendering::types::RenderContext {
-                        buffer: &mut self.draw_buffer,
-                        shader_manager: &mut self.shader_manager,
-                        ui_ctx: &mut self.ui_ctx.unwrap(),
-                    },
-                    &mut self.resource,
-                );
+                self.in_game_scene
+                    .render(&mut frame, client_state, &mut self.resource, dt);
             }
         }
+        self.renderer.as_ref().unwrap().frame_manager().push(frame);
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
 
-        if self.input_state.is_pressed(winit::keyboard::KeyCode::Escape) {
+        if self
+            .input_state
+            .is_pressed(winit::keyboard::KeyCode::Escape)
+        {
             std::process::exit(0);
         }
     }

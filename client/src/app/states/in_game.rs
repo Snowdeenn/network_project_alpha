@@ -11,10 +11,9 @@ use crate::app::resources::Resources;
 use crate::core::client::GameNetClient;
 use crate::core::config;
 use crate::core::event::{ClientState, handle_shop_ui_event};
-use crate::rendering::{Renderer, ScreenScale};
+use crate::graphic_data::animation::AnimEntityManager;
+use crate::rendering::ScreenScale;
 use crate::rendering::camera::{self, Camera};
-use crate::rendering::shader_manager::ShaderManager;
-use crate::rendering::types::{FrameState, RenderContext};
 use crate::rendering::vfx::particle::{Particle, ParticlePool};
 use crate::rendering::vfx::vfx_manager::VfxManager;
 use crate::ui::hud::{self, HudIds, ShopHudIds};
@@ -81,7 +80,7 @@ pub struct InGameIds {
 
 pub struct GuiContext<'a> {
     pub ui_ctx: &'a mut ui::UiContext,
-    pub shader_manager: &'a mut ShaderManager,
+    pub shader_manager: &'a mut prism::ShaderManager,
     pub ids: &'a InGameIds,
 }
 
@@ -89,6 +88,7 @@ pub struct InGameScene {
     pub snapshots: Snapshots,
     pub ticks: Ticks,
     pub hud_buffers: HudBuffers,
+    pub anim_entities: AnimEntityManager,
 }
 
 impl Default for InGameScene {
@@ -97,6 +97,7 @@ impl Default for InGameScene {
             snapshots: Snapshots::default(),
             ticks: Ticks::default(),
             hud_buffers: HudBuffers::new(),
+            anim_entities: AnimEntityManager::new(),
         }
     }
 }
@@ -106,7 +107,7 @@ impl InGameScene {
         &mut self,
         resources: &mut Resources,
         client: &mut GameNetClient,
-        renderer: &mut prism::Renderer,
+        screen_size: winit::dpi::PhysicalSize<u32>,
         client_state: &mut ClientState,
         gui: &mut GuiContext,
         input_state: &Input,
@@ -119,10 +120,10 @@ impl InGameScene {
         }
 
         self.process_snapshots(client, gui, resources);
-        self.process_game_event(client, client_state, gui, resources);
+        self.process_game_event(client, client_state, gui, resources, cam);
         self.handle_ui(client_state, gui, input_state);
         self.handle_shop(scale, client, client_state, gui, input_state);
-        self.process_network_ticks(client, renderer.ctx().size, input_state);
+        self.process_network_ticks(client, screen_size, input_state);
 
         // Mises à jour logiques
         client_state.update_timers(dt);
@@ -133,24 +134,49 @@ impl InGameScene {
 
         // Caméra & UI
         self.update_camera(cam);
-        self.shake.update(dt);
         gui.ui_ctx.update(dt);
     }
 
     pub fn render(
         &mut self,
-        renderer: &mut Renderer,
+        frame: &mut prism::Frame,
         client_state: &mut ClientState,
-        ctx: &mut RenderContext,
         resources: &mut Resources,
+        dt: f32,
     ) {
-        let frame_state = FrameState {
-            current: self.snapshots.last_snapshot.as_ref(),
-            prev: self.snapshots.prev_snapshot.as_ref(),
-            last_snap_time: self.snapshots.last_snap_time,
-        };
+        let t = (self.snapshots.last_snap_time.elapsed().as_secs_f32()
+            / Ticks::TICK_DURATION.as_secs_f32())
+        .clamp(0.0, 1.0);
 
-        renderer.render_frame(frame_state, client_state, ctx, resources);
+        match &client_state.phase {
+            crate::core::event::GamePhase::Dead => {
+                frame.push_world(prism::DrawCommand::Text {
+                    content: "YOU'RE DEAD".to_string(),
+                    pos: [400.0, 300.0],
+                    size: 64.0,
+                    color: [1.0, 0.0, 0.0, 1.0],
+                    layer: 0,
+                });
+            }
+            _ => {
+                if let Some(curr) = &self.snapshots.last_snapshot {
+                    crate::rendering::render_world(
+                        frame,
+                        resources,
+                        &mut self.anim_entities,
+                        self.snapshots.prev_snapshot.as_ref(),
+                        curr,
+                        t,
+                        dt,
+                    );
+
+                    let vfx = resources.read_resource::<VfxManager>();
+                    vfx.push_draw_commands(frame);
+                }
+            }
+        }
+
+        crate::rendering::render_hud(frame, client_state);
     }
 
     /// Réception des snapshots, MAJ du HUD et génération des particules de mouvement
@@ -226,15 +252,16 @@ impl InGameScene {
         state: &mut ClientState,
         gui: &mut GuiContext,
         resources: &mut Resources,
+        cam: &mut Camera
     ) {
         while let Some(event) = client.recv_event() {
-            self.handle_vfx_event(&event, resources);
+            self.handle_vfx_event(&event, cam, resources);
             handle_shop_ui_event(&event, gui.ui_ctx, &gui.ids.shop);
             state.handle_event(event);
         }
     }
 
-    fn handle_vfx_event(&mut self, event: &GameEvent, resources: &mut Resources) {
+    fn handle_vfx_event(&mut self, event: &GameEvent, cam: &mut Camera, resources: &mut Resources) {
         match event.kind {
             GameEventKind::EntityHit { pos } => {
                 let mut particle_pool = resources.write_resource::<ParticlePool>();
@@ -253,7 +280,7 @@ impl InGameScene {
                         color: utils::colors::Color::DARKGOLDENROD,
                     })
                 }
-                self.shake.add_trauma(0.4);
+                cam.shake.add_trauma(0.4);
             }
             GameEventKind::SpawnRect {
                 x,
@@ -315,8 +342,7 @@ impl InGameScene {
         }
 
         if client_state.phase.can_show_shop()
-            && input_state
-                .is_mouse_pressed(winit::event::MouseButton::Left)
+            && input_state.is_mouse_pressed(winit::event::MouseButton::Left)
         {
             let mouse_pos = input_state.mouse_position();
             let card_y = scale.y(config::SHOP_CARD_Y);
@@ -371,12 +397,7 @@ impl InGameScene {
             let t = (self.snapshots.last_snap_time.elapsed().as_secs_f32()
                 / Ticks::TICK_DURATION.as_secs_f32())
             .clamp(0.0, 1.0);
-            camera::update(
-                cam,
-                self.snapshots.prev_snapshot.as_ref(),
-                curr,
-                t,
-            );
+            camera::update(cam, self.snapshots.prev_snapshot.as_ref(), curr, t);
         }
     }
 }

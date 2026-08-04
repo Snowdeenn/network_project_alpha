@@ -19,7 +19,7 @@ impl AssetManager {
     /// Charge une texture unique et retourne son TextureId générationnel
     pub fn load_texture(
         &mut self,
-        ctx: &GpuContext,
+        ctx: &prism::GpuContext,
         path: &str,
     ) -> Option<TextureId> {
         self.textures.load(ctx, path)

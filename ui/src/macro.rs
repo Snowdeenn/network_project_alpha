@@ -67,7 +67,7 @@ macro_rules! progress_bar {
     }};
     (ctx: $ctx:expr, parent: $parent:expr, anchor: $anchor:expr, 
         offset: $offset:expr, size: $size:expr, bg: $bg:expr, fill_color: $fill_color:expr, shader: $shader:expr, $(,)?) => {{
-        use raylib::math::Vector2;
+        use utils::math::Vec2;
         use ui::node::{Anchor, LayoutProps, UiVec2, VisualKind, VisualProps};
 
         let bg_id = $ctx.add_node(

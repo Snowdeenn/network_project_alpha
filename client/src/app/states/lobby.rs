@@ -44,10 +44,10 @@ pub fn handle_lobby_message(msg: LobbyMessage, screen: &mut AppScreen, is_solo: 
 
 pub fn handle_input(input_state: &Input, state: &mut LobbyScreenState, client: &mut GameNetClient) {
     let class_keys = [
-        (winit::keyboard::KeyCode::Key1, PlayerClass::Warrior),
-        (winit::keyboard::KeyCode::Key2, PlayerClass::Assassin),
-        (winit::keyboard::KeyCode::Key3, PlayerClass::Mage),
-        (winit::keyboard::KeyCode::Key4, PlayerClass::Tank),
+        (winit::keyboard::KeyCode::Numpad1, PlayerClass::Warrior),
+        (winit::keyboard::KeyCode::Numpad2, PlayerClass::Assassin),
+        (winit::keyboard::KeyCode::Numpad3, PlayerClass::Mage),
+        (winit::keyboard::KeyCode::Numpad4, PlayerClass::Tank),
     ];
 
     for (key, class) in class_keys {
@@ -74,16 +74,15 @@ pub fn handle_input(input_state: &Input, state: &mut LobbyScreenState, client: &
     }
 }
 
-pub fn render(frame_manager: &prism::FrameManager, state: &LobbyScreenState, s: &ScreenScale) {
-    let mut frame = prism::Frame::new();
+pub fn render(frame: &mut prism::Frame, state: &LobbyScreenState, s: &ScreenScale) {
     frame.push_hud(prism::DrawCommand::Text {
         content: format!("Code : {}", state.code),
         pos: [s.x(0.02) as f32, s.y(0.02) as f32],
         size: s.font(0.03) as f32,
         color: [
-            utils::colors::Color::GOLD.r / 255 as f32,
-            utils::colors::Color::GOLD.g / 255 as f32,
-            utils::colors::Color::GOLD.b / 255 as f32,
+            (utils::colors::Color::GOLD.r / 255) as f32,
+            (utils::colors::Color::GOLD.g / 255) as f32,
+            (utils::colors::Color::GOLD.b / 255) as f32,
             1.0,
         ],
         layer: 0,
@@ -108,9 +107,9 @@ pub fn render(frame_manager: &prism::FrameManager, state: &LobbyScreenState, s: 
                 size: [w as f32, h as f32],
                 rotation: 0.0,
                 color: [
-                    utils::colors::Color::DARKGRAY.r / 255 as f32,
-                    utils::colors::Color::DARKGRAY.g / 255 as f32,
-                    utils::colors::Color::DARKGRAY.b / 255 as f32,
+                    (bg.r / 255) as f32,
+                    (bg.g / 255) as f32,
+                    (bg.b / 255) as f32,
                     1.0,
                 ],
                 uv: None,
@@ -125,9 +124,9 @@ pub fn render(frame_manager: &prism::FrameManager, state: &LobbyScreenState, s: 
                     pos: [(x + s.x(0.02)) as f32, (y + s.y(0.12)) as f32],
                     size: s.font(0.02) as f32,
                     color: [
-                        utils::colors::Color::GRAY.r / 255 as f32,
-                        utils::colors::Color::GRAY.b / 255 as f32,
-                        utils::colors::Color::GRAY.g / 255 as f32,
+                        (utils::colors::Color::GRAY.r / 255) as f32,
+                        (utils::colors::Color::GRAY.b / 255) as f32,
+                        (utils::colors::Color::GRAY.g / 255) as f32,
                         1.0,
                     ],
                     layer: 1,
@@ -158,9 +157,9 @@ pub fn render(frame_manager: &prism::FrameManager, state: &LobbyScreenState, s: 
                     pos: [(x + s.x(0.01)) as f32, (y + s.y(0.1)) as f32],
                     size: s.font(0.022) as f32,
                     color: [
-                        utils::colors::Color::SKYBLUE.r / 255 as f32,
-                        utils::colors::Color::SKYBLUE.g / 255 as f32,
-                        utils::colors::Color::SKYBLUE.b / 255 as f32,
+                        (utils::colors::Color::SKYBLUE.r / 255) as f32,
+                        (utils::colors::Color::SKYBLUE.g / 255) as f32,
+                        (utils::colors::Color::SKYBLUE.b / 255) as f32,
                         1.0,
                     ],
                     layer: 1,
@@ -184,9 +183,9 @@ pub fn render(frame_manager: &prism::FrameManager, state: &LobbyScreenState, s: 
                     pos: [(x + s.x(0.01)) as f32, (y + s.y(0.2)) as f32],
                     size: s.font(0.022) as f32,
                     color: [
-                        ready_color.r / 255 as f32,
-                        ready_color.g / 255 as f32,
-                        ready_color.b / 255 as f32,
+                        (ready_color.r / 255) as f32,
+                        (ready_color.g / 255) as f32,
+                        (ready_color.b / 255) as f32,
                         1.0,
                     ],
                     layer: 1,
@@ -198,9 +197,9 @@ pub fn render(frame_manager: &prism::FrameManager, state: &LobbyScreenState, s: 
                         pos: [x as f32, y as f32],
                         uv: [0.0, 0.0],
                         color: [
-                            utils::colors::Color::GOLD.r / 255 as f32,
-                            utils::colors::Color::GOLD.g / 255 as f32,
-                            utils::colors::Color::GOLD.b / 255 as f32,
+                            (utils::colors::Color::GOLD.r / 255) as f32,
+                            (utils::colors::Color::GOLD.g / 255) as f32,
+                            (utils::colors::Color::GOLD.b / 255) as f32,
                             1.0,
                         ],
                     });
@@ -208,9 +207,9 @@ pub fn render(frame_manager: &prism::FrameManager, state: &LobbyScreenState, s: 
                         pos: [(x + w) as f32, y as f32],
                         uv: [0.0, 0.0],
                         color: [
-                            utils::colors::Color::GOLD.r / 255 as f32,
-                            utils::colors::Color::GOLD.g / 255 as f32,
-                            utils::colors::Color::GOLD.b / 255 as f32,
+                            (utils::colors::Color::GOLD.r / 255) as f32,
+                            (utils::colors::Color::GOLD.g / 255) as f32,
+                            (utils::colors::Color::GOLD.b / 255) as f32,
                             1.0,
                         ],
                     });
@@ -218,9 +217,9 @@ pub fn render(frame_manager: &prism::FrameManager, state: &LobbyScreenState, s: 
                         pos: [x as f32, (y + h) as f32],
                         uv: [0.0, 0.0],
                         color: [
-                            utils::colors::Color::GOLD.r / 255 as f32,
-                            utils::colors::Color::GOLD.g / 255 as f32,
-                            utils::colors::Color::GOLD.b / 255 as f32,
+                            (utils::colors::Color::GOLD.r / 255) as f32,
+                            (utils::colors::Color::GOLD.g / 255) as f32,
+                            (utils::colors::Color::GOLD.b / 255) as f32,
                             1.0,
                         ],
                     });
@@ -228,9 +227,9 @@ pub fn render(frame_manager: &prism::FrameManager, state: &LobbyScreenState, s: 
                         pos: [(x + w) as f32, (y + h) as f32],
                         uv: [0.0, 0.0],
                         color: [
-                            utils::colors::Color::GOLD.r / 255 as f32,
-                            utils::colors::Color::GOLD.g / 255 as f32,
-                            utils::colors::Color::GOLD.b / 255 as f32,
+                            (utils::colors::Color::GOLD.r / 255) as f32,
+                            (utils::colors::Color::GOLD.g / 255) as f32,
+                            (utils::colors::Color::GOLD.b / 255) as f32,
                             1.0,
                         ],
                     });
@@ -252,9 +251,9 @@ pub fn render(frame_manager: &prism::FrameManager, state: &LobbyScreenState, s: 
         pos: [s.x(0.25) as f32, s.y(0.75) as f32],
         size: s.font(0.025) as f32,
         color: [
-            utils::colors::Color::LIGHTGRAY.r / 255 as f32,
-            utils::colors::Color::LIGHTGRAY.g / 255 as f32,
-            utils::colors::Color::LIGHTGRAY.b / 255 as f32,
+            (utils::colors::Color::LIGHTGRAY.r / 255) as f32,
+            (utils::colors::Color::LIGHTGRAY.g / 255) as f32,
+            (utils::colors::Color::LIGHTGRAY.b / 255) as f32,
             1.0,
         ],
         layer: 1,
@@ -266,13 +265,12 @@ pub fn render(frame_manager: &prism::FrameManager, state: &LobbyScreenState, s: 
             pos: [s.x(0.02) as f32, s.y(0.9) as f32],
             size: s.font(0.028) as f32,
             color: [
-                utils::colors::Color::GOLD.r / 255 as f32,
-                utils::colors::Color::GOLD.g / 255 as f32,
-                utils::colors::Color::GOLD.b / 255 as f32,
+                (utils::colors::Color::GOLD.r / 255) as f32,
+                (utils::colors::Color::GOLD.g / 255) as f32,
+                (utils::colors::Color::GOLD.b / 255) as f32,
                 1.0,
             ],
             layer: 1,
         });
     }
-    frame_manager.push(frame);
 }

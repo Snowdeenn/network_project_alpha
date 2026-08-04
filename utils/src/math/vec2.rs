@@ -1,6 +1,6 @@
-use std::ops::{Add, Mul, Sub};
+use std::ops::{Add, AddAssign, Mul, Sub};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct Vec2 {
     pub x: f32,
     pub y: f32,
@@ -69,5 +69,12 @@ impl PartialEq for Vec2 {
     }
     fn ne(&self, other: &Self) -> bool {
         self.x != other.x || self.y != other.y
+    }
+}
+
+impl AddAssign for Vec2 {
+    fn add_assign(&mut self, rhs: Self) {
+        self.x += rhs.x;
+        self.y += rhs.x;
     }
 }

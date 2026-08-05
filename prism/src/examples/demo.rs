@@ -1,4 +1,4 @@
-// examples/demo.rs  (ou src/bin/demo.rs)
+// examples/demo.rs
 //
 // Démo visuelle — validation GPU complète du renderer prism.
 //
@@ -13,14 +13,10 @@
 //   • Un quad slanted violet sur le HUD         (HudPass)
 //   • Du texte blanc "PRISM DEMO" en haut       (HudPass, TextRenderer)
 //
-// Dépendances dans Cargo.toml de la crate prism :
-//   [dev-dependencies]
-//   winit = "0.30"
-//   pollster = "0.3"       # pour bloquer sur async dans main
-//
-// Lancer avec :  cargo run --example demo
+// Lancer avec :  cargo run -p prism --example demo
 
-use std::sync::Arc;
+use prism::Pass;
+use std::sync::Arc; // Ou use prism::passes::RenderPass; selon ton nom de trait
 
 use winit::{
     application::ApplicationHandler,
@@ -30,37 +26,13 @@ use winit::{
     window::{Window, WindowAttributes, WindowId},
 };
 
-use prism::{
-    context::GpuContext,
-    draw::{
-        batch::DrawCommandBuffer,
-        commands::DrawCommand,
-    },
-    geometry::shape::Shape,
-    pass::{
-        hud::{HudPass},
-        vfx::VfxPass,
-        world::WorldPass,
-        Pass, HudInput, VfxInput, WorldInput,
-    },
-    resource::{
-        buffer::GpuBufferManager,
-        pipeline::PipelineManager,
-        shader::ShaderManager,
-    },
-};
-use shared::math::Mat4;
+use utils::math::Mat4;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers : conversion coordonnées écran → clip space
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Convertit des coordonnées pixel (0..width, 0..height) en clip space (-1..1).
-///
-/// Le shader basique attend des positions déjà en clip space.
-/// Cette fonction fait la conversion pour rendre la démo lisible.
-///
-/// Clip space wgpu : x ∈ [-1, 1] (gauche → droite), y ∈ [-1, 1] (BAS → HAUT)
 fn px_to_clip(px: f32, py: f32, w: f32, h: f32) -> [f32; 2] {
     let cx = (px / w) * 2.0 - 1.0;
     let cy = 1.0 - (py / h) * 2.0; // Y inversé : pixel 0 = haut écran = clip +1
@@ -78,15 +50,15 @@ fn size_to_clip(sw: f32, sh: f32, w: f32, h: f32) -> [f32; 2] {
 
 struct Demo {
     // GPU
-    ctx: GpuContext,
-    buffers: GpuBufferManager,
-    shaders: ShaderManager,
-    pipelines: PipelineManager,
+    ctx: prism::GpuContext,
+    buffers: prism::GpuBufferManager,
+    shaders: prism::ShaderManager,
+    pipelines: prism::PipelineManager,
 
     // Passes
-    world: WorldPass,
-    vfx: VfxPass,
-    hud: HudPass,
+    world: prism::WorldPass,
+    vfx: prism::VfxPass,
+    hud: prism::HudPass,
 
     // Fenêtre
     window: Arc<Window>,
@@ -97,32 +69,26 @@ impl Demo {
         let size = window.inner_size();
 
         // ── GpuContext ───────────────────────────────────────────────────────
-        let mut ctx = GpuContext::new_for_demo(window.clone()).await
+        let mut ctx = prism::GpuContext::new(window.clone())
+            .await
             .expect("Impossible de créer le GpuContext");
         ctx.resize(size.width, size.height);
 
         // ── Ressources ───────────────────────────────────────────────────────
-        let mut buffers = GpuBufferManager::new();
-        let mut shaders = ShaderManager::new();
+        let mut buffers = prism::GpuBufferManager::new();
+        let mut shaders = prism::ShaderManager::new();
 
         // Shader unique partagé par toutes les passes
-        // On le charge depuis le fichier — ajuster le chemin selon ton layout de projet.
-        // Si le fichier n'existe pas encore, on utilise la version inline ci-dessous.
-        let shader_path = "shaders/basic.wgsl";
-        let vert_id = match shaders.load(&ctx, shader_path) {
-            Some(id) => id,
-            None => {
-                // Fallback inline si le fichier est absent
-                shaders.load_inline(&ctx, BASIC_WGSL_INLINE, "basic_inline")
-            }
-        };
+
+        let vert_id = shaders.load_inline(&ctx, BASIC_WGSL_INLINE, "basic_inline");
+
         let frag_id = vert_id; // même module WGSL pour vs_main et fs_main
 
         let surface_format = ctx.surface_format();
-        let mut pipelines = PipelineManager::new(surface_format);
+        let mut pipelines = prism::PipelineManager::new(surface_format);
 
         // ── Passes ───────────────────────────────────────────────────────────
-        let world = WorldPass::new(
+        let world = prism::WorldPass::new(
             &ctx,
             &mut buffers,
             &mut pipelines,
@@ -130,7 +96,7 @@ impl Demo {
             vert_id,
             frag_id,
         );
-        let vfx = VfxPass::new(
+        let vfx = prism::VfxPass::new(
             &ctx,
             &mut buffers,
             &mut pipelines,
@@ -138,7 +104,7 @@ impl Demo {
             vert_id,
             frag_id,
         );
-        let hud = HudPass::new(
+        let hud = prism::HudPass::new(
             &ctx,
             &mut buffers,
             &mut pipelines,
@@ -162,153 +128,162 @@ impl Demo {
 
     fn render(&mut self) {
         let size = self.window.inner_size();
+
+        // Si la fenêtre est minimisée ou invisible, on ne dessine PAS
+        if size.width == 0 || size.height == 0 {
+            return;
+        }
         let w = size.width as f32;
         let h = size.height as f32;
 
         // ── Commandes WorldPass ───────────────────────────────────────────────
-        let mut world_cmds = DrawCommandBuffer::new(32);
+        let mut world_cmds = prism::DrawCommandBuffer::new(32);
 
         // Quad rouge centré (200×200 px)
-        world_cmds.push(DrawCommand::Shape {
-            shape: Shape::Quad {
+        world_cmds.push(prism::DrawCommand::Shape {
+            shape: prism::Shape::Quad {
                 pos: px_to_clip(w * 0.5 - 100.0, h * 0.5 - 100.0, w, h),
                 size: size_to_clip(200.0, 200.0, w, h),
                 rotation: 0.0,
                 color: [0.9, 0.15, 0.15, 1.0],
                 uv: None,
             },
-            blend: prism::resource::pipeline::BlendMode::Alpha,
+            blend: prism::BlendMode::Alpha,
             layer: 0,
         });
 
         // Hexagone vert en haut-gauche (rayon 80px)
-        world_cmds.push(DrawCommand::Shape {
-            shape: Shape::Polygon {
+        world_cmds.push(prism::DrawCommand::Shape {
+            shape: prism::Shape::Polygon {
                 center: px_to_clip(120.0, 120.0, w, h),
                 sides: 6,
-                radius: (80.0 / w) * 2.0, // rayon en clip space (axe X)
+                radius: (80.0 / w) * 2.0,
                 color: [0.2, 0.85, 0.3, 1.0],
             },
-            blend: prism::resource::pipeline::BlendMode::Alpha,
+            blend: prism::BlendMode::Alpha,
             layer: 0,
         });
 
         // Anneau blanc partiel en bas (arc de 0° à 210°)
-        world_cmds.push(DrawCommand::Shape {
-            shape: Shape::Ring {
+        world_cmds.push(prism::DrawCommand::Shape {
+            shape: prism::Shape::Ring {
                 center: px_to_clip(w * 0.5, h - 100.0, w, h),
                 inner_r: (60.0 / w) * 2.0,
                 outer_r: (90.0 / w) * 2.0,
                 start_angle: 0.0,
-                end_angle: std::f32::consts::PI * 1.167, // ~210°
+                end_angle: std::f32::consts::PI * 1.167,
                 resolution: 48,
                 color: [0.9, 0.9, 0.9, 0.8],
             },
-            blend: prism::resource::pipeline::BlendMode::Alpha,
+            blend: prism::BlendMode::Alpha,
             layer: 0,
         });
 
         // Croix de deux lignes jaunes
         let cross_cx = px_to_clip(w * 0.75, h * 0.5, w, h);
         let thick = (3.0 / w) * 2.0;
-        world_cmds.push(DrawCommand::Shape {
-            shape: Shape::Line {
+        world_cmds.push(prism::DrawCommand::Shape {
+            shape: prism::Shape::Line {
                 start: [cross_cx[0] - 0.1, cross_cx[1]],
-                end:   [cross_cx[0] + 0.1, cross_cx[1]],
+                end: [cross_cx[0] + 0.1, cross_cx[1]],
                 thickness: thick,
                 color: [1.0, 0.95, 0.1, 1.0],
             },
-            blend: prism::resource::pipeline::BlendMode::Alpha,
+            blend: prism::BlendMode::Alpha,
             layer: 0,
         });
-        world_cmds.push(DrawCommand::Shape {
-            shape: Shape::Line {
+        world_cmds.push(prism::DrawCommand::Shape {
+            shape: prism::Shape::Line {
                 start: [cross_cx[0], cross_cx[1] - 0.15],
-                end:   [cross_cx[0], cross_cx[1] + 0.15],
+                end: [cross_cx[0], cross_cx[1] + 0.15],
                 thickness: thick,
                 color: [1.0, 0.95, 0.1, 1.0],
             },
-            blend: prism::resource::pipeline::BlendMode::Alpha,
+            blend: prism::BlendMode::Alpha,
             layer: 0,
         });
 
         // ── Commandes VfxPass (Additive) ─────────────────────────────────────
-        let mut vfx_cmds = DrawCommandBuffer::new(8);
+        let mut vfx_cmds = prism::DrawCommandBuffer::new(8);
 
         // Quad orange semi-transparent centré-décalé (effet glow simulé)
-        vfx_cmds.push(DrawCommand::Shape {
-            shape: Shape::Quad {
+        vfx_cmds.push(prism::DrawCommand::Shape {
+            shape: prism::Shape::Quad {
                 pos: px_to_clip(w * 0.5 - 60.0, h * 0.5 - 60.0, w, h),
                 size: size_to_clip(120.0, 120.0, w, h),
-                rotation: std::f32::consts::FRAC_PI_4, // 45°
+                rotation: std::f32::consts::FRAC_PI_4,
                 color: [1.0, 0.4, 0.0, 0.35],
                 uv: None,
             },
-            blend: prism::resource::pipeline::BlendMode::Additive,
+            blend: prism::BlendMode::Additive,
             layer: 1,
         });
 
         // ── Commandes HudPass ─────────────────────────────────────────────────
-        let mut hud_cmds = DrawCommandBuffer::new(16);
+        let mut hud_cmds = prism::DrawCommandBuffer::new(16);
 
-        // Rounded rect gris semi-transparent en haut-droit (mini-panneau HUD)
-        hud_cmds.push(DrawCommand::Shape {
-            shape: Shape::RoundedRect {
+        // Rounded rect gris semi-transparent en haut-droit
+        hud_cmds.push(prism::DrawCommand::Shape {
+            shape: prism::Shape::RoundedRect {
                 pos: px_to_clip(w - 220.0, 20.0, w, h),
                 size: size_to_clip(200.0, 80.0, w, h),
                 radius: (8.0 / w) * 2.0,
                 segments: 4,
                 color: [0.1, 0.1, 0.1, 0.75],
             },
-            blend: prism::resource::pipeline::BlendMode::Alpha,
+            blend: prism::BlendMode::Alpha,
             layer: 2,
         });
 
-        // SlantedQuad violet (barre de style "énergie" dans le HUD)
-        hud_cmds.push(DrawCommand::Shape {
-            shape: Shape::SlantedQuad {
+        // SlantedQuad violet
+        hud_cmds.push(prism::DrawCommand::Shape {
+            shape: prism::Shape::SlantedQuad {
                 pos: px_to_clip(w - 215.0, 30.0, w, h),
                 size: size_to_clip(150.0, 20.0, w, h),
                 skew: (6.0 / w) * 2.0,
                 color: [0.6, 0.1, 0.9, 0.9],
             },
-            blend: prism::resource::pipeline::BlendMode::Alpha,
+            blend: prism::BlendMode::Alpha,
             layer: 2,
         });
 
-        // Texte "PRISM DEMO" en haut au centre
-        // Note : glyphon::Buffer n'est pas constructible ici sans FontSystem.
-        // Dans un vrai jeu, le TextRenderer est alimenté via le HudState.
-        // Pour la démo on saute le DrawCommand::Text (le TextRenderer s'appelle
-        // depuis HudPass.prepare qui lit les DrawCommand::Text — si aucun n'est
-        // présent, la passe de texte est simplement vide, ce qui est valide).
-
         // ── Rendu ─────────────────────────────────────────────────────────────
-        let frame = self.ctx.current_texture()
-            .expect("Impossible d'acquérir la surface");
-        let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let surface_texture = match self.ctx.current_texture() {
+            wgpu::CurrentSurfaceTexture::Success(t) => t,
+            wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
+            wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
+                self.ctx.reconfigure();
+                return;
+            }
+            _ => return,
+        };
+
         let mut encoder = self.ctx.create_encoder("demo_frame");
 
-        let world_input = WorldInput {
+        let world_input = prism::WorldInput {
             commands: &world_cmds,
             camera: Mat4::identity(),
         };
-        self.world.prepare(&self.ctx, &mut self.buffers, &world_input);
-        self.world.execute(&mut encoder, &view, &self.buffers);
+        self.world
+            .prepare(&self.ctx, &mut self.buffers, &world_input);
+        self.world.execute(&mut encoder, &surface_texture.texture.create_view(&wgpu::TextureViewDescriptor::default()), &self.buffers);
 
-        let vfx_input = VfxInput { commands: &vfx_cmds };
+        let vfx_input = prism::VfxInput {
+            commands: &vfx_cmds,
+            camera: Mat4::identity(),
+        };
         self.vfx.prepare(&self.ctx, &mut self.buffers, &vfx_input);
-        self.vfx.execute(&mut encoder, &view, &self.buffers);
+        self.vfx.execute(&mut encoder, &surface_texture.texture.create_view(&wgpu::TextureViewDescriptor::default()), &self.buffers);
 
-        let hud_input = HudInput {
+        let hud_input = prism::HudInput {
             commands: &hud_cmds,
-            text: &self.hud.text_renderer(), // accessor à ajouter sur HudPass (voir note)
+            camera: Mat4::identity()
         };
         self.hud.prepare(&self.ctx, &mut self.buffers, &hud_input);
-        self.hud.execute(&mut encoder, &view, &self.buffers);
+        self.hud.execute(&mut encoder, &surface_texture.texture.create_view(&wgpu::TextureViewDescriptor::default()), &self.buffers);
 
         self.ctx.submit(encoder);
-        self.ctx.present(frame);
+        self.ctx.present(surface_texture);
     }
 }
 
@@ -348,11 +323,12 @@ impl ApplicationHandler for App {
             WindowEvent::CloseRequested => event_loop.exit(),
 
             WindowEvent::KeyboardInput {
-                event: KeyEvent {
-                    logical_key: Key::Named(NamedKey::Escape),
-                    state: ElementState::Pressed,
-                    ..
-                },
+                event:
+                    KeyEvent {
+                        logical_key: Key::Named(NamedKey::Escape),
+                        state: ElementState::Pressed,
+                        ..
+                    },
                 ..
             } => event_loop.exit(),
 
@@ -366,7 +342,7 @@ impl ApplicationHandler for App {
             WindowEvent::RedrawRequested => {
                 if let Some(demo) = &mut self.demo {
                     demo.render();
-                    demo.window.request_redraw(); // boucle continue
+                    demo.window.request_redraw();
                 }
             }
 
@@ -379,7 +355,9 @@ fn main() {
     let event_loop = EventLoop::new().expect("Impossible de créer l'EventLoop");
     event_loop.set_control_flow(ControlFlow::Poll);
     let mut app = App { demo: None };
-    event_loop.run_app(&mut app).expect("Erreur dans la boucle d'événements");
+    event_loop
+        .run_app(&mut app)
+        .expect("Erreur dans la boucle d'événements");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

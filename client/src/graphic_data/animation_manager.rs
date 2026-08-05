@@ -46,12 +46,13 @@ struct AnimConfig {
     looping: bool,
 }
 
-#[derive(Debug, Clone)]
+
 pub struct AnimData {
     pub frames: Vec<TextureId>,
     pub frame_time: f32,
     pub looping: bool,
 }
+
 
 pub struct AnimationManager {
     anims: Arena<AnimData, AnimTag>,

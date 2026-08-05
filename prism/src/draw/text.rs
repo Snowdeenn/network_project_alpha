@@ -7,6 +7,7 @@ pub struct TextBufferCache {
     buffers: HashMap<(String, u32), glyphon::Buffer>,
 }
 
+#[allow(dead_code)]
 impl TextBufferCache {
     pub fn new() -> Self {
         Self {
@@ -15,18 +16,26 @@ impl TextBufferCache {
         }
     }
 
-    pub fn get_or_create(&mut self, text: &str, size: f32) -> &glyphon::Buffer {
+    pub fn get_or_create(
+        &mut self,
+        text: &str,
+        size: f32,
+        max_width: f32,
+        max_height: f32,
+    ) -> &glyphon::Buffer {
         let key = (text.to_string(), size.to_bits());
 
         if !self.buffers.contains_key(&key) {
             let metrics = glyphon::Metrics::new(size, size * 1.2);
             let mut buffer = glyphon::Buffer::new(&mut self.font_system, metrics);
+            buffer.set_size(Some(max_width), Some(max_height));
             buffer.set_text(
                 text,
-                &glyphon::Attrs::new().family(glyphon::Family::SansSerif),
-                glyphon::Shaping::Advanced,
-                Some(glyphon::cosmic_text::Align::Center),
+                &glyphon::Attrs::new(),
+                glyphon::Shaping::Basic,
+                Some(glyphon::cosmic_text::Align::Left),
             );
+            buffer.shape_until_scroll(&mut self.font_system, true);
             self.buffers.insert(key.clone(), buffer);
         }
 
@@ -53,7 +62,7 @@ pub struct TextRenderer {
 
 impl TextRenderer {
     pub fn new(ctx: &GpuContext, surface_format: wgpu::TextureFormat) -> Self {
-        let cache_text = TextBufferCache::new();
+        let mut cache_text = TextBufferCache::new();
         let swash_cache = glyphon::SwashCache::new();
         let cache = &glyphon::Cache::new(&ctx.device);
         let viewport = glyphon::Viewport::new(&ctx.device, cache);
@@ -64,6 +73,14 @@ impl TextRenderer {
             wgpu::MultisampleState::default(),
             None,
         );
+        cache_text
+            .font_system
+            .db_mut()
+            .load_font_data(include_bytes!("../../../assets/pixel/Pixel Coleco.otf").to_vec());
+        cache_text
+            .font_system
+            .db_mut()
+            .set_sans_serif_family("Pixel Coleco");
         Self {
             cache_text,
             swash_cache,
@@ -99,7 +116,12 @@ impl TextRenderer {
             })
             .collect();
         for (content, _, size, _) in &text_commands {
-            self.cache_text.get_or_create(content, *size);
+            self.cache_text.get_or_create(
+                content,
+                *size,
+                ctx.size.width as f32,
+                ctx.size.height as f32,
+            );
         }
         let mut text_areas = Vec::new();
         for (content, pos, size, color) in &text_commands {

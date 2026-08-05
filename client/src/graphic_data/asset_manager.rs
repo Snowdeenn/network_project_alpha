@@ -2,6 +2,7 @@
 use utils::ids::{TextureId};
 
 use crate::graphic_data::animation_manager::AnimationManager;
+
 pub struct AssetManager {
     textures: prism::TextureManager,
     anims: AnimationManager,

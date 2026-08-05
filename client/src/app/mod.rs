@@ -23,7 +23,6 @@ pub struct App {
     renderer: Option<prism::Renderer>,
     ui_ctx: Option<ui::UiContext>,
     client: Option<GameNetClient>,
-    asset_manager: Option<AssetManager>,
     resource: Resources,
     client_id: u64,
     in_game_scene: InGameScene,
@@ -48,7 +47,6 @@ impl App {
             renderer: None,
             ui_ctx: None,
             client: None,
-            asset_manager: None,
             resource,
             client_id: rand::random::<u64>(),
             in_game_scene: InGameScene::default(),
@@ -65,6 +63,7 @@ impl App {
 
 impl winit::application::ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
         let window_attribute =
             winit::window::Window::default_attributes().with_title("Project Alpha");
         let window = event_loop.create_window(window_attribute).unwrap();
@@ -85,10 +84,10 @@ impl winit::application::ApplicationHandler for App {
             window.inner_size().height as i32,
         );
         let asset_manager = AssetManager::new();
+        self.resource.insert(asset_manager);
         self.window = Some(window);
         self.renderer = Some(renderer);
         self.ui_ctx = Some(ui_ctx);
-        self.asset_manager = Some(asset_manager);
         self.scale = Some(scale);
         let sh_id = self
             .renderer
@@ -165,13 +164,12 @@ impl winit::application::ApplicationHandler for App {
                     .set_mouse_position(position.x as f32, position.y as f32);
             }
             winit::event::WindowEvent::RedrawRequested => {
-                if let Some(frame) = self.renderer.as_ref().unwrap().frame_manager().pop() {
+                if let Some(frame) = self.renderer.as_mut().unwrap().frame_manager().pop() {
                     self.renderer.as_mut().unwrap().render(frame);
-                    self.input_state.end_frame();
-                    self.window.as_ref().unwrap().request_redraw();
                 } else {
-                    eprintln!("Frame est None ArrayQueue vide ?");
-                    return;
+                    // En mode Poll, il peut arriver qu'une frame ne soit pas encore prête
+                    // On ne bloque plus la boucle ici.
+                    eprintln!("Frame non ready");
                 }
             }
             _ => (),
@@ -270,11 +268,12 @@ impl winit::application::ApplicationHandler for App {
                     .render(&mut frame, client_state, &mut self.resource, dt);
             }
         }
+        //println!("Nombre d'éléments dans frame : {:#?}", frame);
         self.renderer.as_ref().unwrap().frame_manager().push(frame);
         if let Some(window) = &self.window {
             window.request_redraw();
         }
-
+        self.input_state.end_frame();
         if self
             .input_state
             .is_pressed(winit::keyboard::KeyCode::Escape)

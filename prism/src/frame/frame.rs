@@ -1,5 +1,6 @@
 use crate::DrawCommandBuffer;
 
+#[derive(Debug)]
 pub struct Frame {
     pub(crate) world: DrawCommandBuffer,
     pub(crate) vfx: DrawCommandBuffer,

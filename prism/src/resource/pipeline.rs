@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use utils::ids::ShaderId;
-use wgpu::VertexBufferLayout;
+use wgpu::{VertexBufferLayout};
 
 use crate::{context::GpuContext, resource::shader::ShaderManager};
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -79,6 +79,7 @@ impl PipelineManager {
 
     pub fn invalidate_all(&mut self) {
         self.pipelines.clear();
+        self.layouts.clear();
     }
 
     pub fn get_layouts(&self, key: &PipelineKey) -> Option<&[wgpu::BindGroupLayout]> {
@@ -104,7 +105,7 @@ impl PipelineManager {
         let pipeline_layout = ctx
             .device
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: None,
+                label: Some("Pipeline Layout"),
                 bind_group_layouts: &bind_group_layout_refs,
                 immediate_size: 0,
             });

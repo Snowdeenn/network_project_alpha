@@ -31,7 +31,6 @@ impl Renderer {
         post_frag_path: &str,
     ) -> Self {
         let ctx = pollster::block_on(crate::GpuContext::new(window)).unwrap();
-        //let ctx = Arc::new(ctx);
         let mut buffers = crate::GpuBufferManager::new();
         let mut shaders = crate::ShaderManager::new();
         let textures = crate::TextureManager::new();
@@ -116,7 +115,7 @@ impl Renderer {
             DoubleBufferIndex::Primary => (&self.intermediate_view_a, &self.intermediate_view_b),
             DoubleBufferIndex::Secondary => (&self.intermediate_view_b, &self.intermediate_view_a),
         };
-
+        
         self.world.prepare(
             &self.ctx,
             &mut self.buffers,
@@ -167,6 +166,7 @@ impl Renderer {
             &mut self.buffers,
             &crate::HudInput {
                 commands: &frame.hud,
+                camera: frame.camera,
             },
         );
         self.hud.execute(&mut encoder, &surface_view, &self.buffers);

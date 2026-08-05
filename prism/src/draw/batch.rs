@@ -1,5 +1,6 @@
 use crate::draw::commands::DrawCommand;
 
+#[derive(Debug)]
 pub struct DrawCommandBuffer {
     commands: Vec<DrawCommand>,
 }

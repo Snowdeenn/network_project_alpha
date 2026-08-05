@@ -60,7 +60,7 @@ impl VfxPass {
             fragment_shader: frag_shader,
             blend_mode: BlendMode::Additive,
             vertex_format: VertexFormat::Pos2UvColor,
-            bind_groups: crate::pass::DEFAULT_BIND_GROUPS, // Todo: Changer l'emplacement du world bind group
+            bind_groups: &crate::DEFAULT_BIND_GROUPS[0..1], // Todo: Changer l'emplacement du world bind group
         };
         let pipeline = pipelines.get_or_create(ctx, shaders, pipeline_key.clone());
         let layouts = pipelines.get_layouts(&pipeline_key).unwrap();

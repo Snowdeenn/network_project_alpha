@@ -19,6 +19,7 @@ pub use geometry::{
 pub use pass::{
     HudInput, PostProcessInput, VfxInput, WorldInput, hud::HudPass, post_process::PostProcessPass,
     vfx::VfxPass, world::WorldPass,
+    Pass,
 };
 pub use renderer::{DoubleBufferIndex, Renderer};
 pub use resource::{

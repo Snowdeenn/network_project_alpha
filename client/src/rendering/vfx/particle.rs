@@ -91,9 +91,9 @@ impl ParticlePool {
                     size: [size; 2],
                     rotation: 0.0,
                     color: [
-                        (p.color.r / 255) as f32,
-                        (p.color.g / 255) as f32,
-                        (p.color.b / 255) as f32,
+                        (p.color.r as f32) / 255.0,
+                        (p.color.g as f32) / 255.0,
+                        (p.color.b as f32) / 255.0,
                         progress.clamp(0.0, 1.0) * 255.0,
                     ],
                     uv: None,

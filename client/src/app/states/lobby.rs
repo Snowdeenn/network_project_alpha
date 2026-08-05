@@ -44,7 +44,7 @@ pub fn handle_lobby_message(msg: LobbyMessage, screen: &mut AppScreen, is_solo: 
 
 pub fn handle_input(input_state: &Input, state: &mut LobbyScreenState, client: &mut GameNetClient) {
     let class_keys = [
-        (winit::keyboard::KeyCode::Numpad1, PlayerClass::Warrior),
+        (winit::keyboard::KeyCode::KeyO, PlayerClass::Warrior),
         (winit::keyboard::KeyCode::Numpad2, PlayerClass::Assassin),
         (winit::keyboard::KeyCode::Numpad3, PlayerClass::Mage),
         (winit::keyboard::KeyCode::Numpad4, PlayerClass::Tank),
@@ -80,9 +80,9 @@ pub fn render(frame: &mut prism::Frame, state: &LobbyScreenState, s: &ScreenScal
         pos: [s.x(0.02) as f32, s.y(0.02) as f32],
         size: s.font(0.03) as f32,
         color: [
-            (utils::colors::Color::GOLD.r / 255) as f32,
-            (utils::colors::Color::GOLD.g / 255) as f32,
-            (utils::colors::Color::GOLD.b / 255) as f32,
+            (utils::colors::Color::GOLD.r as f32) / 255.0,
+            (utils::colors::Color::GOLD.g as f32) / 255.0,
+            (utils::colors::Color::GOLD.b as f32) / 255.0,
             1.0,
         ],
         layer: 0,
@@ -107,9 +107,9 @@ pub fn render(frame: &mut prism::Frame, state: &LobbyScreenState, s: &ScreenScal
                 size: [w as f32, h as f32],
                 rotation: 0.0,
                 color: [
-                    (bg.r / 255) as f32,
-                    (bg.g / 255) as f32,
-                    (bg.b / 255) as f32,
+                    (bg.r as f32) / 255.0,
+                    (bg.g as f32) / 255.0,
+                    (bg.b as f32) / 255.0,
                     1.0,
                 ],
                 uv: None,
@@ -124,9 +124,9 @@ pub fn render(frame: &mut prism::Frame, state: &LobbyScreenState, s: &ScreenScal
                     pos: [(x + s.x(0.02)) as f32, (y + s.y(0.12)) as f32],
                     size: s.font(0.02) as f32,
                     color: [
-                        (utils::colors::Color::GRAY.r / 255) as f32,
-                        (utils::colors::Color::GRAY.b / 255) as f32,
-                        (utils::colors::Color::GRAY.g / 255) as f32,
+                        (utils::colors::Color::GRAY.r as f32) / 255.0,
+                        (utils::colors::Color::GRAY.b as f32) / 255.0,
+                        (utils::colors::Color::GRAY.g as f32) / 255.0,
                         1.0,
                     ],
                     layer: 1,
@@ -157,9 +157,9 @@ pub fn render(frame: &mut prism::Frame, state: &LobbyScreenState, s: &ScreenScal
                     pos: [(x + s.x(0.01)) as f32, (y + s.y(0.1)) as f32],
                     size: s.font(0.022) as f32,
                     color: [
-                        (utils::colors::Color::SKYBLUE.r / 255) as f32,
-                        (utils::colors::Color::SKYBLUE.g / 255) as f32,
-                        (utils::colors::Color::SKYBLUE.b / 255) as f32,
+                        (utils::colors::Color::SKYBLUE.r as f32) / 255.0,
+                        (utils::colors::Color::SKYBLUE.g as f32) / 255.0,
+                        (utils::colors::Color::SKYBLUE.b as f32) / 255.0,
                         1.0,
                     ],
                     layer: 1,
@@ -183,60 +183,47 @@ pub fn render(frame: &mut prism::Frame, state: &LobbyScreenState, s: &ScreenScal
                     pos: [(x + s.x(0.01)) as f32, (y + s.y(0.2)) as f32],
                     size: s.font(0.022) as f32,
                     color: [
-                        (ready_color.r / 255) as f32,
-                        (ready_color.g / 255) as f32,
-                        (ready_color.b / 255) as f32,
+                        (ready_color.r as f32) / 255.0,
+                        (ready_color.g as f32) / 255.0,
+                        (ready_color.b as f32) / 255.0,
                         1.0,
                     ],
                     layer: 1,
                 });
                 // Marquer le slot local
                 if info.slot_index == state.slot_index {
-                    let mut mesh = prism::RawMesh::with_capacity(4, 4);
+                    let gold_color = [
+                        (utils::colors::Color::GOLD.r as f32) / 255.0,
+                        (utils::colors::Color::GOLD.g as f32) / 255.0,
+                        (utils::colors::Color::GOLD.b as f32) / 255.0,
+                        1.0,
+                    ];
+                    let mut mesh = prism::RawMesh::with_capacity(4, 6);
                     let i0 = mesh.push_vertex(prism::Vertex {
                         pos: [x as f32, y as f32],
                         uv: [0.0, 0.0],
-                        color: [
-                            (utils::colors::Color::GOLD.r / 255) as f32,
-                            (utils::colors::Color::GOLD.g / 255) as f32,
-                            (utils::colors::Color::GOLD.b / 255) as f32,
-                            1.0,
-                        ],
+                        color: gold_color,
                     });
                     let i1 = mesh.push_vertex(prism::Vertex {
                         pos: [(x + w) as f32, y as f32],
                         uv: [0.0, 0.0],
-                        color: [
-                            (utils::colors::Color::GOLD.r / 255) as f32,
-                            (utils::colors::Color::GOLD.g / 255) as f32,
-                            (utils::colors::Color::GOLD.b / 255) as f32,
-                            1.0,
-                        ],
+                        color: gold_color,
                     });
                     let i2 = mesh.push_vertex(prism::Vertex {
                         pos: [x as f32, (y + h) as f32],
                         uv: [0.0, 0.0],
-                        color: [
-                            (utils::colors::Color::GOLD.r / 255) as f32,
-                            (utils::colors::Color::GOLD.g / 255) as f32,
-                            (utils::colors::Color::GOLD.b / 255) as f32,
-                            1.0,
-                        ],
+                        color: gold_color,
                     });
                     let i3 = mesh.push_vertex(prism::Vertex {
                         pos: [(x + w) as f32, (y + h) as f32],
                         uv: [0.0, 0.0],
-                        color: [
-                            (utils::colors::Color::GOLD.r / 255) as f32,
-                            (utils::colors::Color::GOLD.g / 255) as f32,
-                            (utils::colors::Color::GOLD.b / 255) as f32,
-                            1.0,
-                        ],
+                        color: gold_color,
                     });
                     mesh.push_triangle(i0, i1, i2);
                     mesh.push_triangle(i1, i3, i2);
+
                     frame.push_hud(prism::DrawCommand::Mesh {
-                        mesh: mesh,
+                        mesh,
                         blend: prism::BlendMode::Opaque,
                         layer: 1,
                     });
@@ -251,9 +238,9 @@ pub fn render(frame: &mut prism::Frame, state: &LobbyScreenState, s: &ScreenScal
         pos: [s.x(0.25) as f32, s.y(0.75) as f32],
         size: s.font(0.025) as f32,
         color: [
-            (utils::colors::Color::LIGHTGRAY.r / 255) as f32,
-            (utils::colors::Color::LIGHTGRAY.g / 255) as f32,
-            (utils::colors::Color::LIGHTGRAY.b / 255) as f32,
+            (utils::colors::Color::LIGHTGRAY.r as f32) / 255.0,
+            (utils::colors::Color::LIGHTGRAY.g as f32) / 255.0,
+            (utils::colors::Color::LIGHTGRAY.b as f32) / 255.0,
             1.0,
         ],
         layer: 1,
@@ -265,9 +252,9 @@ pub fn render(frame: &mut prism::Frame, state: &LobbyScreenState, s: &ScreenScal
             pos: [s.x(0.02) as f32, s.y(0.9) as f32],
             size: s.font(0.028) as f32,
             color: [
-                (utils::colors::Color::GOLD.r / 255) as f32,
-                (utils::colors::Color::GOLD.g / 255) as f32,
-                (utils::colors::Color::GOLD.b / 255) as f32,
+                (utils::colors::Color::GOLD.r as f32) / 255.0,
+                (utils::colors::Color::GOLD.g as f32) / 255.0,
+                (utils::colors::Color::GOLD.b as f32) / 255.0,
                 1.0,
             ],
             layer: 1,

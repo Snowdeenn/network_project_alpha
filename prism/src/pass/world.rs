@@ -23,7 +23,7 @@ pub struct WorldPass {
     mesh: RawMesh,
     pipeline: Arc<wgpu::RenderPipeline>,
     camera_buffer: wgpu::Buffer,
-    camera_bind_group: wgpu::BindGroup,
+    camera_bind_group: wgpu::BindGroup, 
 }
 
 impl WorldPass {
@@ -53,7 +53,6 @@ impl WorldPass {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-
         let mesh = RawMesh::with_capacity(1024, 3072);
         let index_count = mesh.indices().len() as u32;
         let pipeline_key = PipelineKey {
@@ -61,7 +60,7 @@ impl WorldPass {
             fragment_shader: frag_shader,
             blend_mode: BlendMode::Alpha,
             vertex_format: VertexFormat::Pos2UvColor,
-            bind_groups: crate::DEFAULT_BIND_GROUPS,
+            bind_groups: &crate::DEFAULT_BIND_GROUPS[0..1],
         };
         let pipeline = pipelines.get_or_create(ctx, shaders, pipeline_key.clone());
         let layouts = pipelines.get_layouts(&pipeline_key).unwrap();
@@ -73,6 +72,7 @@ impl WorldPass {
                 resource: camera_buffer.as_entire_binding(),
             }],
         });
+    
         Self {
             vert_shader,
             frag_shader,

@@ -293,9 +293,9 @@ impl VfxManager {
                             end: [pos.x, pos.y],
                             thickness,
                             color: [
-                                (color.r / 255) as f32,
-                                (color.g / 255) as f32,
-                                (color.b / 255) as f32,
+                                (color.r as f32) / 255.0,
+                                (color.g as f32) / 255.0,
+                                (color.b as f32) / 255.0,
                                 1.0,
                             ],
                         },

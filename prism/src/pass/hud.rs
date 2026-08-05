@@ -24,6 +24,8 @@ pub struct HudPass {
     mesh: RawMesh,
     pipeline: Arc<wgpu::RenderPipeline>,
     text_renderer: TextRenderer,
+    camera_buffer: wgpu::Buffer,
+    camera_bind_group: wgpu::BindGroup,
 }
 
 impl HudPass {
@@ -52,18 +54,30 @@ impl HudPass {
         let mesh = RawMesh::with_capacity(1024, 3072);
         let index_count = mesh.indices().len() as u32;
 
-        let pipeline = pipelines.get_or_create(
-            ctx,
-            shaders,
-            PipelineKey {
-                vertex_shader: vert_shader,
-                fragment_shader: frag_shader,
-                blend_mode: BlendMode::Alpha,
-                vertex_format: VertexFormat::Pos2UvColor,
-                bind_groups: crate::DEFAULT_BIND_GROUPS,
-            },
-        );
+        let pipeline_key = PipelineKey {
+            vertex_shader: vert_shader,
+            fragment_shader: frag_shader,
+            blend_mode: BlendMode::Alpha,
+            vertex_format: VertexFormat::Pos2UvColor,
+            bind_groups: &crate::DEFAULT_BIND_GROUPS[0..1],
+        };
+        let pipeline = pipelines.get_or_create(ctx, shaders, pipeline_key.clone());
+        let camera_buffer = ctx.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Camera Uniform"),
+            size: std::mem::size_of::<utils::math::Mat4>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         let text_renderer = TextRenderer::new(ctx, surface_format);
+        let layouts = pipelines.get_layouts(&pipeline_key).unwrap();
+        let camera_bind_group = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Camera BindGroup"),
+            layout: &layouts[0],
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
+        });
         Self {
             vert_shader,
             frag_shader,
@@ -75,6 +89,8 @@ impl HudPass {
             mesh,
             pipeline,
             text_renderer,
+            camera_buffer,
+            camera_bind_group,
         }
     }
     pub fn text_renderer(&self) -> &TextRenderer {
@@ -119,6 +135,9 @@ impl Pass for HudPass {
                 _ => (),
             }
         }
+
+        ctx.queue
+            .write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&input.camera));
         self.text_renderer
             .prepare(ctx, input.commands.commands())
             .unwrap();
@@ -152,9 +171,6 @@ impl Pass for HudPass {
         target: &wgpu::TextureView,
         buffers: &GpuBufferManager,
     ) {
-        if self.index_count == 0 {
-            return;
-        }
         let mut hud_render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Hud Render Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -177,10 +193,14 @@ impl Pass for HudPass {
         let vertex_buffer = buffers
             .get(self.vertex_buffer)
             .expect("[GpuBufferManager] devrait retourner le vertex buffer de la HudPass");
-        hud_render_pass.set_pipeline(&self.pipeline);
-        hud_render_pass.set_index_buffer(index_buffer.buffer.slice(..), wgpu::IndexFormat::Uint32);
-        hud_render_pass.set_vertex_buffer(0, vertex_buffer.buffer.slice(..));
-        hud_render_pass.draw_indexed(0..self.index_count, 0, 0..1);
+        if self.index_count > 0 {
+            hud_render_pass.set_pipeline(&self.pipeline);
+            hud_render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            hud_render_pass
+                .set_index_buffer(index_buffer.buffer.slice(..), wgpu::IndexFormat::Uint32);
+            hud_render_pass.set_vertex_buffer(0, vertex_buffer.buffer.slice(..));
+            hud_render_pass.draw_indexed(0..self.index_count, 0, 0..1);
+        }
         self.text_renderer.render(&mut hud_render_pass).unwrap();
     }
 }

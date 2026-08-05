@@ -44,6 +44,7 @@ pub struct VfxInput<'a> {
 // HudPass  
 pub struct HudInput<'a> {
     pub commands: &'a DrawCommandBuffer,
+    pub camera: Mat4,
 }
 
 // PostProcessPass

@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub enum Shape {
     Quad {
         pos: [f32; 2],

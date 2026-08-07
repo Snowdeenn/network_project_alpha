@@ -84,6 +84,8 @@ impl ParticlePool {
             let p = &slot.data;
             let size = 16.0 * p.scale;
             let progress = (p.lifetime / p.lt_max).clamp(0.0, 1.0);
+            let base_alpha = (p.color.a as f32) / 255.0;
+            let alpha = base_alpha * progress;
 
             frame.push_vfx(prism::DrawCommand::Shape {
                 shape: prism::Shape::Quad {
@@ -94,7 +96,7 @@ impl ParticlePool {
                         (p.color.r as f32) / 255.0,
                         (p.color.g as f32) / 255.0,
                         (p.color.b as f32) / 255.0,
-                        progress.clamp(0.0, 1.0) * 255.0,
+                        alpha,
                     ],
                     uv: None,
                 },

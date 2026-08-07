@@ -109,11 +109,10 @@ impl PipelineManager {
                 bind_group_layouts: &bind_group_layout_refs,
                 immediate_size: 0,
             });
-
         let pipeline = ctx
             .device
             .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: None,
+                label: Some("Pipeline"),
                 layout: Some(&pipeline_layout),
                 vertex: wgpu::VertexState {
                     module: &vertex_shader.module,

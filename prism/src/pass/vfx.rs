@@ -60,7 +60,7 @@ impl VfxPass {
             fragment_shader: frag_shader,
             blend_mode: BlendMode::Additive,
             vertex_format: VertexFormat::Pos2UvColor,
-            bind_groups: &crate::DEFAULT_BIND_GROUPS[0..1], // Todo: Changer l'emplacement du world bind group
+            bind_groups: &crate::CAM_BIND_GROUP[0..1],
         };
         let pipeline = pipelines.get_or_create(ctx, shaders, pipeline_key.clone());
         let layouts = pipelines.get_layouts(&pipeline_key).unwrap();
@@ -86,6 +86,27 @@ impl VfxPass {
             camera_bind_group,
         }
     }
+    pub fn set_shader(
+        &mut self,
+        ctx: &GpuContext,
+        pipelines: &mut PipelineManager,
+        shaders: &ShaderManager,
+        vert_shader: ShaderId,
+        frag_shader: ShaderId,
+    ) {
+        let pipeline = pipelines.get_or_create(
+            ctx,
+            shaders,
+            PipelineKey {
+                vertex_shader: vert_shader,
+                fragment_shader: frag_shader,
+                blend_mode: BlendMode::Alpha,
+                vertex_format: VertexFormat::Pos2UvColor,
+                bind_groups: &crate::CAM_BIND_GROUP,
+            },
+        );
+        self.pipeline = pipeline;
+    }
 }
 
 impl Pass for VfxPass {
@@ -94,7 +115,7 @@ impl Pass for VfxPass {
         &mut self,
         ctx: &GpuContext,
         buffers: &mut GpuBufferManager,
-        input: &Self::Input<'a>,
+        input: &mut Self::Input<'a>,
     ) {
         self.mesh.clear();
         ctx.queue.write_buffer(

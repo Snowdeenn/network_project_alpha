@@ -27,6 +27,9 @@ impl DrawCommandBuffer {
     pub fn commands(&self) -> &[DrawCommand] {
         &self.commands[..]
     }
+    pub fn commands_mut(&mut self) -> &mut [DrawCommand] {
+        &mut self.commands[..]
+    }
 }
 
 fn sort_key(cmd: &DrawCommand) -> u64 {

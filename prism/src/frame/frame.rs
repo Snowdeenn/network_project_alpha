@@ -5,7 +5,8 @@ pub struct Frame {
     pub(crate) world: DrawCommandBuffer,
     pub(crate) vfx: DrawCommandBuffer,
     pub(crate) hud: DrawCommandBuffer,
-    pub camera: utils::math::Mat4,
+    pub camera_pos: utils::math::Vec2,
+    pub cam_shake_offset: utils::math::Vec2,
 }
 
 impl Frame {
@@ -14,7 +15,8 @@ impl Frame {
             world: DrawCommandBuffer::new(1024),
             vfx: DrawCommandBuffer::new(256),
             hud: DrawCommandBuffer::new(512),
-            camera: utils::math::Mat4::identity(),
+            camera_pos: utils::math::Vec2::zero(),
+            cam_shake_offset: utils::math::Vec2::zero()
         }
     }
 

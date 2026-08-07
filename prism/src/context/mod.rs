@@ -123,6 +123,8 @@ impl GpuContext {
         if width > 0 && height > 0 {
             self.surface_config.width = width;
             self.surface_config.height = height;
+            self.size.width = width;
+            self.size.height = height;
             self.surface.configure(&self.device, &self.surface_config);
             self.is_surface_configured = true;
         }

@@ -59,6 +59,12 @@ impl App {
             cam: Camera::default(),
         }
     }
+    pub fn renderer(&self) -> &prism::Renderer {
+        self.renderer.as_ref().unwrap()
+    }
+    pub fn renderer_mut(&mut self) -> &mut prism::Renderer {
+        self.renderer.as_mut().unwrap()
+    }
 }
 
 impl winit::application::ApplicationHandler for App {
@@ -68,7 +74,7 @@ impl winit::application::ApplicationHandler for App {
             winit::window::Window::default_attributes().with_title("Project Alpha");
         let window = event_loop.create_window(window_attribute).unwrap();
         let window = Arc::new(window);
-        let renderer = prism::Renderer::new(
+        let mut renderer = prism::Renderer::new(
             window.clone(),
             "client/src/graphic_data/shader/default.vert.wgsl",
             "client/src/graphic_data/shader/default.frag.wgsl",
@@ -83,7 +89,11 @@ impl winit::application::ApplicationHandler for App {
             window.inner_size().width as i32,
             window.inner_size().height as i32,
         );
-        let asset_manager = AssetManager::new();
+        let mut asset_manager = AssetManager::new();
+        {
+            let (ctx, textures) = renderer.ctx_and_textures_mut();
+            asset_manager.load_animations(ctx, textures, "assets/config/animations.json");
+        }
         self.resource.insert(asset_manager);
         self.window = Some(window);
         self.renderer = Some(renderer);
@@ -102,7 +112,17 @@ impl winit::application::ApplicationHandler for App {
             shop: shop_id,
             hud: hud_node_id,
             shader: sh_id,
-        })
+        });
+        let tex_vert_shader_id = self
+            .renderer_mut()
+            .load_shader("client/src/graphic_data/shader/default_textured.vert.wgsl")
+            .unwrap();
+        let tex_frag_shader_id = self
+            .renderer_mut()
+            .load_shader("client/src/graphic_data/shader/default_textured.frag.wgsl")
+            .unwrap();
+        self.renderer_mut()
+            .set_world_shaders(tex_vert_shader_id, tex_frag_shader_id);
     }
     fn window_event(
         &mut self,
@@ -181,12 +201,10 @@ impl winit::application::ApplicationHandler for App {
         let frame_delta = now.duration_since(self.last_frame);
         self.last_frame = now;
         let dt = frame_delta.as_secs_f32();
+
         let mut frame = prism::Frame::new();
-        frame.camera = {
-            let size = self.renderer.as_ref().unwrap().ctx().size;
-            self.cam
-                .get_view_proj(size.width as f32, size.height as f32)
-        };
+        frame.camera_pos = self.cam.pos();
+        frame.cam_shake_offset = self.cam.shake.offset();
 
         let screen_size = self.renderer.as_ref().unwrap().screen_size();
         if let Some(ref mut c) = self.client {
@@ -268,7 +286,6 @@ impl winit::application::ApplicationHandler for App {
                     .render(&mut frame, client_state, &mut self.resource, dt);
             }
         }
-        //println!("Nombre d'éléments dans frame : {:#?}", frame);
         self.renderer.as_ref().unwrap().frame_manager().push(frame);
         if let Some(window) = &self.window {
             window.request_redraw();

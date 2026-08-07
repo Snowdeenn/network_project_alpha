@@ -59,7 +59,7 @@ impl HudPass {
             fragment_shader: frag_shader,
             blend_mode: BlendMode::Alpha,
             vertex_format: VertexFormat::Pos2UvColor,
-            bind_groups: &crate::DEFAULT_BIND_GROUPS[0..1],
+            bind_groups: &crate::CAM_BIND_GROUP,
         };
         let pipeline = pipelines.get_or_create(ctx, shaders, pipeline_key.clone());
         let camera_buffer = ctx.device.create_buffer(&wgpu::BufferDescriptor {
@@ -96,6 +96,27 @@ impl HudPass {
     pub fn text_renderer(&self) -> &TextRenderer {
         &self.text_renderer
     }
+    pub fn set_shader(
+        &mut self,
+        ctx: &GpuContext,
+        pipelines: &mut PipelineManager,
+        shaders: &ShaderManager,
+        vert_shader: ShaderId,
+        frag_shader: ShaderId,
+    ) {
+        let pipeline = pipelines.get_or_create(
+            ctx,
+            shaders,
+            PipelineKey {
+                vertex_shader: vert_shader,
+                fragment_shader: frag_shader,
+                blend_mode: BlendMode::Alpha,
+                vertex_format: VertexFormat::Pos2UvColor,
+                bind_groups: &crate::CAM_BIND_GROUP[0..1],
+            },
+        );
+        self.pipeline = pipeline;
+    }
 }
 
 impl Pass for HudPass {
@@ -104,7 +125,7 @@ impl Pass for HudPass {
         &mut self,
         ctx: &GpuContext,
         buffers: &mut GpuBufferManager,
-        input: &Self::Input<'a>,
+        input: &mut Self::Input<'a>,
     ) {
         self.mesh.clear();
         for cmd in input.commands.commands() {

@@ -33,7 +33,7 @@ impl Renderer {
         let ctx = pollster::block_on(crate::GpuContext::new(window)).unwrap();
         let mut buffers = crate::GpuBufferManager::new();
         let mut shaders = crate::ShaderManager::new();
-        let textures = crate::TextureManager::new();
+        let textures = crate::TextureManager::new(&ctx);
         let mut pipelines = crate::PipelineManager::new(ctx.surface_format());
         let vert_shader = shaders.load(&ctx, vert_shader_path).unwrap();
         let frag_shader = shaders.load(&ctx, frag_shader_path).unwrap();
@@ -94,12 +94,13 @@ impl Renderer {
         }
     }
 
-    pub fn render(&mut self, frame: crate::Frame) {
+    pub fn render(&mut self, mut frame: crate::Frame) {
         let surface_texture = match self.ctx.current_texture() {
             wgpu::CurrentSurfaceTexture::Success(t) => t,
             wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
             wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
-                self.ctx.reconfigure();
+                let size = self.ctx.size;
+                self.ctx.resize(size.width, size.height);
                 return;
             }
             _ => return,
@@ -115,13 +116,18 @@ impl Renderer {
             DoubleBufferIndex::Primary => (&self.intermediate_view_a, &self.intermediate_view_b),
             DoubleBufferIndex::Secondary => (&self.intermediate_view_b, &self.intermediate_view_a),
         };
-        
+        let screen_w = self.ctx.size.width;
+        let screen_h = self.ctx.size.height;
+        let cam_matrix =
+            build_camera_matrix(frame.camera_pos, frame.cam_shake_offset, screen_w as f32, screen_h as f32);
+
         self.world.prepare(
             &self.ctx,
             &mut self.buffers,
-            &crate::WorldInput {
-                commands: &frame.world,
-                camera: frame.camera,
+            &mut crate::WorldInput {
+                commands: &mut frame.world,
+                camera: cam_matrix,
+                texture: &mut self.textures,
             },
         );
         self.world.execute(&mut encoder, target, &self.buffers);
@@ -129,9 +135,9 @@ impl Renderer {
         self.vfx.prepare(
             &self.ctx,
             &mut self.buffers,
-            &crate::VfxInput {
+            &mut crate::VfxInput {
                 commands: &frame.vfx,
-                camera: frame.camera,
+                camera: cam_matrix,
             },
         );
         self.vfx.execute(&mut encoder, target, &self.buffers);
@@ -153,7 +159,7 @@ impl Renderer {
             self.post_process_passes[i].prepare(
                 &self.ctx,
                 &mut self.buffers,
-                &crate::PostProcessInput {
+                &mut crate::PostProcessInput {
                     source: src,
                     target: tgt,
                 },
@@ -164,9 +170,9 @@ impl Renderer {
         self.hud.prepare(
             &self.ctx,
             &mut self.buffers,
-            &crate::HudInput {
+            &mut crate::HudInput {
                 commands: &frame.hud,
-                camera: frame.camera,
+                camera: cam_matrix,
             },
         );
         self.hud.execute(&mut encoder, &surface_view, &self.buffers);
@@ -243,6 +249,37 @@ impl Renderer {
     pub fn pipeline(&self) -> &crate::PipelineManager {
         &self.pipelines
     }
+    pub fn set_world_shaders(&mut self, vert_shader: ShaderId, frag_shader: ShaderId) {
+        self.world.set_shader(
+            &self.ctx,
+            &mut self.pipelines,
+            &self.shaders,
+            vert_shader,
+            frag_shader,
+        );
+    }
+    pub fn set_vfx_shaders(&mut self, vert_shader: ShaderId, frag_shader: ShaderId) {
+        self.vfx.set_shader(
+            &self.ctx,
+            &mut self.pipelines,
+            &self.shaders,
+            vert_shader,
+            frag_shader,
+        );
+    }
+    pub fn set_hud_shaders(&mut self, vert_shader: ShaderId, frag_shader: ShaderId) {
+        self.hud.set_shader(
+            &self.ctx,
+            &mut self.pipelines,
+            &self.shaders,
+            vert_shader,
+            frag_shader,
+        );
+    }
+
+    pub fn ctx_and_textures_mut(&mut self) -> (&crate::GpuContext, &mut crate::TextureManager) {
+        (&self.ctx, &mut self.textures)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -258,4 +295,19 @@ impl DoubleBufferIndex {
             Self::Secondary => Self::Primary,
         }
     }
+}
+
+fn build_camera_matrix(
+    pos: utils::math::Vec2,
+    shake: utils::math::Vec2,
+    screen_w: f32,
+    screen_h: f32,
+) -> utils::math::Mat4 {
+    let proj = utils::math::Mat4::orthographic(0.0, screen_w, screen_h, 0.0, -1.0, 1.0);
+    let view = utils::math::Mat4::translation(
+        -pos.x + (screen_w * 0.5) + shake.x,
+        -pos.y + (screen_h * 0.5) + shake.y,
+        0.0,
+    );
+    proj.multiply(view)
 }

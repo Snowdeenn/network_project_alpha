@@ -32,4 +32,5 @@ pub use resource::{
     texture::{GpuTexture, TextureManager},
 };
 
-pub use pass::DEFAULT_BIND_GROUPS;
+pub use pass::CAM_BIND_GROUP;
+pub use pass::TEXTURE_BIND_GROUP;

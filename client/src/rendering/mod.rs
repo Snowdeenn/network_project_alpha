@@ -64,7 +64,6 @@ pub(crate) fn render_world(
         if let Some(anim_id) = assets.anims().get_by_key(anim_key) {
             let anim = anim_entities.get_or_create(entity.entity_id, anim_id);
             anim.set(anim_id);
-
             if let Some(data) = assets.anims().get(anim_id) {
                 if let Some(tex_id) = anim.current_texture_id(data) {
                     frame.push_world(prism::DrawCommand::Texture {

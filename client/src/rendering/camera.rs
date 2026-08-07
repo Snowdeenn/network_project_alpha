@@ -1,5 +1,4 @@
-use utils::{protocol::{EntityKind, StateSnapshot}};
-
+use utils::protocol::{EntityKind, StateSnapshot};
 
 // =========================================================================
 // CameraShake — système trauma-based
@@ -104,8 +103,8 @@ impl Camera {
     pub fn get_view_proj(&self, screen_w: f32, screen_h: f32) -> utils::math::Mat4 {
         let proj = utils::math::Mat4::orthographic(0.0, screen_w, screen_h, 0.0, -1.0, 1.0);
         let view = utils::math::Mat4::translation(
-            -self.pos.x + self.shake.offset().x,
-            -self.pos.y + self.shake.offset().y,
+            -self.pos.x + (screen_w * 0.5) + self.shake.offset().x,
+            -self.pos.y + (screen_h * 0.5) + self.shake.offset().y,
             0.0,
         );
         proj.multiply(view)
@@ -114,18 +113,15 @@ impl Camera {
         self.pos = utils::math::Vec2::new(x, y);
         self.view = utils::math::Mat4::translation(-x, -y, 0.0);
     }
-
+    pub fn pos(&self) -> utils::math::Vec2 {
+        self.pos
+    }
 }
 // =========================================================================
 // Update caméra
 // =========================================================================
 
-pub fn update(
-    cam: &mut Camera,
-    prev: Option<&StateSnapshot>,
-    current: &StateSnapshot,
-    t: f32,
-) {
+pub fn update(cam: &mut Camera, prev: Option<&StateSnapshot>, current: &StateSnapshot, t: f32) {
     let curr_player = current
         .entities
         .iter()
@@ -144,9 +140,7 @@ pub fn update(
             utils::math::lerp(prev_pos[0], curr.position[0], t),
             utils::math::lerp(prev_pos[1], curr.position[1], t),
         );
-
-        let new_cam_pos = base_target + cam.shake.offset();
-        cam.set_pos(new_cam_pos.x, new_cam_pos.y);
+        cam.set_pos(base_target.x, base_target.y);
     }
 }
 

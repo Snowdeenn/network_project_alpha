@@ -12,6 +12,12 @@ use crate::{
 use std::sync::Arc;
 use utils::ids::{BufferId, ShaderId};
 
+pub struct TextureBatch {
+    index_offset: u32,
+    index_count: u32,
+    bind_group: wgpu::BindGroup,
+}
+
 pub struct WorldPass {
     vert_shader: ShaderId,
     frag_shader: ShaderId,
@@ -23,7 +29,9 @@ pub struct WorldPass {
     mesh: RawMesh,
     pipeline: Arc<wgpu::RenderPipeline>,
     camera_buffer: wgpu::Buffer,
-    camera_bind_group: wgpu::BindGroup, 
+    camera_bind_group: wgpu::BindGroup,
+    batches: Vec<TextureBatch>,
+    texture_group_layout: wgpu::BindGroupLayout,
 }
 
 impl WorldPass {
@@ -60,7 +68,7 @@ impl WorldPass {
             fragment_shader: frag_shader,
             blend_mode: BlendMode::Alpha,
             vertex_format: VertexFormat::Pos2UvColor,
-            bind_groups: &crate::DEFAULT_BIND_GROUPS[0..1],
+            bind_groups: &crate::TEXTURE_BIND_GROUP,
         };
         let pipeline = pipelines.get_or_create(ctx, shaders, pipeline_key.clone());
         let layouts = pipelines.get_layouts(&pipeline_key).unwrap();
@@ -72,7 +80,30 @@ impl WorldPass {
                 resource: camera_buffer.as_entire_binding(),
             }],
         });
-    
+        let batches = Vec::with_capacity(4096);
+        let texture_group_layout =
+            ctx.device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("Texture Bind Group Layout World pass"),
+                    entries: &[
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                multisampled: false,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                            count: None,
+                        },
+                    ],
+                });
         Self {
             vert_shader,
             frag_shader,
@@ -85,7 +116,56 @@ impl WorldPass {
             pipeline,
             camera_buffer,
             camera_bind_group,
+            batches,
+            texture_group_layout,
         }
+    }
+    pub fn set_shader(
+        &mut self,
+        ctx: &GpuContext,
+        pipelines: &mut PipelineManager,
+        shaders: &ShaderManager,
+        vert_shader: ShaderId,
+        frag_shader: ShaderId,
+    ) {
+        let pipeline = pipelines.get_or_create(
+            ctx,
+            shaders,
+            PipelineKey {
+                vertex_shader: vert_shader,
+                fragment_shader: frag_shader,
+                blend_mode: BlendMode::Alpha,
+                vertex_format: VertexFormat::Pos2UvColor,
+                bind_groups: &crate::TEXTURE_BIND_GROUP,
+            },
+        );
+        self.pipeline = pipeline;
+    }
+
+    fn create_texture_bind_group(
+        &self,
+        ctx: &GpuContext,
+        texture_id: utils::ids::TextureId,
+        textures: &crate::TextureManager,
+    ) -> wgpu::BindGroup {
+        let gpu_texture = textures
+            .get(texture_id)
+            .expect("[WorldPass] TextureId invalide lors de la création du BindGroup");
+
+        ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Texture BindGroup — WorldPass batch"),
+            layout: &self.texture_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&gpu_texture.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&gpu_texture.sampler),
+                },
+            ],
+        })
     }
 }
 
@@ -95,15 +175,58 @@ impl Pass for WorldPass {
         &mut self,
         ctx: &GpuContext,
         buffers: &mut GpuBufferManager,
-        input: &Self::Input<'a>,
+        input: &mut Self::Input<'a>,
     ) {
         self.mesh.clear();
+        self.batches.clear();
         ctx.queue.write_buffer(
             &self.camera_buffer,
             0,
             bytemuck::cast_slice(&[input.camera]),
         );
+        let white_id = input.texture.white_texture();
+        let get_cmd_texture_id = |cmd: &DrawCommand| -> Option<utils::ids::TextureId> {
+            match cmd {
+                DrawCommand::Texture { id, .. } => Some(*id),
+                DrawCommand::Text { .. } => None,
+                _ => Some(white_id),
+            }
+        };
+        let get_sort_key = |cmd: &DrawCommand| -> (u8, usize) {
+            match cmd {
+                DrawCommand::Texture { id, layer, .. } => (*layer, id.index),
+                DrawCommand::Shape { layer, .. } => (*layer, white_id.index),
+                DrawCommand::Mesh { layer, .. } => (*layer, white_id.index),
+                DrawCommand::Text { layer, .. } => (*layer, usize::MAX),
+            }
+        };
+
+        input
+            .commands
+            .commands_mut()
+            .sort_by_key(|cmd| get_sort_key(cmd));
+
+        let mut current_texture_id: Option<utils::ids::TextureId> = None;
+        let mut batch_index_start = 0u32;
+
         for cmd in input.commands.commands() {
+            let tex_id = get_cmd_texture_id(cmd);
+            if current_texture_id != tex_id {
+                if let Some(prev_id) = current_texture_id {
+                    let index_count = self.mesh.indices().len() as u32 - batch_index_start;
+                    if index_count > 0 {
+                        let bind_group =
+                            self.create_texture_bind_group(ctx, prev_id, input.texture);
+                        self.batches.push(TextureBatch {
+                            index_offset: batch_index_start,
+                            index_count,
+                            bind_group,
+                        });
+                    }
+                }
+                current_texture_id = tex_id;
+                batch_index_start = self.mesh.indices().len() as u32;
+            }
             match cmd {
                 DrawCommand::Shape { shape, .. } => Tesselator::tesselate(shape, &mut self.mesh),
                 DrawCommand::Texture {
@@ -131,7 +254,21 @@ impl Pass for WorldPass {
                 _ => (),
             }
         }
-        if self.mesh.vertices().len() as u64 > self.vertex_buffer_size {
+        if let Some(last_id) = current_texture_id {
+            let index_count = self.mesh.indices().len() as u32 - batch_index_start;
+            if index_count > 0 {
+                let bind_group = self.create_texture_bind_group(ctx, last_id, input.texture);
+                self.batches.push(TextureBatch {
+                    index_offset: batch_index_start,
+                    index_count,
+                    bind_group,
+                });
+            }
+        }
+        if self.mesh.vertices().len() as u64
+            * std::mem::size_of::<crate::geometry::mesh::Vertex>() as u64
+            > self.vertex_buffer_size
+        {
             self.vertex_buffer_size *= 2;
             let former_buffer = self.vertex_buffer;
             self.vertex_buffer = buffers.create_buffer(
@@ -141,7 +278,9 @@ impl Pass for WorldPass {
             );
             buffers.remove(former_buffer);
         }
-        if self.mesh.indices().len() as u64 > self.index_buffer_size {
+        if self.mesh.indices().len() as u64 * std::mem::size_of::<u32>() as u64
+            > self.index_buffer_size
+        {
             self.index_buffer_size *= 2;
             let former_buffer = self.index_buffer;
             self.index_buffer = buffers.create_buffer(
@@ -192,6 +331,14 @@ impl Pass for WorldPass {
         world_render_pass
             .set_index_buffer(index_buffer.buffer.slice(..), wgpu::IndexFormat::Uint32);
         world_render_pass.set_vertex_buffer(0, vertex_buffer.buffer.slice(..));
-        world_render_pass.draw_indexed(0..self.index_count, 0, 0..1);
+
+        for batch in &self.batches {
+            world_render_pass.set_bind_group(1, &batch.bind_group, &[]);
+            world_render_pass.draw_indexed(
+                batch.index_offset..batch.index_offset + batch.index_count,
+                0,
+                0..1,
+            );
+        }
     }
 }

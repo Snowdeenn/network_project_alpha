@@ -108,7 +108,7 @@ impl Pass for PostProcessPass {
         &mut self,
         ctx: &GpuContext,
         _buffers: &mut GpuBufferManager,
-        input: &Self::Input<'a>,
+        input: &mut Self::Input<'a>,
     ) {
         self.bind_group = Some(ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("PostProcess BindGroup"),

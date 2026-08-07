@@ -3,6 +3,7 @@ pub mod vfx;
 pub mod hud;
 pub mod post_process;
 
+use crate::TextureManager;
 use crate::context::GpuContext;
 use crate::draw::batch::DrawCommandBuffer;
 use crate::resource::buffer::GpuBufferManager;
@@ -17,7 +18,7 @@ pub trait Pass {
         &mut self,
         ctx: &GpuContext,
         buffers: &mut GpuBufferManager,
-        input: &Self::Input<'a>,
+        input: &mut Self::Input<'a>,
     );
 
     /// Exécute la passe — crée le render pass, bind pipeline, draw
@@ -31,8 +32,9 @@ pub trait Pass {
 
 // WorldPass
 pub struct WorldInput<'a> {
-    pub commands: &'a DrawCommandBuffer,
+    pub commands: &'a mut DrawCommandBuffer,
     pub camera: Mat4,
+    pub texture: &'a TextureManager,
 }
 
 // VfxPass
@@ -55,11 +57,18 @@ pub struct PostProcessInput<'a> {
 
 use crate::resource::pipeline::BindGroupLayoutEntryKey;
 use crate::resource::pipeline::BindingTypeKey;
-pub static DEFAULT_BIND_GROUPS: &[&[BindGroupLayoutEntryKey]] = &[
+pub static CAM_BIND_GROUP: &[&[BindGroupLayoutEntryKey]] = &[
     &[BindGroupLayoutEntryKey {
         binding: 0,
         visibility: wgpu::ShaderStages::VERTEX,
         ty: BindingTypeKey::UniformBuffer,
+    }],
+];
+pub static TEXTURE_BIND_GROUP: &[&[BindGroupLayoutEntryKey]] = &[
+    &[BindGroupLayoutEntryKey {
+        binding: 0,
+        visibility: wgpu::ShaderStages::VERTEX,
+        ty: BindingTypeKey::UniformBuffer
     }],
     &[
         BindGroupLayoutEntryKey {

@@ -13,7 +13,8 @@ image = "0.25"
 bytemuck = "1"
 thiserror = "2.0.19"
 utils = { path = "../utils" }
+tracing = "0.1"
 
 [[example]]
 name = "demo"
-path = "src/examples/demo.rs" # ou le chemin relatif exact vers ton fichier
+path = "src/examples/demo.rs"

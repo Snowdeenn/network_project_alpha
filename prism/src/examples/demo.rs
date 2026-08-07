@@ -65,7 +65,7 @@ struct Demo {
 }
 
 impl Demo {
-    async fn new(window: Arc<Window>) -> Self {
+    async fn new(window: Arc<Window>) -> prism::Result<Self> {
         let size = window.inner_size();
 
         // ── GpuContext ───────────────────────────────────────────────────────
@@ -95,7 +95,7 @@ impl Demo {
             &mut shaders,
             vert_id,
             frag_id,
-        );
+        )?;
         let vfx = prism::VfxPass::new(
             &ctx,
             &mut buffers,
@@ -103,7 +103,7 @@ impl Demo {
             &mut shaders,
             vert_id,
             frag_id,
-        );
+        )?;
         let hud = prism::HudPass::new(
             &ctx,
             &mut buffers,
@@ -112,9 +112,9 @@ impl Demo {
             vert_id,
             frag_id,
             surface_format,
-        );
+        )?;
 
-        Self {
+        Ok(Self {
             ctx,
             buffers,
             shaders,
@@ -123,7 +123,7 @@ impl Demo {
             vfx,
             hud,
             window,
-        }
+        })
     }
 
     fn render(&mut self) {
@@ -311,7 +311,7 @@ impl ApplicationHandler for App {
                 .expect("Impossible de créer la fenêtre"),
         );
         let demo = pollster::block_on(Demo::new(window));
-        self.demo = Some(demo);
+        self.demo = demo.ok();
     }
 
     fn window_event(

@@ -49,7 +49,7 @@ impl Renderer {
             &mut shaders,
             vert_shader,
             frag_shader,
-        );
+        )?;
         let vfx = crate::VfxPass::new(
             &ctx,
             &mut buffers,
@@ -57,7 +57,7 @@ impl Renderer {
             &mut shaders,
             vert_shader,
             frag_shader,
-        );
+        )?;
         let hud = crate::HudPass::new(
             &ctx,
             &mut buffers,
@@ -66,14 +66,14 @@ impl Renderer {
             vert_shader,
             frag_shader,
             ctx.surface_format(),
-        );
+        )?;
         let post_process_passes = vec![crate::PostProcessPass::new(
             &ctx,
             &mut shaders,
             post_vert_shader,
             post_frag_shader,
             ctx.surface_format(),
-        )];
+        )?];
         let frame_manager = crate::FrameManager::new();
         Ok(Self {
             ctx,
@@ -269,33 +269,91 @@ impl Renderer {
     pub fn pipeline(&self) -> &crate::PipelineManager {
         &self.pipelines
     }
-    pub fn set_world_shaders(&mut self, vert_shader: ShaderId, frag_shader: ShaderId) {
+    pub fn set_world_shaders(
+        &mut self,
+        vert_shader: ShaderId,
+        frag_shader: ShaderId,
+    ) -> Result<(), crate::PrismError> {
         self.world.set_shader(
             &self.ctx,
             &mut self.pipelines,
             &self.shaders,
             vert_shader,
             frag_shader,
-        );
+        )?;
+        Ok(())
     }
-    pub fn set_vfx_shaders(&mut self, vert_shader: ShaderId, frag_shader: ShaderId) {
+
+    pub fn set_vfx_shaders(
+        &mut self,
+        vert_shader: ShaderId,
+        frag_shader: ShaderId,
+    ) -> Result<(), crate::PrismError> {
         self.vfx.set_shader(
             &self.ctx,
             &mut self.pipelines,
             &self.shaders,
             vert_shader,
             frag_shader,
-        );
+        )?;
+        Ok(())
     }
-    pub fn set_hud_shaders(&mut self, vert_shader: ShaderId, frag_shader: ShaderId) {
+
+    pub fn set_hud_shaders(
+        &mut self,
+        vert_shader: ShaderId,
+        frag_shader: ShaderId,
+    ) -> Result<(), crate::PrismError> {
         self.hud.set_shader(
             &self.ctx,
             &mut self.pipelines,
             &self.shaders,
             vert_shader,
             frag_shader,
-        );
+        )?;
+        Ok(())
     }
+
+    pub fn set_post_process_shaders(
+        &mut self,
+        index: usize,
+        vert_shader: ShaderId,
+        frag_shader: ShaderId,
+    ) -> Result<(), crate::PrismError> {
+        if let Some(pass) = self.post_process_passes.get_mut(index) {
+            pass.set_shader(
+                &self.ctx,
+                &self.shaders,
+                vert_shader,
+                frag_shader,
+            )?;
+            Ok(())
+        } else {
+            tracing::error!(
+                index,
+                total_passes = self.post_process_passes.len(),
+                "Impossible de changer les shaders : index de post-process hors limites"
+            );
+            Ok(())
+        }
+    }
+
+    pub fn add_post_process_pass(
+        &mut self,
+        vert_shader: ShaderId,
+        frag_shader: ShaderId,
+    ) -> Result<(), crate::PrismError> {
+        let pass = crate::PostProcessPass::new(
+            &self.ctx,
+            &self.shaders,
+            vert_shader,
+            frag_shader,
+            self.ctx.surface_format(),
+        )?;
+        self.post_process_passes.push(pass);
+        Ok(())
+    }
+    
 
     pub fn ctx_and_textures_mut(&mut self) -> (&crate::GpuContext, &mut crate::TextureManager) {
         (&self.ctx, &mut self.textures)

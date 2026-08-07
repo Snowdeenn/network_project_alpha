@@ -22,6 +22,9 @@ pub enum PrismError {
 
     #[error("Erreur de pipeline : {0}")]
     Pipeline(#[from] PipelineError),
+
+    #[error("Erreur de passe de rendu : {0}")]
+    Pass(#[from] PassError),
 }
 
 #[derive(Error, Debug)]
@@ -112,4 +115,16 @@ pub enum BufferError {
 pub enum PipelineError {
     #[error("Shader introuvable pour la création du pipeline (ID : {id})")]
     ShaderNotFound { id: utils::ids::ShaderId },
+}
+
+#[derive(Error, Debug)]
+pub enum PassError {
+    #[error("Erreur de pipeline dans la passe de rendu : {0}")]
+    Pipeline(#[from] PipelineError),
+
+    #[error("Erreur de buffer dans la passe de rendu : {0}")]
+    Buffer(#[from] BufferError),
+
+    #[error("Layouts de bind group introuvables pour le pipeline spécifié")]
+    LayoutsNotFound,
 }

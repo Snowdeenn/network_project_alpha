@@ -26,9 +26,9 @@ impl GpuBufferManager {
     pub fn create_buffer(
         &mut self,
         ctx: &GpuContext,
+        label: Option<&str>,
         size: u64,
         usage: wgpu::BufferUsages,
-        label: Option<&str>,
     ) -> Result<BufferId, BufferError> {
         if size == 0 {
             tracing::error!("Impossible de créer un GPU Buffer de 0 octet");

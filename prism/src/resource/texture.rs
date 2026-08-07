@@ -3,6 +3,7 @@ use utils::{
     ids::{TextureId, TextureTag},
 };
 
+use crate::TextureError;
 use crate::context::GpuContext;
 
 pub struct GpuTexture {
@@ -67,15 +68,36 @@ impl TextureManager {
             sampler,
             size: (1, 1),
         });
+        tracing::debug!(id = %white_texture_id, "Texture blanche par défaut initialisée");
         Self {
             textures,
             white_texture: white_texture_id,
         }
     }
 
-    pub fn load(&mut self, ctx: &GpuContext, path: &str) -> Option<TextureId> {
-        let image = image::open(path).ok()?.to_rgba8();
+    pub fn load(&mut self, ctx: &GpuContext, path: &str) -> Result<TextureId, TextureError> {
+        let _span = tracing::info_span!("TextureManager::load", path = %path).entered();
+
+        let image = image::open(path)
+            .map_err(|source| {
+                tracing::error!("Échec du chargement de la texture '{path}' : {source}");
+                TextureError::ImageLoad {
+                    path: path.to_string(),
+                    source,
+                }
+            })?
+            .to_rgba8();
+
         let (width, height) = image.dimensions();
+        if width == 0 || height == 0 {
+            tracing::error!(width, height, "Dimensions d'image invalides");
+            return Err(TextureError::InvalidDimensions {
+                path: path.to_string(),
+                width,
+                height,
+            });
+        }
+
         let bytes = image.as_raw();
 
         let texture = ctx.device.create_texture(&wgpu::TextureDescriptor {
@@ -121,20 +143,32 @@ impl TextureManager {
             ..Default::default()
         });
 
-        Some(self.textures.insert(GpuTexture {
+        let id = self.textures.insert(GpuTexture {
             texture,
             view,
             sampler,
             size: (width, height),
-        }))
+        });
+
+        tracing::info!(id = %id, width, height, "Texture GPU créée avec succès");
+        Ok(id)
     }
 
     pub fn register(&mut self, texture: GpuTexture) -> TextureId {
-        self.textures.insert(texture)
+        let (w, h) = texture.size;
+        let id = self.textures.insert(texture);
+        tracing::debug!(id = %id, width = w, height = h, "Texture GPU manuelle enregistrée");
+        id
     }
 
-    pub fn remove(&mut self, id: TextureId) -> Option<GpuTexture> {
-        self.textures.remove(id)
+    pub fn remove(&mut self, id: TextureId) -> Result<GpuTexture, TextureError> {
+        if let Some(texture) = self.textures.remove(id) {
+            tracing::debug!(id = %id, "Texture retirée de l'Arena");
+            Ok(texture)
+        } else {
+            tracing::warn!(id = %id, "Tentative de suppression d'une texture inexistante");
+            Err(TextureError::NotFound { id })
+        }
     }
 
     pub fn get(&self, id: TextureId) -> Option<&GpuTexture> {

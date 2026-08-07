@@ -2,6 +2,7 @@ use utils::arena::Arena;
 use utils::ids::{ShaderId, ShaderTag};
 
 use crate::context::GpuContext;
+use crate::errors::ShaderError;
 
 pub struct GpuShader {
     pub module: wgpu::ShaderModule,
@@ -19,8 +20,15 @@ impl ShaderManager {
         }
     }
 
-    pub fn load(&mut self, ctx: &GpuContext, path: &str) -> Option<ShaderId> {
-        let shader_code = std::fs::read_to_string(path).ok()?;
+    pub fn load(&mut self, ctx: &GpuContext, path: &str) -> Result<ShaderId, ShaderError> {
+        let _span = tracing::info_span!("ShaderManager::load", path = %path).entered();
+        let shader_code = std::fs::read_to_string(path).map_err(|source| {
+            tracing::error!("Échec de la lecture du fichier shader '{path}' : {source}");
+            ShaderError::Io {
+                path: path.to_string(),
+                source,
+            }
+        })?;
 
         let module = ctx
             .device
@@ -28,10 +36,12 @@ impl ShaderManager {
                 label: Some(path),
                 source: wgpu::ShaderSource::Wgsl(shader_code.into()),
             });
-        Some(self.shaders.insert(GpuShader {
+        let id = self.shaders.insert(GpuShader {
             module,
             path: Some(path.to_string()),
-        }))
+        });
+        tracing::info!(?id, "Shader WGSL chargé avec succès");
+        Ok(id)
     }
 
     pub fn load_inline(&mut self, ctx: &GpuContext, source: &str, label: &str) -> ShaderId {
@@ -41,33 +51,48 @@ impl ShaderManager {
                 label: Some(label),
                 source: wgpu::ShaderSource::Wgsl(source.into()),
             });
-        self.shaders.insert(GpuShader { module, path: None })
+        let id = self.shaders.insert(GpuShader { module, path: None });
+        tracing::debug!(?id, label, "Shader WGSL inline enregistré");
+        id
     }
 
-    pub fn reload(&mut self, ctx: &GpuContext, id: ShaderId) -> bool {
-        let path = match self.shaders.get(id) {
-            Some(s) => s.path.clone(),
-            None => return false,
-        };
+    pub fn reload(&mut self, ctx: &GpuContext, id: ShaderId) -> Result<(), ShaderError> {
+    let _span = tracing::info_span!("ShaderManager::reload", ?id).entered();
 
-        if let Some(path) = path {
-            let source = match std::fs::read_to_string(&path) {
-                Ok(s) => s,
-                Err(_) => return false,
-            };
-            let module = ctx
-                .device
-                .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some(&path),
-                    source: wgpu::ShaderSource::Wgsl(source.into()),
-                });
-            if let Some(shader) = self.shaders.get_mut(id) {
-                shader.module = module;
-                return true;
-            }
+    let path = self
+        .shaders
+        .get(id)
+        .ok_or_else(|| {
+            tracing::warn!(?id, "Tentative de recharger un shader inexistant");
+            ShaderError::NotFound { id }
+        })?
+        .path
+        .clone()
+        .ok_or_else(|| {
+            tracing::warn!(?id, "Impossible de recharger un shader créé inline");
+            ShaderError::InlineReload
+        })?;
+    let source = std::fs::read_to_string(&path).map_err(|source| {
+        tracing::error!(path = %path, "Échec de lecture lors du rechargement du shader : {source}");
+        ShaderError::Io {
+            path: path.clone(),
+            source,
         }
-        false
+    })?;
+    let module = ctx
+        .device
+        .create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some(&path),
+            source: wgpu::ShaderSource::Wgsl(source.into()),
+        });
+    if let Some(shader) = self.shaders.get_mut(id) {
+        shader.module = module;
+        tracing::info!(?id, path = %path, "Shader rechargé avec succès (Hot-reload)");
+        Ok(())
+    } else {
+        Err(ShaderError::NotFound { id })
     }
+}
 
     pub fn get(&self, id: ShaderId) -> Option<&GpuShader> {
         self.shaders.get(id)
@@ -78,6 +103,11 @@ impl ShaderManager {
     }
 
     pub fn remove(&mut self, id: ShaderId) -> Option<GpuShader> {
-        self.shaders.remove(id)
+        if let Some(shader) = self.shaders.remove(id) {
+            tracing::debug!(?id, "Shader supprimé de l'Arena");
+            Some(shader)
+        } else {
+            None
+        }
     }
 }

@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use utils::ids::{ShaderId, TextureId};
+use utils::ids::{ShaderId};
 
-use crate::pass::Pass;
+use crate::{pass::Pass};
 
 pub struct Renderer {
     ctx: crate::GpuContext,
@@ -29,16 +29,16 @@ impl Renderer {
         frag_shader_path: &str,
         post_vert_path: &str,
         post_frag_path: &str,
-    ) -> Self {
-        let ctx = pollster::block_on(crate::GpuContext::new(window)).unwrap();
+    ) -> crate::Result<Self> {
+        let ctx = pollster::block_on(crate::GpuContext::new(window))?;
         let mut buffers = crate::GpuBufferManager::new();
         let mut shaders = crate::ShaderManager::new();
         let textures = crate::TextureManager::new(&ctx);
         let mut pipelines = crate::PipelineManager::new(ctx.surface_format());
-        let vert_shader = shaders.load(&ctx, vert_shader_path).unwrap();
-        let frag_shader = shaders.load(&ctx, frag_shader_path).unwrap();
-        let post_vert_shader = shaders.load(&ctx, post_vert_path).unwrap();
-        let post_frag_shader = shaders.load(&ctx, post_frag_path).unwrap();
+        let vert_shader = shaders.load(&ctx, vert_shader_path)?;
+        let frag_shader = shaders.load(&ctx, frag_shader_path)?;
+        let post_vert_shader = shaders.load(&ctx, post_vert_path)?;
+        let post_frag_shader = shaders.load(&ctx, post_frag_path)?;
         let (intermediate_a, intermediate_view_a) = Self::create_intermediate(&ctx);
         let (intermediate_b, intermediate_view_b) = Self::create_intermediate(&ctx);
 
@@ -75,7 +75,7 @@ impl Renderer {
             ctx.surface_format(),
         )];
         let frame_manager = crate::FrameManager::new();
-        Self {
+        Ok(Self {
             ctx,
             buffers,
             pipelines,
@@ -91,19 +91,35 @@ impl Renderer {
             intermediate_view_b,
             current_source: DoubleBufferIndex::Primary,
             frame_manager,
-        }
+        })
     }
 
     pub fn render(&mut self, mut frame: crate::Frame) {
         let surface_texture = match self.ctx.current_texture() {
             wgpu::CurrentSurfaceTexture::Success(t) => t,
-            wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
+            wgpu::CurrentSurfaceTexture::Suboptimal(t) => {
+                tracing::warn!("Surface GPU suboptimale, reconfiguration au prochain cycle");
+                self.ctx.reconfigure();
+                t
+            }
+            wgpu::CurrentSurfaceTexture::Occluded => {
+                tracing::trace!("Fenêtre occultée ou minimisée, rendu ignoré");
+                return;
+            }
             wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
+                tracing::warn!("Surface GPU obsolète ou perdue, redimensionnement...");
                 let size = self.ctx.size;
                 self.ctx.resize(size.width, size.height);
                 return;
             }
-            _ => return,
+            wgpu::CurrentSurfaceTexture::Timeout => {
+                tracing::warn!("Timeout lors de la récupération de la frame (frame sautée)");
+                return;
+            }
+            wgpu::CurrentSurfaceTexture::Validation => {
+                tracing::error!("Erreur de validation lors de la récupération de la texture");
+                return;
+            }
         };
 
         let surface_view = surface_texture
@@ -118,8 +134,12 @@ impl Renderer {
         };
         let screen_w = self.ctx.size.width;
         let screen_h = self.ctx.size.height;
-        let cam_matrix =
-            build_camera_matrix(frame.camera_pos, frame.cam_shake_offset, screen_w as f32, screen_h as f32);
+        let cam_matrix = build_camera_matrix(
+            frame.camera_pos,
+            frame.cam_shake_offset,
+            screen_w as f32,
+            screen_h as f32,
+        );
 
         self.world.prepare(
             &self.ctx,
@@ -210,11 +230,11 @@ impl Renderer {
         self.intermediate_view_b = intermediate_view_b;
     }
 
-    pub fn load_shader(&mut self, path: &str) -> Option<ShaderId> {
-        self.shaders.load(&self.ctx, path)
+    pub fn load_shader(&mut self, path: &str) -> crate::Result<utils::ids::ShaderId> {
+        Ok(self.shaders.load(&self.ctx, path)?)
     }
-    pub fn load_texture(&mut self, path: &str) -> Option<TextureId> {
-        self.textures.load(&self.ctx, path)
+    pub fn load_texture(&mut self, path: &str) -> crate::Result<utils::ids::TextureId> {
+        Ok(self.textures.load(&self.ctx, path)?)
     }
 
     pub fn screen_size(&self) -> winit::dpi::PhysicalSize<u32> {

@@ -29,8 +29,14 @@ pub struct GpuContext {
 }
 
 impl GpuContext {
-    pub async fn new(window: Arc<winit::window::Window>) -> Result<Self, errors::GpuContextError> {
+    pub async fn new(window: Arc<winit::window::Window>) -> errors::Result<Self, errors::GpuContextError> {
+        let _span = tracing::info_span!("GpuContext::init").entered();
         let size = window.inner_size();
+        tracing::debug!(
+            width = size.width,
+            height = size.height,
+            "Taille initiale de la fenêtre"
+        );
 
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
@@ -42,44 +48,75 @@ impl GpuContext {
         let surface = instance
             .create_surface(window.clone())
             .expect("[GpuContext] Echec lors de la créations de la surface");
-        let adapter = match instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::HighPerformance,
-                force_fallback_adapter: false,
-                compatible_surface: Some(&surface),
-                apply_limit_buckets: true,
-            })
-            .await
-        {
-            Ok(adapter) => {
-                println!("Adapter trouver : {:#?}", adapter.get_info());
-                adapter
-            }
-            Err(_) => {
-                eprintln!("Aucun adapteur trouver utilisation du fallback ...");
-                instance
-                    .request_adapter(&wgpu::RequestAdapterOptions {
-                        power_preference: wgpu::PowerPreference::LowPower,
-                        force_fallback_adapter: false,
-                        compatible_surface: Some(&surface),
-                        apply_limit_buckets: true,
-                    })
-                    .await?
+        let adapter = {
+            let _adapter_span = tracing::info_span!("request_adapter").entered();
+            match instance
+                .request_adapter(&wgpu::RequestAdapterOptions {
+                    power_preference: wgpu::PowerPreference::HighPerformance,
+                    force_fallback_adapter: false,
+                    compatible_surface: Some(&surface),
+                    apply_limit_buckets: true,
+                })
+                .await
+            {
+                Ok(adapter) => {
+                    let info = adapter.get_info();
+                    tracing::info!(
+                        gpu = %info.name,
+                        backend = ?info.backend,
+                        device_type = ?info.device_type,
+                        driver = %info.driver_info,
+                        "Adaptateur GPU sélectionné"
+                    );
+                    adapter
+                }
+                Err(_) => {
+                    tracing::error!("Aucun adapteur trouver utilisation du fallback ...");
+                    instance
+                        .request_adapter(&wgpu::RequestAdapterOptions {
+                            power_preference: wgpu::PowerPreference::LowPower,
+                            force_fallback_adapter: false,
+                            compatible_surface: Some(&surface),
+                            apply_limit_buckets: true,
+                        })
+                        .await?
+                }
             }
         };
         if !adapter.is_surface_supported(&surface) {
-            eprintln!("[GpuContext] L'adaptateur sélectionné ne supporte pas cette Surface !");
+            tracing::error!(
+                "[GpuContext] L'adaptateur sélectionné ne supporte pas cette Surface !"
+            );
         }
-        let (device, queue) = adapter
-            .request_device(&wgpu::DeviceDescriptor {
-                label: None,
-                required_features: wgpu::Features::empty(),
-                required_limits: wgpu::Limits::default(),
-                memory_hints: Default::default(),
-                trace: wgpu::Trace::Off,
-                experimental_features: wgpu::ExperimentalFeatures::disabled(),
-            })
-            .await?;
+        let (device, queue) = {
+            let _device_and_queue_span = tracing::info_span!("request_device").entered();
+            adapter
+                .request_device(&wgpu::DeviceDescriptor {
+                    label: None,
+                    required_features: wgpu::Features::empty(),
+                    required_limits: wgpu::Limits::default(),
+                    memory_hints: Default::default(),
+                    trace: wgpu::Trace::Off,
+                    experimental_features: wgpu::ExperimentalFeatures::disabled(),
+                })
+                .await?
+        };
+        device.on_uncaptured_error(Arc::new(|error| {
+            tracing::error!(
+                target: "prism::gpu::validation",
+                error = %error,
+                "Erreur de validation WGPU non capturée !"
+            );
+        }));
+
+        let limits = device.limits();
+        tracing::debug!(
+            max_texture_dimension_2d = limits.max_texture_dimension_2d,
+            max_bind_groups = limits.max_bind_groups,
+            max_uniform_buffer_binding_size = limits.max_uniform_buffer_binding_size,
+            "Capacité et limites GPU configurées"
+        );
+
         let surface_cap = surface.get_capabilities(&adapter);
         let surface_format = surface_cap
             .formats
@@ -102,6 +139,14 @@ impl GpuContext {
             desired_maximum_frame_latency: 2,
             color_space: wgpu::SurfaceColorSpace::Auto,
         };
+        tracing::info!(
+            width = size.width,
+            height = size.height,
+            format = ?surface_format,
+            present_mode = ?surface_config.present_mode,
+            alpha_mode = ?surface_config.alpha_mode,
+            "Surface GPU initialisée"
+        );
         let mut is_surface_configured = false;
         if size.width > 0 && size.height > 0 {
             surface.configure(&device, &surface_config);
@@ -121,12 +166,19 @@ impl GpuContext {
 
     pub fn resize(&mut self, width: u32, height: u32) {
         if width > 0 && height > 0 {
+            tracing::debug!(width, height, "Redimensionnement de la surface GPU");
             self.surface_config.width = width;
             self.surface_config.height = height;
             self.size.width = width;
             self.size.height = height;
             self.surface.configure(&self.device, &self.surface_config);
             self.is_surface_configured = true;
+        } else {
+            tracing::warn!(
+                width,
+                height,
+                "Ignoré : tentative de redimensionnement à 0 (fenêtre minimisée ?)"
+            );
         }
     }
 
@@ -144,10 +196,12 @@ impl GpuContext {
     }
 
     pub fn submit(&self, encoder: wgpu::CommandEncoder) {
+        tracing::trace!("Soumission des commandes au GPU");
         self.queue.submit(std::iter::once(encoder.finish()));
     }
 
     pub fn present(&self, frame: wgpu::SurfaceTexture) {
+        tracing::trace!("Présentation de la frame à la surface");
         self.queue.present(frame);
     }
 

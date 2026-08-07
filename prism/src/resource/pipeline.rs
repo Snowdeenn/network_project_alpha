@@ -1,9 +1,12 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use utils::ids::ShaderId;
-use wgpu::{VertexBufferLayout};
+use wgpu::VertexBufferLayout;
 
-use crate::{context::GpuContext, resource::shader::ShaderManager};
+use crate::context::GpuContext;
+use crate::errors::PipelineError;
+use crate::resource::shader::ShaderManager;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BindGroupLayoutEntryKey {
     pub binding: u32,
@@ -62,22 +65,40 @@ impl PipelineManager {
         ctx: &GpuContext,
         shaders: &ShaderManager,
         key: PipelineKey,
-    ) -> Arc<wgpu::RenderPipeline> {
-        if !self.pipelines.contains_key(&key) {
-            let layouts = Self::create_bind_group_layouts(ctx, key.bind_groups);
-            let pipeline = self.create_pipeline(ctx, shaders, &key);
-            self.layouts.insert(key.clone(), layouts);
-            self.pipelines.insert(key.clone(), Arc::new(pipeline));
+    ) -> Result<Arc<wgpu::RenderPipeline>, PipelineError> {
+        if let Some(pipeline) = self.pipelines.get(&key) {
+            return Ok(pipeline.clone());
         }
-        self.pipelines.get(&key).unwrap().clone()
+
+        let _span = tracing::info_span!(
+            "PipelineManager::create_pipeline",
+            vs = %key.vertex_shader,
+            fs = %key.fragment_shader
+        )
+        .entered();
+
+        let layouts = Self::create_bind_group_layouts(ctx, &key);
+        let pipeline = self.create_pipeline(ctx, shaders, &key, &layouts)?;
+        let pipeline_arc = Arc::new(pipeline);
+
+        self.layouts.insert(key.clone(), layouts);
+        self.pipelines.insert(key, pipeline_arc.clone());
+
+        tracing::info!("Nouvelle RenderPipeline WGPU compilé et mis en cache");
+        Ok(pipeline_arc)
     }
 
     pub fn invalidate_shader(&mut self, shader_id: ShaderId) {
+        tracing::debug!(shader_id = %shader_id, "Invalidation des pipelines associés au shader");
+        
         self.pipelines
+            .retain(|key, _| key.vertex_shader != shader_id && key.fragment_shader != shader_id);
+        self.layouts
             .retain(|key, _| key.vertex_shader != shader_id && key.fragment_shader != shader_id);
     }
 
     pub fn invalidate_all(&mut self) {
+        tracing::debug!("Vidage complet du cache des pipelines");
         self.pipelines.clear();
         self.layouts.clear();
     }
@@ -91,28 +112,42 @@ impl PipelineManager {
         ctx: &GpuContext,
         shaders: &ShaderManager,
         key: &PipelineKey,
-    ) -> wgpu::RenderPipeline {
+        bind_group_layouts: &[wgpu::BindGroupLayout],
+    ) -> Result<wgpu::RenderPipeline, PipelineError> {
         let blend_mode = Self::blend_mode(key.blend_mode);
         let vertex_format = Self::vertex_layout(key.vertex_format);
 
-        let vertex_shader = shaders.get(key.vertex_shader).unwrap();
-        let frag_shader = shaders.get(key.fragment_shader).unwrap();
+        let vertex_shader = shaders.get(key.vertex_shader).ok_or_else(|| {
+            tracing::error!(id = %key.vertex_shader, "Vertex shader introuvable lors de la création du pipeline");
+            PipelineError::ShaderNotFound { id: key.vertex_shader }
+        })?;
 
-        let bind_group_layouts = Self::create_bind_group_layouts(ctx, key.bind_groups);
+        let frag_shader = shaders.get(key.fragment_shader).ok_or_else(|| {
+            tracing::error!(id = %key.fragment_shader, "Fragment shader introuvable lors de la création du pipeline");
+            PipelineError::ShaderNotFound { id: key.fragment_shader }
+        })?;
+
         let bind_group_layout_refs: Vec<Option<&wgpu::BindGroupLayout>> =
             bind_group_layouts.iter().map(Some).collect();
+
+        let layout_label = format!("PipelineLayout (Vertex Shader:{}, Fragement Shader:{})", key.vertex_shader, key.fragment_shader);
+        let pipeline_label = format!(
+            "RenderPipeline (Vertex Shader:{}, Fragement Shader:{}, Blend:{:?}, Format:{:?})",
+            key.vertex_shader, key.fragment_shader, key.blend_mode, key.vertex_format
+        );
 
         let pipeline_layout = ctx
             .device
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Pipeline Layout"),
+                label: Some(&layout_label),
                 bind_group_layouts: &bind_group_layout_refs,
                 immediate_size: 0,
             });
-        let pipeline = ctx
+
+        Ok(ctx
             .device
             .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some("Pipeline"),
+                label: Some(&pipeline_label),
                 layout: Some(&pipeline_layout),
                 vertex: wgpu::VertexState {
                     module: &vertex_shader.module,
@@ -139,8 +174,7 @@ impl PipelineManager {
                 }),
                 multiview_mask: None,
                 cache: None,
-            });
-        pipeline
+            }))
     }
 
     fn blend_mode(mode: BlendMode) -> Option<wgpu::BlendState> {
@@ -220,11 +254,12 @@ impl PipelineManager {
 
     fn create_bind_group_layouts(
         ctx: &GpuContext,
-        groups: &[&[BindGroupLayoutEntryKey]],
+        key: &PipelineKey,
     ) -> Vec<wgpu::BindGroupLayout> {
-        groups
+        key.bind_groups
             .iter()
-            .map(|entries| {
+            .enumerate()
+            .map(|(index, entries)| {
                 let wgpu_entries: Vec<wgpu::BindGroupLayoutEntry> = entries
                     .iter()
                     .map(|e| wgpu::BindGroupLayoutEntry {
@@ -249,9 +284,14 @@ impl PipelineManager {
                     })
                     .collect();
 
+                let group_label = format!(
+                    "BindGroupLayout #{} (Vertex Shader:{}, Fragement Shader:{})",
+                    index, key.vertex_shader, key.fragment_shader
+                );
+
                 ctx.device
                     .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                        label: None,
+                        label: Some(&group_label),
                         entries: &wgpu_entries,
                     })
             })

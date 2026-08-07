@@ -31,6 +31,7 @@ pub use resource::{
     shader::{GpuShader, ShaderManager},
     texture::{GpuTexture, TextureManager},
 };
+pub use errors::*;
 
 pub use pass::CAM_BIND_GROUP;
 pub use pass::TEXTURE_BIND_GROUP;

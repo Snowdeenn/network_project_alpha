@@ -4,6 +4,5 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-raylib  = "5.5.1"
 utils = { path = "../utils" }
 prism = { path = "../prism" }

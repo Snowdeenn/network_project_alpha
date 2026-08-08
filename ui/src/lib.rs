@@ -1,13 +1,12 @@
-pub mod context;
-pub mod draw;
-pub mod event;
-pub mod input;
-pub mod layout;
-pub mod r#macro;
-pub mod node;
-pub mod output;
-pub mod provider;
-pub mod tween;
+mod context;
+mod draw;
+mod event;
+mod input;
+mod layout;
+mod r#macro;
+mod node;
+mod output;
+mod tween;
 
 pub use crate::context::UiContext;
 pub use crate::draw::*;
@@ -16,7 +15,6 @@ pub use crate::input::*;
 pub use crate::layout::*;
 pub use crate::node::*;
 pub use crate::output::UIOutputEvent;
-pub use crate::provider::*;
 pub use crate::tween::*;
 
 pub use utils::arena::{Arena, Id};

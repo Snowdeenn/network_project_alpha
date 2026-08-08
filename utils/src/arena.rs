@@ -25,6 +25,46 @@ pub struct Id<Tag> {
     _phantom: PhantomData<Tag>,
 }
 
+impl<T> std::fmt::Display for Id<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "idx: {} gen: {}", self.index, self.generation)
+    }
+}
+
+// Implémentations des traits standards pour Id<T>
+impl<T> PartialEq for Id<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.index == other.index && self.generation == other.generation
+    }
+}
+
+impl<T> Eq for Id<T> {}
+
+impl<T> Hash for Id<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.index.hash(state);
+        self.generation.hash(state);
+    }
+}
+
+impl<T> Debug for Id<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Id {{ index: {}, generation: {} }}",
+            self.index, self.generation
+        )
+    }
+}
+
+impl<T> Copy for Id<T> {}
+
+impl<T> Clone for Id<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
 /// Emplacement interne (*slot*) dans l'arène contenant la valeur et sa génération actuelle.
 struct Slot<Data> {
     generation: u32,
@@ -238,41 +278,6 @@ impl<Data, Tag> Arena<Data, Tag> {
 impl<Data, Tag> Default for Arena<Data, Tag> {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-// Implémentations des traits standards pour Id<T>
-
-impl<T> PartialEq for Id<T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.index == other.index && self.generation == other.generation
-    }
-}
-
-impl<T> Eq for Id<T> {}
-
-impl<T> Hash for Id<T> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.index.hash(state);
-        self.generation.hash(state);
-    }
-}
-
-impl<T> Debug for Id<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Id {{ index: {}, generation: {} }}",
-            self.index, self.generation
-        )
-    }
-}
-
-impl<T> Copy for Id<T> {}
-
-impl<T> Clone for Id<T> {
-    fn clone(&self) -> Self {
-        *self
     }
 }
 

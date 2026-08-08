@@ -1,8 +1,4 @@
-use std::collections::{HashSet, VecDeque};
-
-use raylib::prelude::Rectangle;
-
-use crate::draw::{DrawCommand, DrawCommandBuffer, to_raylib_vec2};
+use crate::draw::{DrawCommand, DrawCommandBuffer};
 use crate::event::UIEvent;
 use crate::input::Interact;
 use crate::input::InteractState;
@@ -14,6 +10,7 @@ use crate::{
     layout::compute_anchor_pos,
     node::{Anchor, LayoutProps, UiNode, VisualProps},
 };
+use std::collections::{HashSet, VecDeque};
 use utils::arena::*;
 use utils::math::Vec2;
 
@@ -314,14 +311,12 @@ impl UiContext {
                 continue;
             };
 
-            let bounds = Rectangle {
-                x: node.layout.computed_pos.x,
-                y: node.layout.computed_pos.y,
-                width: node.layout.computed_size.x,
-                height: node.layout.computed_size.y,
-            };
-
-            let hovered = bounds.check_collision_point_rec(to_raylib_vec2(mouse_pos));
+            let pos = node.layout.computed_pos;
+            let size = node.layout.computed_size;
+            let hovered = mouse_pos.x >= pos.x
+                && mouse_pos.x <= pos.x + size.x
+                && mouse_pos.y >= pos.y
+                && mouse_pos.y <= pos.y + size.y;
 
             let new_state = if hovered && mouse_pressed {
                 InteractState::Pressed
@@ -381,8 +376,6 @@ impl UiContext {
 
 #[cfg(test)]
 mod test {
-    // dans Arena<T>
-
     use super::*;
     use crate::node::Anchor;
 

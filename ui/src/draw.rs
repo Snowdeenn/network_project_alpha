@@ -1,16 +1,6 @@
-use crate::provider::{ShaderProvider, TextureProvider};
-use raylib::prelude::*;
 use utils::colors;
 use utils::ids::{ShaderId, TextureId};
 use utils::math::Vec2;
-
-pub fn to_raylib_color(c: colors::Color) -> raylib::prelude::Color {
-    raylib::prelude::Color::new(c.r, c.g, c.b, c.a)
-}
-
-pub fn to_raylib_vec2(v: Vec2) -> raylib::math::Vector2 {
-    raylib::math::Vector2::new(v.x, v.y)
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct NinePatchMargins {
@@ -100,182 +90,131 @@ impl DrawCommandBuffer {
         self.buffer.sort_unstable_by_key(|cmd| sort_key(cmd));
     }
 
-    pub fn flush<S: ShaderProvider, T: TextureProvider>(
-        &self,
-        d: &mut RaylibDrawHandle,
-        tex_reg: &T,
-        shader_reg: &mut S,
-    ) {
-        let mut i = 0;
-        while i < self.buffer.len() {
-            match &self.buffer[i] {
-                DrawCommand::Shader { shader_id, .. }
-                | DrawCommand::ShaderTexture { shader_id, .. } => {
-                    let current_shader_id = *shader_id;
-
-                    let mut j = i + 1;
-                    while j < self.buffer.len() {
-                        match &self.buffer[j] {
-                            DrawCommand::Shader { shader_id, .. }
-                            | DrawCommand::ShaderTexture { shader_id, .. }
-                                if *shader_id == current_shader_id =>
-                            {
-                                j += 1;
-                            }
-                            _ => break,
-                        }
-                    }
-
-                    if let Some(shader) = shader_reg.get_shader_mut(current_shader_id) {
-                        let mut shader_mode = d.begin_shader_mode(shader);
-
-                        for cmd in &self.buffer[i..j] {
-                            match cmd {
-                                DrawCommand::Shader {
-                                    pos, size, color, ..
-                                } => {
-                                    shader_mode.draw_rectangle_v(
-                                        to_raylib_vec2(*pos),
-                                        to_raylib_vec2(*size),
-                                        to_raylib_color(*color),
-                                    );
-                                }
-                                DrawCommand::ShaderTexture {
-                                    texture_id,
-                                    pos,
-                                    size,
-                                    tint,
-                                    ..
-                                } => {
-                                    if let Some(texture) = tex_reg.get_texture(*texture_id) {
-                                        let source = Rectangle {
-                                            x: 0.0,
-                                            y: 0.0,
-                                            width: texture.width as f32,
-                                            height: texture.height as f32,
-                                        };
-                                        let dest = Rectangle {
-                                            x: pos.x,
-                                            y: pos.y,
-                                            width: size.x,
-                                            height: size.y,
-                                        };
-                                        shader_mode.draw_texture_pro(
-                                            texture,
-                                            source,
-                                            dest,
-                                            Vector2::zero(),
-                                            0.0,
-                                            to_raylib_color(*tint),
-                                        );
-                                    }
-                                }
-                                _ => unreachable!(
-                                    "Le scan précedent garantit qu'il n'y a que des Shaders ici."
-                                ),
-                            }
-                        }
-                    }
-                    i = j;
-                }
+    pub fn collect_into(&self, frame: &mut prism::Frame) {
+        for cmd in self.buffer.iter() {
+            match cmd {
                 DrawCommand::Rect {
-                    pos, size, color, ..
+                    pos,
+                    size,
+                    color,
+                    layer,
                 } => {
-                    d.draw_rectangle_v(
-                        to_raylib_vec2(*pos),
-                        to_raylib_vec2(*size),
-                        to_raylib_color(*color),
-                    );
-                    i += 1;
+                    frame.push_hud(prism::DrawCommand::Shape {
+                        shape: prism::Shape::Quad {
+                            pos: [pos.x, pos.y],
+                            size: [size.x, size.y],
+                            rotation: 0.0,
+                            color: [
+                                (color.r as f32) / 255.0,
+                                (color.g as f32) / 255.0,
+                                (color.b as f32) / 255.0,
+                                1.0,
+                            ],
+                            uv: None,
+                        },
+                        blend: prism::BlendMode::Alpha,
+                        layer: *layer,
+                    });
                 }
                 DrawCommand::Texture {
                     texture_id,
                     pos,
                     size,
                     tint,
-                    ..
+                    layer,
                 } => {
-                    if let Some(texture) = tex_reg.get_texture(*texture_id) {
-                        let source = Rectangle {
-                            x: 0.0,
-                            y: 0.0,
-                            width: texture.width as f32,
-                            height: texture.height as f32,
-                        };
-                        let dest = Rectangle {
-                            x: pos.x,
-                            y: pos.y,
-                            width: size.x,
-                            height: size.y,
-                        };
-                        d.draw_texture_pro(
-                            texture,
-                            source,
-                            dest,
-                            Vector2::zero(),
-                            0.0,
-                            to_raylib_color(*tint),
-                        );
-                    }
-                    i += 1;
-                }
-                DrawCommand::NinePatch {
-                    texture_id,
-                    pos,
-                    size,
-                    margins,
-                    tint,
-                    ..
-                } => {
-                    if let Some(texture) = tex_reg.get_texture(*texture_id) {
-                        let source = Rectangle {
-                            x: 0.0,
-                            y: 0.0,
-                            width: texture.width as f32,
-                            height: texture.height as f32,
-                        };
-                        let dest = Rectangle {
-                            x: pos.x,
-                            y: pos.y,
-                            width: size.x,
-                            height: size.y,
-                        };
-
-                        let n_patch_info = NPatchInfo {
-                            source,
-                            left: margins.left as i32,
-                            top: margins.top as i32,
-                            right: margins.right as i32,
-                            bottom: margins.bottom as i32,
-                            layout: NPatchLayout::NPATCH_NINE_PATCH,
-                        };
-                        d.draw_texture_n_patch(
-                            texture,
-                            n_patch_info,
-                            dest,
-                            Vector2::zero(),
-                            0.0,
-                            to_raylib_color(*tint),
-                        );
-                    }
-                    i += 1;
+                    frame.push_hud(prism::DrawCommand::Texture {
+                        id: *texture_id,
+                        pos: [pos.x, pos.y],
+                        size: [size.x, size.y],
+                        rotation: 0.0,
+                        uv: None,
+                        tint: [
+                            (tint.r as f32) / 255.0,
+                            (tint.g as f32) / 255.0,
+                            (tint.b as f32) / 255.0,
+                            (tint.a as f32) / 255.0,
+                        ],
+                        blend: prism::BlendMode::Alpha,
+                        layer: *layer,
+                    });
                 }
                 DrawCommand::Text {
                     text,
                     pos,
                     font_size,
                     color,
-                    ..
+                    layer,
                 } => {
-                    d.draw_text(
-                        text,
-                        pos.x as i32,
-                        pos.y as i32,
-                        *font_size as i32,
-                        to_raylib_color(*color),
-                    );
-                    i += 1;
-                }
+                    frame.push_hud(prism::DrawCommand::Text {
+                        content: text.to_owned(),
+                        pos: [pos.x, pos.y],
+                        size: *font_size,
+                        color: [
+                            (color.r as f32) / 255.0,
+                            (color.g as f32) / 255.0,
+                            (color.b as f32) / 255.0,
+                            (color.a as f32) / 255.0,
+                        ],
+                        layer: *layer,
+                    });
+                },
+                // DrawCommand::Shader {
+                //     shader_id,
+                //     pos,
+                //     size,
+                //     color,
+                //     layer,
+                // } => {
+                //     frame.push_hud(prism::DrawCommand::Texture {
+                //         id: (),
+                //         pos: [pos.x, pos.y],
+                //         size: [size.x, size.y],
+                //         rotation: 0.0,
+                //         uv: None,
+                //         tint: [
+                //             (color.r as f32) / 255.0,
+                //             (color.g as f32) / 255.0,
+                //             (color.b as f32) / 255.0,
+                //             (color.a as f32) / 255.0,
+                //         ],
+                //         blend: prism::BlendMode::Alpha,
+                //         layer: *layer,
+                //     });
+                // }
+                // DrawCommand::ShaderTexture {
+                //     shader_id,
+                //     texture_id,
+                //     pos,
+                //     size,
+                //     tint,
+                //     layer,
+                // } => {
+                //     frame.push_hud(prism::DrawCommand::Texture {
+                //         id: *texture_id,
+                //         pos: [pos.x, pos.y],
+                //         size: [size.x, size.y],
+                //         rotation: 0.0,
+                //         uv: None,
+                //         tint: [
+                //             (tint.r as f32) / 255.0,
+                //             (tint.g as f32) / 255.0,
+                //             (tint.b as f32) / 255.0,
+                //             (tint.a as f32) / 255.0,
+                //         ],
+                //         blend: prism::BlendMode::Alpha,
+                //         layer: *layer,
+                //     });
+                // }
+                // DrawCommand::NinePatch {
+                //     texture_id,
+                //     pos,
+                //     size,
+                //     margins,
+                //     tint,
+                //     layer,
+                // } => {},
+                _ => () // Temp pour savoir quoi faire dans les commands commenter
             }
         }
     }

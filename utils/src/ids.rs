@@ -7,12 +7,13 @@ pub struct ShaderTag;
 pub struct TextureTag;
 pub struct AnimTag;
 pub struct AnimEntityTag;
+pub struct MaterialTag;
 
 pub type ShaderId = Id<ShaderTag>;
 pub type TextureId = Id<TextureTag>;
 pub type AnimId = Id<AnimTag>;
 pub type AnimEntityId = Id<AnimEntityTag>;
-
+pub type MaterialId = Id<MaterialTag>;
 // ======================================
 // Tag Server
 // ======================================

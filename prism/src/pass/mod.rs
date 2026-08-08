@@ -7,6 +7,7 @@ use crate::TextureManager;
 use crate::context::GpuContext;
 use crate::draw::batch::DrawCommandBuffer;
 use crate::resource::buffer::GpuBufferManager;
+use crate::resource::material::MaterialManager;
 use utils::math::Mat4;
 pub trait Pass {
     type Input<'a>
@@ -27,6 +28,7 @@ pub trait Pass {
         encoder: &mut wgpu::CommandEncoder,
         target: &wgpu::TextureView,
         buffers: &GpuBufferManager,
+        materials: &MaterialManager,
     );
 }
 
@@ -45,8 +47,9 @@ pub struct VfxInput<'a> {
 
 // HudPass  
 pub struct HudInput<'a> {
-    pub commands: &'a DrawCommandBuffer,
+    pub commands: &'a mut DrawCommandBuffer,
     pub camera: Mat4,
+    pub texture: &'a TextureManager,
 }
 
 // PostProcessPass

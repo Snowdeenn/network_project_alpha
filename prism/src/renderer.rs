@@ -10,6 +10,7 @@ pub struct Renderer {
     pipelines: crate::PipelineManager,
     shaders: crate::ShaderManager,
     textures: crate::TextureManager,
+    materials: crate::MaterialManager,
     world: crate::WorldPass,
     vfx: crate::VfxPass,
     hud: crate::HudPass,
@@ -41,7 +42,7 @@ impl Renderer {
         let post_frag_shader = shaders.load(&ctx, post_frag_path)?;
         let (intermediate_a, intermediate_view_a) = Self::create_intermediate(&ctx);
         let (intermediate_b, intermediate_view_b) = Self::create_intermediate(&ctx);
-
+        let materials = crate::MaterialManager::new();
         let world = crate::WorldPass::new(
             &ctx,
             &mut buffers,
@@ -91,6 +92,7 @@ impl Renderer {
             intermediate_view_b,
             current_source: DoubleBufferIndex::Primary,
             frame_manager,
+            materials,
         })
     }
 
@@ -150,7 +152,7 @@ impl Renderer {
                 texture: &mut self.textures,
             },
         );
-        self.world.execute(&mut encoder, target, &self.buffers);
+        self.world.execute(&mut encoder, target, &self.buffers, &self.materials);
 
         self.vfx.prepare(
             &self.ctx,
@@ -160,7 +162,7 @@ impl Renderer {
                 camera: cam_matrix,
             },
         );
-        self.vfx.execute(&mut encoder, target, &self.buffers);
+        self.vfx.execute(&mut encoder, target, &self.buffers, &self.materials);
 
         let last = self.post_process_passes.len().saturating_sub(1);
         for i in 0..self.post_process_passes.len() {
@@ -184,18 +186,19 @@ impl Renderer {
                     target: tgt,
                 },
             );
-            self.post_process_passes[i].execute(&mut encoder, render_target, &self.buffers);
+            self.post_process_passes[i].execute(&mut encoder, render_target, &self.buffers, &self.materials);
         }
 
         self.hud.prepare(
             &self.ctx,
             &mut self.buffers,
             &mut crate::HudInput {
-                commands: &frame.hud,
+                commands: &mut frame.hud,
                 camera: cam_matrix,
+                texture: &self.textures,
             },
         );
-        self.hud.execute(&mut encoder, &surface_view, &self.buffers);
+        self.hud.execute(&mut encoder, &surface_view, &self.buffers, &self.materials);
 
         self.ctx.submit(encoder);
         self.ctx.present(surface_texture);
@@ -212,7 +215,7 @@ impl Renderer {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            format: ctx.surface_format(),
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         });

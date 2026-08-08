@@ -30,6 +30,7 @@ pub use resource::{
     },
     shader::{GpuShader, ShaderManager},
     texture::{GpuTexture, TextureManager},
+    material::{Material, MaterialManager},
 };
 pub use errors::*;
 

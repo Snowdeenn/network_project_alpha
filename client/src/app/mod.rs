@@ -255,7 +255,6 @@ impl winit::application::ApplicationHandler for App {
                 }
             }
             if matches!(self.screen, AppScreen::InGame(_)) {
-                tracing::info!("frame manager clear");
                 renderer.frame_manager().clear();
             }
         }

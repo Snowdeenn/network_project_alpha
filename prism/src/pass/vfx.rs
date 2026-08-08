@@ -11,6 +11,7 @@ use crate::{
         buffer::GpuBufferManager,
         pipeline::{BlendMode, PipelineKey, PipelineManager, VertexFormat},
         shader::ShaderManager,
+        material::MaterialManager,
     },
 };
 
@@ -246,6 +247,7 @@ impl Pass for VfxPass {
         encoder: &mut wgpu::CommandEncoder,
         target: &wgpu::TextureView,
         buffers: &GpuBufferManager,
+        _materials: &MaterialManager,
     ) {
         if self.index_count == 0 {
             return;

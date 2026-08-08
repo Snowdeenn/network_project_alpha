@@ -1,6 +1,3 @@
-
-use utils::ids::{TextureId};
-
 use crate::graphic_data::animation_manager::{AnimationError, AnimationManager};
 
 pub struct AssetManager {

@@ -1,7 +1,7 @@
-use utils::ids::TextureId;
 use crate::geometry::mesh::RawMesh;
 use crate::geometry::shape::Shape;
 use crate::resource::pipeline::BlendMode;
+use utils::ids::{TextureId, MaterialId};
 
 #[derive(Debug)]
 pub enum DrawCommand {
@@ -30,6 +30,18 @@ pub enum DrawCommand {
         pos: [f32; 2],
         size: f32,
         color: [f32; 4],
+        layer: u8,
+    },
+    Material {
+        material_id: MaterialId,
+        texture_id: Option<TextureId>,
+        pos: [f32; 2],
+        size: [f32; 2],
+        rotation: f32,
+        uv: Option<crate::geometry::shape::UvRect>,
+        tint: [f32; 4],
+        uniform_data: Vec<u8>, // données custom uploadées dans un scratch buffer
+        blend: BlendMode,
         layer: u8,
     },
 }

@@ -16,7 +16,7 @@ impl DrawCommandBuffer {
         self.commands.push(command);
     }
 
-    pub fn sort(&mut self) {
+    pub fn sort_commands(&mut self) {
         self.commands.sort_unstable_by_key(|cmd| sort_key(cmd));
     }
 
@@ -33,19 +33,24 @@ impl DrawCommandBuffer {
 }
 
 fn sort_key(cmd: &DrawCommand) -> u64 {
-    let (layer, blend, shader_id, texture_id) = match cmd {
-        DrawCommand::Shape { layer, blend, .. } => (*layer, *blend as u8, 0u16, 0u32),
-        DrawCommand::Mesh { layer, blend, .. } => (*layer, *blend as u8, 0u16, 0u32),
-        DrawCommand::Texture {
-            layer, blend, id, ..
-        } => {
-            (*layer, *blend as u8, 0u16, id.index as u32)
+    match cmd {
+        DrawCommand::Shape { layer, blend, .. } => {
+            (*layer as u64) << 56 | (*blend as u64) << 48
         }
-        DrawCommand::Text { layer, .. } => (*layer, 0u8, 1u16, 0u32),
-    };
-
-    ((layer as u64) << 56)
-        | ((blend as u64) << 48)
-        | ((shader_id as u64) << 32)
-        | (texture_id as u64)
+        DrawCommand::Mesh { layer, blend, .. } => {
+            (*layer as u64) << 56 | (*blend as u64) << 48
+        }
+        DrawCommand::Texture { layer, blend, id, .. } => {
+            (*layer as u64) << 56 | (*blend as u64) << 48 | (id.index as u64)
+        }
+        DrawCommand::Text { layer, .. } => {
+            (*layer as u64) << 56 | (1u64 << 32)
+        }
+        DrawCommand::Material { layer, material_id, texture_id, blend, .. } => {
+            (*layer as u64) << 56
+                | (*blend as u64) << 48
+                | (material_id.index as u64) << 16
+                | texture_id.map(|t| t.index as u64).unwrap_or(0)
+        }
+    }
 }

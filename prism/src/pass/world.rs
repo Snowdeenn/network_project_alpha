@@ -9,6 +9,7 @@ use crate::{
     pass::{Pass, WorldInput},
     resource::{
         buffer::GpuBufferManager,
+        material::MaterialManager,
         pipeline::{BlendMode, PipelineKey, PipelineManager, VertexFormat},
         shader::ShaderManager,
         texture::TextureManager,
@@ -84,12 +85,10 @@ impl WorldPass {
         };
 
         let pipeline = pipelines.get_or_create(ctx, shaders, pipeline_key.clone())?;
-        let layouts = pipelines
-            .get_layouts(&pipeline_key)
-            .ok_or_else(|| {
-                tracing::error!("Impossible de récupérer les BindGroupLayouts pour la WorldPass");
-                PassError::LayoutsNotFound
-            })?;
+        let layouts = pipelines.get_layouts(&pipeline_key).ok_or_else(|| {
+            tracing::error!("Impossible de récupérer les BindGroupLayouts pour la WorldPass");
+            PassError::LayoutsNotFound
+        })?;
 
         let camera_bind_group = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("WorldPass Camera BindGroup"),
@@ -167,7 +166,7 @@ impl WorldPass {
         self.vert_shader = vert_shader;
         self.frag_shader = frag_shader;
         self.pipeline = pipeline;
-        
+
         tracing::debug!(vs = %vert_shader, fs = %frag_shader, "Shaders de la WorldPass mis à jour");
         Ok(())
     }
@@ -189,7 +188,9 @@ impl WorldPass {
                 );
                 textures.get(textures.white_texture())
             })
-            .expect("La texture blanche par défaut doit toujours être présente dans TextureManager");
+            .expect(
+                "La texture blanche par défaut doit toujours être présente dans TextureManager",
+            );
 
         ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("WorldPass Texture Batch BindGroup"),
@@ -244,6 +245,14 @@ impl Pass for WorldPass {
                 DrawCommand::Shape { layer, .. } => (*layer, white_id.index),
                 DrawCommand::Mesh { layer, .. } => (*layer, white_id.index),
                 DrawCommand::Text { layer, .. } => (*layer, usize::MAX),
+                DrawCommand::Material {
+                    layer,
+                    texture_id,
+                    ..
+                } => (
+                    *layer,
+                    texture_id.map(|t| t.index).unwrap_or(white_id.index),
+                ),
             }
         };
 
@@ -313,8 +322,8 @@ impl Pass for WorldPass {
                 });
             }
         }
-        let required_vertex_bytes =
-            self.mesh.vertices().len() as u64 * std::mem::size_of::<crate::geometry::mesh::Vertex>() as u64;
+        let required_vertex_bytes = self.mesh.vertices().len() as u64
+            * std::mem::size_of::<crate::geometry::mesh::Vertex>() as u64;
 
         if required_vertex_bytes > self.vertex_buffer_size {
             self.vertex_buffer_size = (self.vertex_buffer_size * 2).max(required_vertex_bytes);
@@ -335,7 +344,8 @@ impl Pass for WorldPass {
                 let _ = buffers.remove(former_buffer);
             }
         }
-        let required_index_bytes = self.mesh.indices().len() as u64 * std::mem::size_of::<u32>() as u64;
+        let required_index_bytes =
+            self.mesh.indices().len() as u64 * std::mem::size_of::<u32>() as u64;
 
         if required_index_bytes > self.index_buffer_size {
             self.index_buffer_size = (self.index_buffer_size * 2).max(required_index_bytes);
@@ -359,7 +369,8 @@ impl Pass for WorldPass {
 
         self.index_count = self.mesh.indices().len() as u32;
 
-        if let Err(err) = buffers.write_buffer(ctx, self.vertex_buffer, self.mesh.vertices_bytes()) {
+        if let Err(err) = buffers.write_buffer(ctx, self.vertex_buffer, self.mesh.vertices_bytes())
+        {
             tracing::error!("Échec d'écriture dans le Vertex Buffer de WorldPass : {err}");
         }
 
@@ -373,6 +384,7 @@ impl Pass for WorldPass {
         encoder: &mut wgpu::CommandEncoder,
         target: &wgpu::TextureView,
         buffers: &GpuBufferManager,
+        _materials: &MaterialManager,
     ) {
         if self.index_count == 0 {
             return;
@@ -381,7 +393,10 @@ impl Pass for WorldPass {
         let index_buffer = match buffers.get(self.index_buffer) {
             Some(b) => b,
             None => {
-                tracing::error!("Index Buffer introuvable dans WorldPass (ID : %{})", self.index_buffer);
+                tracing::error!(
+                    "Index Buffer introuvable dans WorldPass (ID : %{})",
+                    self.index_buffer
+                );
                 return;
             }
         };
@@ -389,7 +404,10 @@ impl Pass for WorldPass {
         let vertex_buffer = match buffers.get(self.vertex_buffer) {
             Some(b) => b,
             None => {
-                tracing::error!("Vertex Buffer introuvable dans WorldPass (ID : %{})", self.vertex_buffer);
+                tracing::error!(
+                    "Vertex Buffer introuvable dans WorldPass (ID : %{})",
+                    self.vertex_buffer
+                );
                 return;
             }
         };
@@ -413,7 +431,8 @@ impl Pass for WorldPass {
 
         world_render_pass.set_pipeline(&self.pipeline);
         world_render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-        world_render_pass.set_index_buffer(index_buffer.buffer.slice(..), wgpu::IndexFormat::Uint32);
+        world_render_pass
+            .set_index_buffer(index_buffer.buffer.slice(..), wgpu::IndexFormat::Uint32);
         world_render_pass.set_vertex_buffer(0, vertex_buffer.buffer.slice(..));
 
         for batch in &self.batches {

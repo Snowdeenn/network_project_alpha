@@ -5,7 +5,7 @@ use crate::{
     context::GpuContext,
     errors::PassError,
     pass::{Pass, PostProcessInput},
-    resource::{buffer::GpuBufferManager, shader::ShaderManager},
+    resource::{buffer::GpuBufferManager, shader::ShaderManager, material::MaterialManager},
 };
 
 pub struct PostProcessPass {
@@ -206,6 +206,7 @@ impl Pass for PostProcessPass {
         encoder: &mut wgpu::CommandEncoder,
         target: &wgpu::TextureView,
         _buffers: &GpuBufferManager,
+        _materials: &MaterialManager,
     ) {
         let _span = tracing::trace_span!("PostProcessPass::execute").entered();
 

@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use utils::ids::{ShaderId};
+use utils::ids::ShaderId;
 
-use crate::{pass::Pass};
+use crate::pass::Pass;
 
 pub struct Renderer {
     ctx: crate::GpuContext,
@@ -125,7 +125,7 @@ impl Renderer {
         let surface_view = surface_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
-
+        self.current_source = DoubleBufferIndex::Primary;
         let mut encoder = self.ctx.create_encoder("frame");
 
         let (_source, target) = match self.current_source {
@@ -321,12 +321,7 @@ impl Renderer {
         frag_shader: ShaderId,
     ) -> Result<(), crate::PrismError> {
         if let Some(pass) = self.post_process_passes.get_mut(index) {
-            pass.set_shader(
-                &self.ctx,
-                &self.shaders,
-                vert_shader,
-                frag_shader,
-            )?;
+            pass.set_shader(&self.ctx, &self.shaders, vert_shader, frag_shader)?;
             Ok(())
         } else {
             tracing::error!(
@@ -353,7 +348,6 @@ impl Renderer {
         self.post_process_passes.push(pass);
         Ok(())
     }
-    
 
     pub fn ctx_and_textures_mut(&mut self) -> (&crate::GpuContext, &mut crate::TextureManager) {
         (&self.ctx, &mut self.textures)

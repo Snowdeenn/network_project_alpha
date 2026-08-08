@@ -35,7 +35,9 @@ impl FrameManager {
     /// retournée dans le `Err(frame)` et un avertissement est consigné dans les logs.
     pub fn push(&self, frame: Frame) -> Result<(), Frame> {
         self.queue.push(frame).map_err(|rejected_frame| {
-            tracing::warn!("File d'attente des frames pleine : frame rejetée pour éviter le blocage");
+            tracing::warn!(
+                "File d'attente des frames pleine : frame rejetée pour éviter le blocage"
+            );
             rejected_frame
         })
     }
@@ -63,5 +65,9 @@ impl FrameManager {
     /// Retourne la capacité maximale de la file d'attente.
     pub fn capacity(&self) -> usize {
         self.queue.capacity()
+    }
+
+    pub fn clear(&self) {
+        while self.queue.pop().is_some() {}
     }
 }

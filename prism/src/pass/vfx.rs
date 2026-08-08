@@ -71,7 +71,7 @@ impl VfxPass {
             fragment_shader: frag_shader,
             blend_mode: BlendMode::Additive,
             vertex_format: VertexFormat::Pos2UvColor,
-            bind_groups: &crate::CAM_BIND_GROUP[0..1],
+            bind_groups: &crate::CAM_BIND_GROUP,
         };
 
         let pipeline = pipelines.get_or_create(ctx, shaders, pipeline_key.clone())?;
@@ -124,7 +124,7 @@ impl VfxPass {
                 fragment_shader: frag_shader,
                 blend_mode: BlendMode::Additive,
                 vertex_format: VertexFormat::Pos2UvColor,
-                bind_groups: &crate::CAM_BIND_GROUP[0..1],
+                bind_groups: &crate::CAM_BIND_GROUP,
             },
         )?;
 

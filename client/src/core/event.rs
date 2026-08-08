@@ -8,6 +8,7 @@ use utils::{
     protocol::{GameEvent, GameEventKind, LobbyPhaseInfo, LobbySlotInfo, ShopItem},
 };
 
+#[derive(Debug)]
 pub enum GamePhase {
     Wave,
     BetweenWave {
@@ -175,6 +176,7 @@ impl DebugState {
 // Client State
 // ====================================================
 
+#[derive(Debug)]
 pub struct ClientState {
     pub phase: GamePhase,
     pub shop_ui: ShopUiState,
@@ -385,12 +387,14 @@ pub fn handle_shop_ui_event(event: &GameEvent, ui_ctx: &mut ui::UiContext, shop_
     }
 }
 
+#[derive(Debug)]
 pub enum AppScreen {
     MainMenu,
     Lobby(LobbyScreenState),
     InGame(ClientState),
 }
 
+#[derive(Debug)]
 pub struct LobbyScreenState {
     pub code: String,
     pub slot_index: u8,
@@ -405,16 +409,19 @@ pub struct LobbyScreenState {
 // Ui State
 // ====================================================
 
+#[derive(Debug)]
 pub struct SharedLivesDisplay {
     pub current: u32,
     pub max: u32,
 }
 
+#[derive(Debug)]
 pub enum SpectatorMode {
     Free,
     Follow { target_id: u64 },
 }
 
+#[derive(Debug)]
 pub struct UiState {
     pub shared_lives: SharedLivesDisplay,
     pub respawn_timer: Option<f32>,

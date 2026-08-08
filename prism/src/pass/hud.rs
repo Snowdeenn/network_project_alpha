@@ -27,6 +27,7 @@ pub struct HudPass {
     text_renderer: TextRenderer,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
+    has_text: bool,
 }
 
 impl HudPass {
@@ -66,7 +67,7 @@ impl HudPass {
             fragment_shader: frag_shader,
             blend_mode: BlendMode::Alpha,
             vertex_format: VertexFormat::Pos2UvColor,
-            bind_groups: &crate::CAM_BIND_GROUP[0..1],
+            bind_groups: &crate::CAM_BIND_GROUP,
         };
 
         let pipeline = pipelines.get_or_create(ctx, shaders, pipeline_key.clone())?;
@@ -80,12 +81,10 @@ impl HudPass {
 
         let text_renderer = TextRenderer::new(ctx, surface_format);
 
-        let layouts = pipelines
-            .get_layouts(&pipeline_key)
-            .ok_or_else(|| {
-                tracing::error!("Impossible de récupérer les BindGroupLayouts pour la HudPass");
-                PassError::LayoutsNotFound
-            })?;
+        let layouts = pipelines.get_layouts(&pipeline_key).ok_or_else(|| {
+            tracing::error!("Impossible de récupérer les BindGroupLayouts pour la HudPass");
+            PassError::LayoutsNotFound
+        })?;
 
         let camera_bind_group = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("HudPass Camera BindGroup"),
@@ -111,6 +110,7 @@ impl HudPass {
             text_renderer,
             camera_buffer,
             camera_bind_group,
+            has_text: false,
         })
     }
 
@@ -134,7 +134,7 @@ impl HudPass {
                 fragment_shader: frag_shader,
                 blend_mode: BlendMode::Alpha,
                 vertex_format: VertexFormat::Pos2UvColor,
-                bind_groups: &crate::CAM_BIND_GROUP[0..1],
+                bind_groups: &crate::CAM_BIND_GROUP,
             },
         )?;
 
@@ -159,7 +159,12 @@ impl Pass for HudPass {
         let _span = tracing::trace_span!("HudPass::prepare").entered();
 
         self.mesh.clear();
-
+        self.text_renderer.trim();
+        self.has_text = input
+            .commands
+            .commands()
+            .iter()
+            .any(|cmd| matches!(cmd, DrawCommand::Text { .. }));
         for cmd in input.commands.commands() {
             match cmd {
                 DrawCommand::Shape { shape, .. } => Tesselator::tesselate(shape, &mut self.mesh),
@@ -195,12 +200,13 @@ impl Pass for HudPass {
             bytemuck::cast_slice(&[input.camera]),
         );
 
-        if let Err(err) = self.text_renderer.prepare(ctx, input.commands.commands()) {
-            tracing::error!("Échec de la préparation du texte dans HudPass : {err}");
+        if self.has_text {
+            if let Err(err) = self.text_renderer.prepare(ctx, input.commands.commands()) {
+                tracing::error!("Échec de la préparation du texte dans HudPass : {err}");
+            }
         }
-
-        let required_vertex_bytes =
-            self.mesh.vertices().len() as u64 * std::mem::size_of::<crate::geometry::mesh::Vertex>() as u64;
+        let required_vertex_bytes = self.mesh.vertices().len() as u64
+            * std::mem::size_of::<crate::geometry::mesh::Vertex>() as u64;
 
         if required_vertex_bytes > self.vertex_buffer_size {
             self.vertex_buffer_size = (self.vertex_buffer_size * 2).max(required_vertex_bytes);
@@ -220,7 +226,7 @@ impl Pass for HudPass {
                 let _ = buffers.remove(former_buffer);
             }
         }
-        
+
         let required_index_bytes =
             self.mesh.indices().len() as u64 * std::mem::size_of::<u32>() as u64;
 
@@ -245,7 +251,8 @@ impl Pass for HudPass {
 
         self.index_count = self.mesh.indices().len() as u32;
 
-        if let Err(err) = buffers.write_buffer(ctx, self.vertex_buffer, self.mesh.vertices_bytes()) {
+        if let Err(err) = buffers.write_buffer(ctx, self.vertex_buffer, self.mesh.vertices_bytes())
+        {
             tracing::error!("Échec d'écriture dans le Vertex Buffer de HudPass : {err}");
         }
 
@@ -291,13 +298,16 @@ impl Pass for HudPass {
                     hud_render_pass.draw_indexed(0..self.index_count, 0, 0..1);
                 }
                 _ => {
-                    tracing::error!("Vertex ou Index Buffer introuvable dans HudPass lors de l'exécution");
+                    tracing::error!(
+                        "Vertex ou Index Buffer introuvable dans HudPass lors de l'exécution"
+                    );
                 }
             }
         }
-
-        if let Err(err) = self.text_renderer.render(&mut hud_render_pass) {
-            tracing::error!("Échec du rendu du texte dans HudPass : {err}");
+        if self.has_text {
+            if let Err(err) = self.text_renderer.render(&mut hud_render_pass) {
+                tracing::error!("Échec du rendu du texte dans HudPass : {err}");
+            }
         }
     }
 }

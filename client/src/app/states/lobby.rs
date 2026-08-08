@@ -52,13 +52,13 @@ pub fn handle_input(input_state: &Input, state: &mut LobbyScreenState, client: &
 
     for (key, class) in class_keys {
         if input_state.is_just_pressed(key) {
-            println!("Classe selected : {:?}", class);
+            tracing::info!("Class selected : {class:?}");
             state.my_class = Some(class);
             client.send_lobby_message(&LobbyMessage::ClassSelected { class });
 
             if state.is_solo && !state.ready {
                 state.ready = true;
-                println!("Auto-ready solo envoyé");
+                tracing::info!("Auto Ready envoyé");
                 client.send_lobby_message(&LobbyMessage::ToggleReady);
             }
         }
@@ -68,7 +68,7 @@ pub fn handle_input(input_state: &Input, state: &mut LobbyScreenState, client: &
         && input_state.is_just_pressed(winit::keyboard::KeyCode::Space)
         && state.my_class.is_some()
     {
-        println!("Envoi ToggleReady");
+        tracing::info!("Toggle Ready envoyé");
         state.ready = !state.ready;
         client.send_lobby_message(&LobbyMessage::ToggleReady);
     }
@@ -129,7 +129,7 @@ pub fn render(frame: &mut prism::Frame, state: &LobbyScreenState, s: &ScreenScal
                         (utils::colors::Color::GRAY.g as f32) / 255.0,
                         1.0,
                     ],
-                    layer: 1,
+                    layer: 0,
                 });
             }
             Some(info) => {
@@ -138,7 +138,7 @@ pub fn render(frame: &mut prism::Frame, state: &LobbyScreenState, s: &ScreenScal
                     pos: [(x + s.x(0.01)) as f32, (y + s.y(0.02)) as f32],
                     size: s.font(0.025) as f32,
                     color: [1.0, 1.0, 1.0, 1.0], // BLANC
-                    layer: 1,
+                    layer: 0,
                 });
                 // Classe
                 let class_text = if info.slot_index == state.slot_index {
@@ -162,7 +162,7 @@ pub fn render(frame: &mut prism::Frame, state: &LobbyScreenState, s: &ScreenScal
                         (utils::colors::Color::SKYBLUE.b as f32) / 255.0,
                         1.0,
                     ],
-                    layer: 1,
+                    layer: 0,
                 });
                 // Ready
                 let (ready_text, ready_color) = if info.slot_index == state.slot_index {
@@ -188,7 +188,7 @@ pub fn render(frame: &mut prism::Frame, state: &LobbyScreenState, s: &ScreenScal
                         (ready_color.b as f32) / 255.0,
                         1.0,
                     ],
-                    layer: 1,
+                    layer: 0,
                 });
                 // Marquer le slot local
                 if info.slot_index == state.slot_index {
@@ -224,8 +224,8 @@ pub fn render(frame: &mut prism::Frame, state: &LobbyScreenState, s: &ScreenScal
 
                     frame.push_hud(prism::DrawCommand::Mesh {
                         mesh,
-                        blend: prism::BlendMode::Opaque,
-                        layer: 1,
+                        blend: prism::BlendMode::Alpha,
+                        layer: 0,
                     });
                 }
             }
@@ -243,7 +243,7 @@ pub fn render(frame: &mut prism::Frame, state: &LobbyScreenState, s: &ScreenScal
             (utils::colors::Color::LIGHTGRAY.b as f32) / 255.0,
             1.0,
         ],
-        layer: 1,
+        layer: 0,
     });
     // Classe choisie localement
     if let Some(class) = state.my_class {
@@ -257,7 +257,7 @@ pub fn render(frame: &mut prism::Frame, state: &LobbyScreenState, s: &ScreenScal
                 (utils::colors::Color::GOLD.b as f32) / 255.0,
                 1.0,
             ],
-            layer: 1,
+            layer: 0,
         });
     }
 }

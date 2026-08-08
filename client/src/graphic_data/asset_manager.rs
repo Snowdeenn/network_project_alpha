@@ -1,7 +1,7 @@
 
 use utils::ids::{TextureId};
 
-use crate::graphic_data::animation_manager::AnimationManager;
+use crate::graphic_data::animation_manager::{AnimationError, AnimationManager};
 
 pub struct AssetManager {
     anims: AnimationManager,
@@ -20,8 +20,9 @@ impl AssetManager {
         ctx: &prism::GpuContext,
         textures: &mut prism::TextureManager,
         config_path: &str,
-    ) {
-        self.anims.load_from_config(ctx, textures, config_path);
+    ) -> Result<(), AnimationError> {
+        self.anims.load_from_config(ctx, textures, config_path)?;
+        Ok(())
     }
 
     pub fn anims(&self) -> &AnimationManager {

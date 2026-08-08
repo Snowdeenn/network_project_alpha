@@ -101,7 +101,7 @@ impl ParticlePool {
                     uv: None,
                 },
                 blend: prism::BlendMode::Alpha,
-                layer: 1,
+                layer: 0,
             });
         }
     }

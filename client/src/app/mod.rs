@@ -1,8 +1,8 @@
 pub mod input;
 pub mod resources;
 pub mod states;
-use std::sync::Arc;
 
+use std::sync::Arc;
 use utils::buffer::BufferManager;
 
 use crate::app::input::Input;
@@ -41,7 +41,9 @@ impl App {
         resource.insert(VfxManager::new());
         resource.insert(BufferManager::with_capacity(16));
         resource.insert(ParticlePool::new());
+
         let last_frame = std::time::Instant::now();
+
         Self {
             window: None,
             renderer: None,
@@ -59,71 +61,108 @@ impl App {
             cam: Camera::default(),
         }
     }
-    pub fn renderer(&self) -> &prism::Renderer {
-        self.renderer.as_ref().unwrap()
+
+    pub fn renderer(&self) -> Option<&prism::Renderer> {
+        self.renderer.as_ref()
     }
-    pub fn renderer_mut(&mut self) -> &mut prism::Renderer {
-        self.renderer.as_mut().unwrap()
+
+    pub fn renderer_mut(&mut self) -> Option<&mut prism::Renderer> {
+        self.renderer.as_mut()
     }
 }
 
 impl winit::application::ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
+
         let window_attribute =
             winit::window::Window::default_attributes().with_title("Project Alpha");
-        let window = event_loop.create_window(window_attribute).unwrap();
-        let window = Arc::new(window);
-        let mut renderer = prism::Renderer::new(
+
+        let window = match event_loop.create_window(window_attribute) {
+            Ok(w) => Arc::new(w),
+            Err(err) => {
+                tracing::error!("Échec de la création de la fenêtre Winit : {err}");
+                event_loop.exit();
+                return;
+            }
+        };
+
+        let mut renderer = match prism::Renderer::new(
             window.clone(),
             "client/src/graphic_data/shader/default.vert.wgsl",
             "client/src/graphic_data/shader/default.frag.wgsl",
             "client/src/graphic_data/shader/default_post_process.vert.wgsl",
             "client/src/graphic_data/shader/default_post_process.frag.wgsl",
-        );
-        let ui_ctx = ui::UiContext::new(
-            window.inner_size().width as f32,
-            window.inner_size().height as f32,
-        );
-        let scale = ScreenScale::new(
-            window.inner_size().width as i32,
-            window.inner_size().height as i32,
-        );
+        ) {
+            Ok(r) => r,
+            Err(err) => {
+                tracing::error!("Échec de l'initialisation du renderer Prism : {err}");
+                event_loop.exit();
+                return;
+            }
+        };
+
+        let size = window.inner_size();
+        let mut ui_ctx = ui::UiContext::new(size.width as f32, size.height as f32);
+        let scale = ScreenScale::new(size.width as i32, size.height as i32);
+
         let mut asset_manager = AssetManager::new();
         {
             let (ctx, textures) = renderer.ctx_and_textures_mut();
-            asset_manager.load_animations(ctx, textures, "assets/config/animations.json");
+            match  asset_manager.load_animations(ctx, textures, "assets/config/animations.json") {
+                Ok(_) => (),
+                Err(e) => {
+                    tracing::error!("Echec lors du chargement des animations : {e}");
+                    event_loop.exit();
+                    return;
+                }
+            }
         }
         self.resource.insert(asset_manager);
-        self.window = Some(window);
-        self.renderer = Some(renderer);
-        self.ui_ctx = Some(ui_ctx);
-        self.scale = Some(scale);
-        let sh_id = self
-            .renderer
-            .as_mut()
-            .unwrap()
-            .load_shader("client/src/graphic_data/shader/progress_bar.frag.wgsl")
-            .unwrap();
 
-        let hud_node_id = hud::init_hud(&mut self.ui_ctx.as_mut().unwrap(), sh_id);
-        let shop_id = hud::init_shop(&mut self.ui_ctx.as_mut().unwrap());
+        // Chargement du shader de barre de progression
+        let sh_id =
+            match renderer.load_shader("client/src/graphic_data/shader/progress_bar.frag.wgsl") {
+                Ok(id) => id,
+                Err(err) => {
+                    tracing::error!("Impossible de charger le shader progress_bar : {err}");
+                    event_loop.exit();
+                    return;
+                }
+            };
+
+        let hud_node_id = hud::init_hud(&mut ui_ctx, sh_id);
+        let shop_id = hud::init_shop(&mut ui_ctx);
+
         self.in_game_ids = Some(InGameIds {
             shop: shop_id,
             hud: hud_node_id,
             shader: sh_id,
         });
-        let tex_vert_shader_id = self
-            .renderer_mut()
-            .load_shader("client/src/graphic_data/shader/default_textured.vert.wgsl")
-            .unwrap();
-        let tex_frag_shader_id = self
-            .renderer_mut()
-            .load_shader("client/src/graphic_data/shader/default_textured.frag.wgsl")
-            .unwrap();
-        self.renderer_mut()
-            .set_world_shaders(tex_vert_shader_id, tex_frag_shader_id);
+
+        // Chargement des shaders texturés pour le World
+        match (
+            renderer.load_shader("client/src/graphic_data/shader/default_textured.vert.wgsl"),
+            renderer.load_shader("client/src/graphic_data/shader/default_textured.frag.wgsl"),
+        ) {
+            (Ok(vs), Ok(fs)) => {
+                if let Err(err) = renderer.set_world_shaders(vs, fs) {
+                    tracing::error!("Échec du paramétrage des shaders World : {err}");
+                }
+            }
+            (Err(err), _) | (_, Err(err)) => {
+                tracing::error!("Impossible de charger les shaders texturés : {err}");
+            }
+        }
+
+        self.window = Some(window);
+        self.renderer = Some(renderer);
+        self.ui_ctx = Some(ui_ctx);
+        self.scale = Some(scale);
+
+        tracing::info!("Application initialisée et prête");
     }
+
     fn window_event(
         &mut self,
         event_loop: &winit::event_loop::ActiveEventLoop,
@@ -135,68 +174,63 @@ impl winit::application::ApplicationHandler for App {
                 event_loop.exit();
             }
             winit::event::WindowEvent::Resized(s) => {
-                self.renderer.as_mut().unwrap().resize(s.width, s.height);
-                self.ui_ctx
-                    .as_mut()
-                    .unwrap()
-                    .resize(s.width as f32, s.height as f32);
-            }
-            winit::event::WindowEvent::KeyboardInput { event, .. } => {
-                match (event.physical_key, event.state) {
-                    (
-                        winit::keyboard::PhysicalKey::Code(key),
-                        winit::event::ElementState::Pressed,
-                    ) => {
-                        self.input_state.pressed(key);
-                    }
-                    (
-                        winit::keyboard::PhysicalKey::Code(key),
-                        winit::event::ElementState::Released,
-                    ) => {
-                        self.input_state.released(key);
-                    }
-                    (winit::keyboard::PhysicalKey::Unidentified(_), _) => (),
+                if let Some(renderer) = &mut self.renderer {
+                    renderer.resize(s.width, s.height);
+                }
+                if let Some(ui_ctx) = &mut self.ui_ctx {
+                    ui_ctx.resize(s.width as f32, s.height as f32);
                 }
             }
-            winit::event::WindowEvent::MouseInput { state, button, .. } => {
-                match (button, state) {
-                    (winit::event::MouseButton::Left, winit::event::ElementState::Pressed) => {
-                        self.input_state
-                            .mouse_pressed(winit::event::MouseButton::Left);
+            winit::event::WindowEvent::KeyboardInput { event, .. } => {
+                if let winit::keyboard::PhysicalKey::Code(key) = event.physical_key {
+                    if event.state.is_pressed() {
+                        self.input_state.pressed(key);
+                    } else {
+                        self.input_state.released(key);
                     }
-                    (winit::event::MouseButton::Left, winit::event::ElementState::Released) => {
-                        self.input_state
-                            .mouse_release(winit::event::MouseButton::Left);
-                    }
-                    (winit::event::MouseButton::Right, winit::event::ElementState::Pressed) => {
-                        self.input_state
-                            .mouse_pressed(winit::event::MouseButton::Right);
-                    }
-                    (winit::event::MouseButton::Right, winit::event::ElementState::Released) => {
-                        self.input_state
-                            .mouse_release(winit::event::MouseButton::Right);
-                    }
-                    _ => (),
-                };
+                }
             }
+            winit::event::WindowEvent::MouseInput { state, button, .. } => match button {
+                winit::event::MouseButton::Left | winit::event::MouseButton::Right => {
+                    if state.is_pressed() {
+                        self.input_state.mouse_pressed(button);
+                    } else {
+                        self.input_state.mouse_release(button);
+                    }
+                }
+                _ => (),
+            },
             winit::event::WindowEvent::CursorMoved { position, .. } => {
                 self.input_state
                     .set_mouse_position(position.x as f32, position.y as f32);
             }
             winit::event::WindowEvent::RedrawRequested => {
-                if let Some(frame) = self.renderer.as_mut().unwrap().frame_manager().pop() {
-                    self.renderer.as_mut().unwrap().render(frame);
-                } else {
-                    // En mode Poll, il peut arriver qu'une frame ne soit pas encore prête
-                    // On ne bloque plus la boucle ici.
-                    eprintln!("Frame non ready");
+                if let Some(renderer) = &mut self.renderer {
+                    if let Some(frame) = renderer.frame_manager().pop() {
+                        renderer.render(frame);
+                    } else {
+                        tracing::trace!("Aucune frame prête lors du RedrawRequested");
+                    }
                 }
             }
             _ => (),
         }
     }
 
-    fn about_to_wait(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
+    fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        if self
+            .input_state
+            .is_pressed(winit::keyboard::KeyCode::Escape)
+        {
+            tracing::info!("Fermeture demandée par l'utilisateur (Touche Échap)");
+            event_loop.exit();
+            return;
+        }
+
+        let (Some(renderer), Some(scale)) = (&mut self.renderer, &self.scale) else {
+            return;
+        };
+
         let now = std::time::Instant::now();
         let frame_delta = now.duration_since(self.last_frame);
         self.last_frame = now;
@@ -206,19 +240,25 @@ impl winit::application::ApplicationHandler for App {
         frame.camera_pos = self.cam.pos();
         frame.cam_shake_offset = self.cam.shake.offset();
 
-        let screen_size = self.renderer.as_ref().unwrap().screen_size();
+        let screen_size = renderer.screen_size();
+
         if let Some(ref mut c) = self.client {
             c.update(frame_delta);
 
-            while let Some(msg) = c.recv_lobby_message() {
-                crate::app::states::lobby::handle_lobby_message(
-                    msg,
-                    &mut self.screen,
-                    &mut self.is_solo,
-                );
+            if matches!(self.screen, AppScreen::MainMenu | AppScreen::Lobby(_)) {
+                while let Some(msg) = c.recv_lobby_message() {
+                    crate::app::states::lobby::handle_lobby_message(
+                        msg,
+                        &mut self.screen,
+                        &mut self.is_solo,
+                    );
+                }
+            }
+            if matches!(self.screen, AppScreen::InGame(_)) {
+                tracing::info!("frame manager clear");
+                renderer.frame_manager().clear();
             }
         }
-
         match &mut self.screen {
             AppScreen::MainMenu => {
                 let action = crate::app::states::main_menu::handle_input(
@@ -230,22 +270,19 @@ impl winit::application::ApplicationHandler for App {
                 match action {
                     MenuAction::Solo => {
                         self.is_solo = true;
-                        println!("SOLO");
+                        tracing::info!("Mode de jeu sélectionné : SOLO");
                     }
                     MenuAction::Multi => {
                         self.is_solo = false;
-                        println!("MULTI");
+                        tracing::info!("Mode de jeu sélectionné : MULTI");
                     }
                     MenuAction::None => {}
                 }
 
                 // Rendu Main Menu
                 match &self.client {
-                    None => crate::app::states::main_menu::render(&mut frame, &self.scale.unwrap()),
-                    Some(_) => crate::app::states::main_menu::render_connecting(
-                        &mut frame,
-                        &self.scale.unwrap(),
-                    ),
+                    None => crate::app::states::main_menu::render(&mut frame, scale),
+                    Some(_) => crate::app::states::main_menu::render_connecting(&mut frame, scale),
                 }
             }
 
@@ -256,46 +293,59 @@ impl winit::application::ApplicationHandler for App {
                 }
 
                 // Rendu Lobby
-                crate::app::states::lobby::render(&mut frame, state, &self.scale.unwrap());
+                crate::app::states::lobby::render(&mut frame, state, scale);
             }
 
             AppScreen::InGame(client_state) => {
-                let client = self.client.as_mut().expect("InGame sans client réseau");
+                let client_ok = self.client.as_mut();
+                let ui_ok = self.ui_ctx.as_mut();
+                let ids_ok = self.in_game_ids.as_ref();
 
-                let mut gui_ctx = crate::app::states::in_game::GuiContext {
-                    ui_ctx: &mut self.ui_ctx.as_mut().unwrap(),
-                    shader_manager: self.renderer.as_mut().unwrap().shader_mut(),
-                    ids: &self.in_game_ids.as_ref().unwrap(),
-                };
+                match (client_ok, ui_ok, ids_ok) {
+                    (Some(client), Some(ui_ctx), Some(in_game_ids)) => {
+                        let mut gui_ctx = crate::app::states::in_game::GuiContext {
+                            ui_ctx,
+                            shader_manager: renderer.shader_mut(),
+                            ids: in_game_ids,
+                        };
 
-                // Mise à jour logique de la partie
-                self.in_game_scene.update(
-                    &mut self.resource,
-                    client,
-                    screen_size,
-                    client_state,
-                    &mut gui_ctx,
-                    &self.input_state,
-                    &self.scale.unwrap(),
-                    &mut self.cam,
-                    dt,
-                );
+                        // Mise à jour logique
+                        self.in_game_scene.update(
+                            &mut self.resource,
+                            client,
+                            screen_size,
+                            client_state,
+                            &mut gui_ctx,
+                            &self.input_state,
+                            scale,
+                            &mut self.cam,
+                            dt,
+                        );
 
-                // Rendu de la frame
-                self.in_game_scene
-                    .render(&mut frame, client_state, &mut self.resource, dt);
+                        // Rendu de la scène InGame
+                        self.in_game_scene
+                            .render(&mut frame, client_state, &mut self.resource, dt);
+                    }
+                    _ => {
+                        tracing::error!(
+                            client = self.client.is_some(),
+                            ui_ctx = self.ui_ctx.is_some(),
+                            in_game_ids = self.in_game_ids.is_some(),
+                            "Impossible de rendre InGame : une ressource requise est None"
+                        );
+                    }
+                }
             }
         }
-        self.renderer.as_ref().unwrap().frame_manager().push(frame);
+        if let Err(rejected_frame) = renderer.frame_manager().push(frame) {
+            tracing::warn!("Frame rejetée : la file d'attente du FrameManager est pleine");
+            let _ = rejected_frame;
+        }
+
         if let Some(window) = &self.window {
             window.request_redraw();
         }
+
         self.input_state.end_frame();
-        if self
-            .input_state
-            .is_pressed(winit::keyboard::KeyCode::Escape)
-        {
-            std::process::exit(0);
-        }
     }
 }

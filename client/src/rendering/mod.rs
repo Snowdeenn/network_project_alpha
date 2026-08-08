@@ -74,7 +74,7 @@ pub(crate) fn render_world(
                         uv: None,
                         tint: [1.0, 1.0, 1.0, 1.0],
                         blend: prism::BlendMode::Alpha,
-                        layer: 0,
+                        layer: 1,
                     });
                     continue;
                 }
@@ -110,7 +110,7 @@ fn draw_fallback(
                     uv: None,
                 },
                 blend: prism::BlendMode::Alpha,
-                layer: 0,
+                layer: 1,
             });
         }
         utils::protocol::EntityKind::Enemy => {
@@ -123,7 +123,7 @@ fn draw_fallback(
                     uv: None,
                 },
                 blend: prism::BlendMode::Alpha,
-                layer: 0,
+                layer: 1,
             });
             // barre de vie
             let bar_w = 40.0 * (entity.health / entity.max_health);
@@ -136,7 +136,7 @@ fn draw_fallback(
                     uv: None,
                 },
                 blend: prism::BlendMode::Alpha,
-                layer: 0,
+                layer: 1,
             });
             frame.push_world(prism::DrawCommand::Shape {
                 shape: prism::Shape::Quad {
@@ -147,7 +147,7 @@ fn draw_fallback(
                     uv: None,
                 },
                 blend: prism::BlendMode::Alpha,
-                layer: 0,
+                layer: 1,
             });
         }
         _ => (),
@@ -167,6 +167,7 @@ pub(crate) fn render_hud(frame: &mut prism::Frame, client_state: &crate::core::e
             layer: 10,
         });
     }
+    
 }
 
 fn resolve_anim(

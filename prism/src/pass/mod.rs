@@ -86,3 +86,28 @@ pub static TEXTURE_BIND_GROUP: &[&[BindGroupLayoutEntryKey]] = &[
         },
     ],
 ];
+
+pub static MATERIAL_BIND_GROUP: &[&[BindGroupLayoutEntryKey]] = &[
+    &[BindGroupLayoutEntryKey {
+        binding: 0,
+        visibility: wgpu::ShaderStages::VERTEX,
+        ty: BindingTypeKey::UniformBuffer,
+    }],
+    &[
+        BindGroupLayoutEntryKey {
+            binding: 0,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: BindingTypeKey::Texture2D,
+        },
+        BindGroupLayoutEntryKey {
+            binding: 1,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: BindingTypeKey::Sampler,
+        },
+    ],
+    &[BindGroupLayoutEntryKey {
+        binding: 0,
+        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+        ty: BindingTypeKey::DynamicUniformBuffer,
+    }],
+];

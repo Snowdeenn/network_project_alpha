@@ -41,6 +41,7 @@ impl App {
         resource.insert(VfxManager::new());
         resource.insert(BufferManager::with_capacity(16));
         resource.insert(ParticlePool::new());
+        resource.insert(ui::DrawCommandBuffer::new(2048));
 
         let last_frame = std::time::Instant::now();
 
@@ -109,7 +110,7 @@ impl winit::application::ApplicationHandler for App {
         let mut asset_manager = AssetManager::new();
         {
             let (ctx, textures) = renderer.ctx_and_textures_mut();
-            match  asset_manager.load_animations(ctx, textures, "assets/config/animations.json") {
+            match asset_manager.load_animations(ctx, textures, "assets/config/animations.json") {
                 Ok(_) => (),
                 Err(e) => {
                     tracing::error!("Echec lors du chargement des animations : {e}");
@@ -120,24 +121,46 @@ impl winit::application::ApplicationHandler for App {
         }
         self.resource.insert(asset_manager);
 
-        // Chargement du shader de barre de progression
-        let sh_id =
-            match renderer.load_shader("client/src/graphic_data/shader/progress_bar.frag.wgsl") {
-                Ok(id) => id,
-                Err(err) => {
-                    tracing::error!("Impossible de charger le shader progress_bar : {err}");
+        let hp_material_id = {
+            // Chargement du shader de barre de progression
+            // Charger les shaders
+            let vert_id = renderer
+                .load_shader("client/src/graphic_data/shader/default_textured.vert.wgsl")
+                .unwrap();
+            let frag_id = renderer
+                .load_shader("client/src/graphic_data/shader/progress_bar.frag.wgsl")
+                .unwrap();
+
+            // Créer la pipeline pour ce matériau
+            let pipeline = match renderer.create_pipeline(prism::PipelineKey {
+                vertex_shader: vert_id,
+                fragment_shader: frag_id,
+                blend_mode: prism::BlendMode::Alpha,
+                vertex_format: prism::VertexFormat::Pos2UvColor,
+                bind_groups: &prism::MATERIAL_BIND_GROUP,
+            }) {
+                Ok(p) => p,
+                Err(e) => {
+                    tracing::error!("Impossible de créer la pipeline : {e}");
                     event_loop.exit();
                     return;
                 }
             };
 
-        let hud_node_id = hud::init_hud(&mut ui_ctx, sh_id);
+            renderer.material_mut().create(
+                pipeline,
+                vec![], // pas de bind groups custom supplémentaires — les uniforms passent par le scratch buffer
+                std::mem::size_of::<f32>(), // uniform_size : un f32 (le ratio)
+            )
+        };
+
+        let hud_node_id = hud::init_hud(&mut ui_ctx, hp_material_id);
         let shop_id = hud::init_shop(&mut ui_ctx);
 
         self.in_game_ids = Some(InGameIds {
             shop: shop_id,
             hud: hud_node_id,
-            shader: sh_id,
+            hp_material_id: hp_material_id,
         });
 
         // Chargement des shaders texturés pour le World
@@ -324,6 +347,8 @@ impl winit::application::ApplicationHandler for App {
                         // Rendu de la scène InGame
                         self.in_game_scene
                             .render(&mut frame, client_state, &mut self.resource, dt);
+                        let mut buf = self.resource.write_resource::<ui::DrawCommandBuffer>();
+                        hud::prepare_hud(&mut frame, ui_ctx, &mut buf);
                     }
                     _ => {
                         tracing::error!(

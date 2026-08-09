@@ -36,3 +36,4 @@ pub use errors::*;
 
 pub use pass::CAM_BIND_GROUP;
 pub use pass::TEXTURE_BIND_GROUP;
+pub use pass::MATERIAL_BIND_GROUP;

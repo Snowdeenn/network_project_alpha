@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 use utils::math::Vec2;
 
-use utils::ids::ShaderId;
+use utils::ids::{MaterialId};
 use utils::protocol::{
     EntityKind, GameEvent, GameEventKind, ShopAction, ShopActionKind, StateSnapshot,
 };
@@ -75,7 +75,7 @@ impl HudBuffers {
 pub struct InGameIds {
     pub shop: ShopHudIds,
     pub hud: HudIds,
-    pub shader: ShaderId,
+    pub hp_material_id: MaterialId,
 }
 
 pub struct GuiContext<'a> {
@@ -175,7 +175,6 @@ impl InGameScene {
                 }
             }
         }
-
         crate::rendering::render_hud(frame, client_state);
     }
 

@@ -272,6 +272,13 @@ impl Renderer {
     pub fn pipeline(&self) -> &crate::PipelineManager {
         &self.pipelines
     }
+
+    pub fn material_mut(&mut self) -> &mut crate::MaterialManager {
+        &mut self.materials
+    }
+    pub fn material(&self) -> &crate::MaterialManager {
+        &self.materials
+    }
     pub fn set_world_shaders(
         &mut self,
         vert_shader: ShaderId,
@@ -355,7 +362,15 @@ impl Renderer {
     pub fn ctx_and_textures_mut(&mut self) -> (&crate::GpuContext, &mut crate::TextureManager) {
         (&self.ctx, &mut self.textures)
     }
+
+    pub fn create_pipeline(
+        &mut self,
+        key: crate::PipelineKey,
+    ) -> Result<Arc<wgpu::RenderPipeline>, crate::PassError> {
+        Ok(self.pipelines.get_or_create(&self.ctx, &self.shaders, key)?)
+    }
 }
+
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DoubleBufferIndex {

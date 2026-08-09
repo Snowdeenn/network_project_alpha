@@ -1,7 +1,7 @@
-use std::fmt::Write;
 use crate::app::states::in_game::{GuiContext, HudBuffers};
 use crate::core::config::*;
-use utils::ids::ShaderId;
+use std::fmt::Write;
+use utils::ids::MaterialId;
 use utils::protocol::StateSnapshot;
 
 pub struct HudIds {
@@ -12,7 +12,7 @@ pub struct HudIds {
     pub gold_label_id: ui::NodeId,
 }
 
-pub fn init_hud(ui_ctx: &mut ui::UiContext, hp_shader_id: ShaderId) -> HudIds {
+pub fn init_hud(ui_ctx: &mut ui::UiContext, hp_material_id: MaterialId) -> HudIds {
     let wave_label_id = ui::text_label! {
         ctx: ui_ctx,
         parent: ui_ctx.root,
@@ -21,8 +21,7 @@ pub fn init_hud(ui_ctx: &mut ui::UiContext, hp_shader_id: ShaderId) -> HudIds {
         size: ui::UiVec2::screen(0.2, 0.05),
         content: "Vague 0 | 0 ennemis",
         font_size: 24.0,
-        color: utils
-    ::colors::Color::WHITE,
+        color: utils::colors::Color::WHITE,
     };
 
     let (hp_bg_id, hp_fill_id) = ui::progress_bar! {
@@ -31,11 +30,11 @@ pub fn init_hud(ui_ctx: &mut ui::UiContext, hp_shader_id: ShaderId) -> HudIds {
         anchor: ui::Anchor::TopLeft,
         offset: ui::UiVec2::screen(HUD_PADDING_X, HUD_BAR_Y),
         size: ui::UiVec2::screen(HUD_BAR_W, HUD_BAR_H),
-        bg: utils
-    ::colors::Color::DARKGRAY,
-        fill_color: utils
-    ::colors::Color::WHITE,
-        shader: hp_shader_id,
+        bg: utils::colors::Color::DARKGRAY,
+        fill_color: utils::colors::Color::WHITE,
+        material: hp_material_id,
+        // ratio initial à 1.0 (barre pleine) encodé en f32 little-endian
+        uniform_data: bytemuck::cast_slice(&[1.0f32]).to_vec(),
     };
 
     let hp_text_id = ui::text_label! {
@@ -46,8 +45,7 @@ pub fn init_hud(ui_ctx: &mut ui::UiContext, hp_shader_id: ShaderId) -> HudIds {
         size: ui::UiVec2::new(ui::UiUnit::ParentPercent(1.0), ui::UiUnit::ParentPercent(1.0)),
         content: "100/100",
         font_size: 16.0,
-        color: utils
-    ::colors::Color::WHITE,
+        color: utils::colors::Color::WHITE,
     };
 
     let gold_label_id = ui::text_label! {
@@ -58,8 +56,7 @@ pub fn init_hud(ui_ctx: &mut ui::UiContext, hp_shader_id: ShaderId) -> HudIds {
         size: ui::UiVec2::screen(0.1, 0.03),
         content: "Or : 0",
         font_size: 24.0,
-        color: utils
-    ::colors::Color::GOLD,
+        color: utils::colors::Color::GOLD,
     };
 
     HudIds {
@@ -95,12 +92,14 @@ pub fn init_shop(ui_ctx: &mut ui::UiContext) -> ShopHudIds {
         ui::LayoutProps::new(
             ui::Anchor::TopLeft,
             ui::UiVec2::pixels(0.0, 0.0),
-            ui::UiVec2::new(ui::UiUnit::ParentPercent(1.0), ui::UiUnit::ParentPercent(1.0)),
+            ui::UiVec2::new(
+                ui::UiUnit::ParentPercent(1.0),
+                ui::UiUnit::ParentPercent(1.0),
+            ),
         ),
         ui::VisualProps {
             kind: ui::VisualKind::Rect,
-            color: utils
-        ::colors::Color::new(0, 0, 0, 150),
+            color: utils::colors::Color::new(0, 0, 0, 150),
             visible: false,
             opacity: 1.0,
         },
@@ -114,14 +113,12 @@ pub fn init_shop(ui_ctx: &mut ui::UiContext) -> ShopHudIds {
         size: ui::UiVec2::screen(0.3, SHOP_TITLE_FONT_SIZE),
         content: SHOP_TITLE_TEXT,
         font_size: SHOP_TITLE_FONT_SIZE * REFERENCE_H,
-        color: utils
-    ::colors::Color::GOLD,
+        color: utils::colors::Color::GOLD,
     };
 
     let card_w_unit = ui::UiUnit::ScreenWidth(SHOP_CARD_W);
     let card_h_unit = ui::UiUnit::ScreenHeight(SHOP_CARD_H);
     let card_y_unit = ui::UiUnit::ScreenHeight(SHOP_CARD_Y);
-
     let gap_unit = (1.0 - card_w_unit * 3.0) / 4.0;
 
     let mut cards_list = Vec::with_capacity(3);
@@ -132,14 +129,13 @@ pub fn init_shop(ui_ctx: &mut ui::UiContext) -> ShopHudIds {
         let card_root = ui_ctx.add_node(
             shop_root,
             ui::LayoutProps::new(
-               ui::Anchor::TopLeft,
+                ui::Anchor::TopLeft,
                 ui::UiVec2::new(card_x_unit, card_y_unit),
                 ui::UiVec2::new(card_w_unit, card_h_unit),
             ),
             ui::VisualProps {
                 kind: ui::VisualKind::Rect,
-                color: utils
-            ::colors::Color::DARKGRAY,
+                color: utils::colors::Color::DARKGRAY,
                 visible: true,
                 opacity: 1.0,
             },
@@ -158,8 +154,7 @@ pub fn init_shop(ui_ctx: &mut ui::UiContext) -> ShopHudIds {
             ),
             ui::VisualProps {
                 kind: ui::VisualKind::Rect,
-                color: utils
-            ::colors::Color::BLACK,
+                color: utils::colors::Color::BLACK,
                 visible: true,
                 opacity: 1.0,
             },
@@ -174,8 +169,7 @@ pub fn init_shop(ui_ctx: &mut ui::UiContext) -> ShopHudIds {
             ),
             ui::VisualProps {
                 kind: ui::VisualKind::Rect,
-                color: utils
-            ::colors::Color::DARKGRAY,
+                color: utils::colors::Color::DARKGRAY,
                 visible: true,
                 opacity: 1.0,
             },
@@ -189,20 +183,21 @@ pub fn init_shop(ui_ctx: &mut ui::UiContext) -> ShopHudIds {
             size: ui::UiVec2::screen(SHOP_ART_W, SHOP_NAME_FONT_SIZE),
             content: "",
             font_size: SHOP_NAME_FONT_SIZE * REFERENCE_H,
-            color: utils
-        ::colors::Color::WHITE,
+            color: utils::colors::Color::WHITE,
         };
 
         let desc_id = ui::text_label! {
             ctx: ui_ctx,
             parent: card_inner,
             anchor: ui::Anchor::TopLeft,
-            offset: ui::UiVec2::screen(SHOP_TEXT_PADDING_X, SHOP_NAME_OFFSET_Y + SHOP_NAME_FONT_SIZE + (4.0 / 1080.0)),
+            offset: ui::UiVec2::screen(
+                SHOP_TEXT_PADDING_X,
+                SHOP_NAME_OFFSET_Y + SHOP_NAME_FONT_SIZE + (4.0 / 1080.0),
+            ),
             size: ui::UiVec2::screen(SHOP_ART_W, 0.05),
             content: "",
             font_size: 0.018 * REFERENCE_H,
-            color: utils
-        ::colors::Color::LIGHTGRAY,
+            color: utils::colors::Color::LIGHTGRAY,
         };
 
         let price_id = ui::text_label! {
@@ -213,8 +208,7 @@ pub fn init_shop(ui_ctx: &mut ui::UiContext) -> ShopHudIds {
             size: ui::UiVec2::screen(SHOP_ART_W, SHOP_PRICE_FONT_SIZE),
             content: "",
             font_size: SHOP_PRICE_FONT_SIZE * REFERENCE_H,
-            color: utils
-        ::colors::Color::GOLD,
+            color: utils::colors::Color::GOLD,
         };
 
         let sold_overlay_id = ui_ctx.add_node(
@@ -222,12 +216,14 @@ pub fn init_shop(ui_ctx: &mut ui::UiContext) -> ShopHudIds {
             ui::LayoutProps::new(
                 ui::Anchor::TopLeft,
                 ui::UiVec2::pixels(0.0, 0.0),
-                ui::UiVec2::new(ui::UiUnit::ParentPercent(1.0), ui::UiUnit::ParentPercent(1.0)),
+                ui::UiVec2::new(
+                    ui::UiUnit::ParentPercent(1.0),
+                    ui::UiUnit::ParentPercent(1.0),
+                ),
             ),
             ui::VisualProps {
                 kind: ui::VisualKind::Rect,
-                color: utils
-            ::colors::Color::new(20, 220, 60, 255),
+                color: utils::colors::Color::new(20, 220, 60, 255),
                 visible: false,
                 opacity: 0.0,
             },
@@ -241,8 +237,7 @@ pub fn init_shop(ui_ctx: &mut ui::UiContext) -> ShopHudIds {
             size: ui::UiVec2::screen(0.1, 0.03),
             content: "",
             font_size: 35.0,
-            color: utils
-        ::colors::Color::WHITE,
+            color: utils::colors::Color::WHITE,
         };
 
         let error_overlay_id = ui_ctx.add_node(
@@ -250,12 +245,14 @@ pub fn init_shop(ui_ctx: &mut ui::UiContext) -> ShopHudIds {
             ui::LayoutProps::new(
                 ui::Anchor::TopLeft,
                 ui::UiVec2::pixels(0.0, 0.0),
-                ui::UiVec2::new(ui::UiUnit::ParentPercent(1.0), ui::UiUnit::ParentPercent(1.0)),
+                ui::UiVec2::new(
+                    ui::UiUnit::ParentPercent(1.0),
+                    ui::UiUnit::ParentPercent(1.0),
+                ),
             ),
             ui::VisualProps {
                 kind: ui::VisualKind::Rect,
-                color: utils
-            ::colors::Color::new(220, 20, 60, 255),
+                color: utils::colors::Color::new(220, 20, 60, 255),
                 visible: false,
                 opacity: 0.0,
             },
@@ -281,8 +278,7 @@ pub fn init_shop(ui_ctx: &mut ui::UiContext) -> ShopHudIds {
         size: ui::UiVec2::screen(0.2, CLOSE_SHOP_FONT),
         content: "G — Fermer",
         font_size: CLOSE_SHOP_FONT,
-        color: utils
-    ::colors::Color::GRAY,
+        color: utils::colors::Color::GRAY,
     };
 
     let cards = [
@@ -299,13 +295,10 @@ pub fn init_shop(ui_ctx: &mut ui::UiContext) -> ShopHudIds {
     }
 }
 
-pub fn update(
-    gui: &mut GuiContext,
-    snap: &StateSnapshot,
-    bufs: &mut HudBuffers,
-) {
+pub fn update(gui: &mut GuiContext, snap: &StateSnapshot, bufs: &mut HudBuffers) {
     if let Some(info) = &snap.player_info {
         let ratio = info.health / info.max_health;
+
         bufs.hp.clear();
         write!(bufs.hp, "{} / {}", info.health, info.max_health).unwrap();
 
@@ -321,10 +314,23 @@ pub fn update(
         )
         .unwrap();
 
+        // Mise à jour de la barre de vie via uniform_data
+        // Le shader hp reçoit un f32 ratio en group(2) binding(0)
+        gui.ui_ctx.send_event(ui::UIEvent::SetMaterial {
+            target: gui.ids.hud.hp_fill_id,
+            id: gui.ids.hp_material_id,
+            texture_id: None,
+            uniform_data: bytemuck::cast_slice(&[ratio]).to_vec(),
+        });
+
         gui.ui_ctx.send_event(ui::UIEvent::SetSize {
             target: gui.ids.hud.hp_fill_id,
-            size: ui::UiVec2::new(ui::UiUnit::ParentPercent(ratio), ui::UiUnit::ParentPercent(1.0)),
+            size: ui::UiVec2::new(
+                ui::UiUnit::ParentPercent(ratio),
+                ui::UiUnit::ParentPercent(1.0),
+            ),
         });
+
         gui.ui_ctx.send_event(ui::UIEvent::SetText {
             target: gui.ids.hud.hp_text_id,
             content: bufs.hp.to_string(),
@@ -335,14 +341,20 @@ pub fn update(
             content: bufs.gold.to_string(),
         });
 
-        // if let Some(shader) = gui.shader_manager.get_mut(gui.ids.shader) {
-        //     let loc = shader.module.get_shader_location("u_ratio");
-        //     shader.set_shader_value(loc, ratio);
-        // }
-
         gui.ui_ctx.send_event(ui::UIEvent::SetText {
             target: gui.ids.hud.wave_label_id,
             content: bufs.wave.to_string(),
         });
     }
+}
+
+pub fn prepare_hud(
+    frame: &mut prism::Frame,
+    ui_ctx: &mut ui::UiContext,
+    buf: &mut ui::DrawCommandBuffer,
+) {
+    ui_ctx.collect(buf);
+    buf.sort();
+    buf.collect_into(frame);
+    buf.clear();
 }

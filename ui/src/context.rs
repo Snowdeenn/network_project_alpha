@@ -166,25 +166,18 @@ impl UiContext {
                             layer: depth as u8,
                         });
                     }
-                    VisualKind::Shader { id } => {
-                        buf.push(DrawCommand::Shader {
-                            shader_id: *id,
-                            pos: node.layout.computed_pos,
-                            size: node.layout.computed_size,
-                            color,
-                            layer: depth as u8,
-                        });
-                    }
-                    VisualKind::ShaderTexture {
-                        shader_id,
+                    VisualKind::Material {
+                        material_id,
                         texture_id,
+                        uniform_data,
                     } => {
-                        buf.push(DrawCommand::ShaderTexture {
-                            shader_id: *shader_id,
+                        buf.push(DrawCommand::Material {
+                            material_id: *material_id,
                             texture_id: *texture_id,
                             pos: node.layout.computed_pos,
                             size: node.layout.computed_size,
-                            tint: color,
+                            tint: node.visual.color,
+                            uniform_data: uniform_data.clone(),
                             layer: depth as u8,
                         });
                     }
@@ -249,15 +242,14 @@ impl UiContext {
                         node.dirty.layout_dirty = true;
                     }
                 }
-                UIEvent::SetTexture { target, id } => {
+                UIEvent::SetMaterial {
+                    target,
+                    id,
+                    texture_id,
+                    uniform_data,
+                } => {
                     if let Some(node) = self.arena.get_mut(target) {
-                        node.visual.kind = VisualKind::Texture { id };
-                        node.dirty.visual_dirty = true;
-                    }
-                }
-                UIEvent::SetShader { target, id } => {
-                    if let Some(node) = self.arena.get_mut(target) {
-                        node.visual.kind = VisualKind::Shader { id };
+                        node.visual.kind = VisualKind::Material { material_id: id, texture_id, uniform_data };
                         node.dirty.visual_dirty = true;
                     }
                 }

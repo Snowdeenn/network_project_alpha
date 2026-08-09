@@ -1,11 +1,10 @@
 use std::ops::{Add, Div, Mul, Sub};
-use utils::math::Vec2;
 use utils::colors;
+use utils::math::Vec2;
 
 use crate::NodeId;
-use crate::draw::NinePatchMargins;
 use crate::input::Interact;
-use utils::ids::{ShaderId, TextureId};
+use utils::ids::{TextureId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Anchor {
@@ -42,16 +41,14 @@ pub enum VisualKind {
     Texture {
         id: TextureId,
     },
-    Shader {
-        id: ShaderId,
-    },
-    ShaderTexture {
-        shader_id: ShaderId,
-        texture_id: TextureId,
+    Material {
+        material_id: utils::ids::MaterialId,
+        texture_id: Option<TextureId>,
+        uniform_data: Vec<u8>,
     },
     NinePatch {
         id: TextureId,
-        margins: NinePatchMargins,
+        margins: prism::NinePatchMargins,
     },
     Text {
         content: String,

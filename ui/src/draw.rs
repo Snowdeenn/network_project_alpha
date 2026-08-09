@@ -1,25 +1,8 @@
 use utils::colors;
-use utils::ids::{ShaderId, TextureId};
+use utils::ids::{MaterialId, TextureId};
 use utils::math::Vec2;
 
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub struct NinePatchMargins {
-    pub top: f32,
-    pub bottom: f32,
-    pub left: f32,
-    pub right: f32,
-}
 
-impl NinePatchMargins {
-    pub fn uniform(value: f32) -> Self {
-        Self {
-            top: value,
-            bottom: value,
-            left: value,
-            right: value,
-        }
-    }
-}
 
 pub enum DrawCommand {
     Rect {
@@ -35,26 +18,20 @@ pub enum DrawCommand {
         tint: colors::Color,
         layer: u8,
     },
-    Shader {
-        shader_id: ShaderId,
-        pos: Vec2,
-        size: Vec2,
-        color: colors::Color,
-        layer: u8,
-    },
-    ShaderTexture {
-        shader_id: ShaderId,
-        texture_id: TextureId,
+    Material {
+        material_id: MaterialId,
+        texture_id: Option<TextureId>,
         pos: Vec2,
         size: Vec2,
         tint: colors::Color,
+        uniform_data: Vec<u8>, // données custom passées au shader — vide si aucun uniform
         layer: u8,
     },
     NinePatch {
         texture_id: TextureId,
         pos: Vec2,
         size: Vec2,
-        margins: NinePatchMargins,
+        margins: prism::NinePatchMargins,
         tint: colors::Color,
         layer: u8,
     },
@@ -158,63 +135,44 @@ impl DrawCommandBuffer {
                         ],
                         layer: *layer,
                     });
-                },
-                // DrawCommand::Shader {
-                //     shader_id,
-                //     pos,
-                //     size,
-                //     color,
-                //     layer,
-                // } => {
-                //     frame.push_hud(prism::DrawCommand::Texture {
-                //         id: (),
-                //         pos: [pos.x, pos.y],
-                //         size: [size.x, size.y],
-                //         rotation: 0.0,
-                //         uv: None,
-                //         tint: [
-                //             (color.r as f32) / 255.0,
-                //             (color.g as f32) / 255.0,
-                //             (color.b as f32) / 255.0,
-                //             (color.a as f32) / 255.0,
-                //         ],
-                //         blend: prism::BlendMode::Alpha,
-                //         layer: *layer,
-                //     });
-                // }
-                // DrawCommand::ShaderTexture {
-                //     shader_id,
-                //     texture_id,
-                //     pos,
-                //     size,
-                //     tint,
-                //     layer,
-                // } => {
-                //     frame.push_hud(prism::DrawCommand::Texture {
-                //         id: *texture_id,
-                //         pos: [pos.x, pos.y],
-                //         size: [size.x, size.y],
-                //         rotation: 0.0,
-                //         uv: None,
-                //         tint: [
-                //             (tint.r as f32) / 255.0,
-                //             (tint.g as f32) / 255.0,
-                //             (tint.b as f32) / 255.0,
-                //             (tint.a as f32) / 255.0,
-                //         ],
-                //         blend: prism::BlendMode::Alpha,
-                //         layer: *layer,
-                //     });
-                // }
+                }
+                DrawCommand::Material {
+                    material_id,
+                    texture_id,
+                    pos,
+                    size,
+                    tint,
+                    uniform_data,
+                    layer,
+                } => {
+                    frame.push_hud(prism::DrawCommand::Material {
+                        material_id: *material_id,
+                        texture_id: *texture_id,
+                        pos: [pos.x, pos.y],
+                        size: [size.x, size.y],
+                        rotation: 0.0,
+                        uv: None,
+                        tint: [
+                            (tint.r as f32) / 255.0,
+                            (tint.g as f32) / 255.0,
+                            (tint.b as f32) / 255.0,
+                            (tint.a as f32) / 255.0,
+                        ],
+                        // Obliger de clone parce que prism possede ces commandes
+                        uniform_data: uniform_data.clone(),
+                        blend: prism::BlendMode::Alpha,
+                        layer: *layer,
+                    });
+                }
                 // DrawCommand::NinePatch {
                 //     texture_id,
                 //     pos,
                 //     size,
                 //     margins,
-                //     tint,
+                //     tint, 
                 //     layer,
                 // } => {},
-                _ => () // Temp pour savoir quoi faire dans les commands commenter
+                _ => (), // Temp pour savoir quoi faire dans les commands commenter
             }
         }
     }
@@ -226,15 +184,13 @@ fn sort_key(command: &DrawCommand) -> (u8, u16, u16) {
         DrawCommand::Texture {
             layer, texture_id, ..
         } => (*layer, texture_id.index as u16, 0),
-        DrawCommand::Shader {
-            layer, shader_id, ..
-        } => (*layer, 0, shader_id.index as u16),
-        DrawCommand::ShaderTexture {
-            layer,
-            shader_id,
-            texture_id,
-            ..
-        } => (*layer, texture_id.index as u16, shader_id.index as u16),
+        DrawCommand::Material { material_id, texture_id, layer,.. } => {
+            if let Some(texture_id) = texture_id {
+                (*layer, texture_id.index as u16, material_id.index as u16)
+            } else {
+                (*layer, 0, material_id.index as u16) // Texture id a 0 par defaut si texture id est none
+            }
+        }
         DrawCommand::NinePatch {
             texture_id, layer, ..
         } => (*layer, texture_id.index as u16, 0),

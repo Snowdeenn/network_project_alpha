@@ -1,19 +1,40 @@
 use crate::NodeId;
 use crate::node::UiVec2;
 use utils::colors;
-use utils::ids::{ShaderId, TextureId};
 
 #[derive(Clone)]
 pub enum UIEvent {
-    SetColor { target: NodeId, color: colors::Color },
-    SetOpacity { target: NodeId, opacity: f32 },
-    SetVisible { target: NodeId, visible: bool },
+    SetColor {
+        target: NodeId,
+        color: colors::Color,
+    },
+    SetOpacity {
+        target: NodeId,
+        opacity: f32,
+    },
+    SetVisible {
+        target: NodeId,
+        visible: bool,
+    },
 
-    SetPosition { target: NodeId, offset: UiVec2 },
-    SetSize { target: NodeId, size: UiVec2 },
+    SetPosition {
+        target: NodeId,
+        offset: UiVec2,
+    },
+    SetSize {
+        target: NodeId,
+        size: UiVec2,
+    },
 
-    SetTexture { target: NodeId, id: TextureId },
-    SetShader { target: NodeId, id: ShaderId },
+    SetMaterial {
+        target: NodeId,
+        id: utils::ids::MaterialId,
+        texture_id: Option<utils::ids::TextureId>,
+        uniform_data: Vec<u8>,
+    },
 
-    SetText { target: NodeId, content: String },
+    SetText {
+        target: NodeId,
+        content: String,
+    },
 }

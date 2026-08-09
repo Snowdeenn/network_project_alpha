@@ -33,10 +33,10 @@ macro_rules! text_label {
 
 #[macro_export]
 macro_rules! progress_bar {
+    // Variant simple : deux rects colorés
     (ctx: $ctx:expr, parent: $parent:expr, anchor: $anchor:expr, 
         offset: $offset:expr, size: $size:expr, bg: $bg:expr, fill: $fill:expr, $(,)?) => {{
-        use raylib::math::Vector2;
-        use ui::node::{Anchor, LayoutProps, VisualKind, VisualProps};
+        use ui::node::{Anchor, LayoutProps, UiUnit, UiVec2, VisualKind, VisualProps};
 
         let bg_id = $ctx.add_node(
             $parent,
@@ -65,10 +65,13 @@ macro_rules! progress_bar {
 
         (bg_id, fill_id)
     }};
-    (ctx: $ctx:expr, parent: $parent:expr, anchor: $anchor:expr, 
-        offset: $offset:expr, size: $size:expr, bg: $bg:expr, fill_color: $fill_color:expr, shader: $shader:expr, $(,)?) => {{
-        use utils::math::Vec2;
-        use ui::{Anchor, LayoutProps, UiVec2, VisualKind, VisualProps};
+
+    // Variant matériau : fill avec shader custom et uniform_data
+    (ctx: $ctx:expr, parent: $parent:expr, anchor: $anchor:expr,
+        offset: $offset:expr, size: $size:expr, bg: $bg:expr,
+        fill_color: $fill_color:expr, material: $material:expr,
+        uniform_data: $uniform_data:expr, $(,)?) => {{
+        use ui::node::{Anchor, LayoutProps, UiVec2, VisualKind, VisualProps};
 
         let bg_id = $ctx.add_node(
             $parent,
@@ -84,7 +87,11 @@ macro_rules! progress_bar {
             bg_id,
             LayoutProps::new(Anchor::TopLeft, UiVec2::pixels(0.0, 0.0), $size),
             VisualProps {
-                kind: VisualKind::Shader { id: $shader },
+                kind: VisualKind::Material {
+                    material_id: $material,
+                    texture_id: None,
+                    uniform_data: $uniform_data,
+                },
                 color: $fill_color,
                 opacity: 1.0,
                 visible: true,

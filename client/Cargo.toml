@@ -18,6 +18,7 @@ bytes = "1.12.1"
 winit = "0.30"
 pollster = "0.3"
 wgpu = "30"
+bytemuck = "1"
 glyphon = "0.12"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }

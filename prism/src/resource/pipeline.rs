@@ -17,6 +17,7 @@ pub struct BindGroupLayoutEntryKey {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum BindingTypeKey {
     UniformBuffer,
+    DynamicUniformBuffer,
     Texture2D,
     Sampler,
 }
@@ -90,7 +91,7 @@ impl PipelineManager {
 
     pub fn invalidate_shader(&mut self, shader_id: ShaderId) {
         tracing::debug!(shader_id = %shader_id, "Invalidation des pipelines associés au shader");
-        
+
         self.pipelines
             .retain(|key, _| key.vertex_shader != shader_id && key.fragment_shader != shader_id);
         self.layouts
@@ -130,7 +131,10 @@ impl PipelineManager {
         let bind_group_layout_refs: Vec<Option<&wgpu::BindGroupLayout>> =
             bind_group_layouts.iter().map(Some).collect();
 
-        let layout_label = format!("PipelineLayout (Vertex Shader:{}, Fragement Shader:{})", key.vertex_shader, key.fragment_shader);
+        let layout_label = format!(
+            "PipelineLayout (Vertex Shader:{}, Fragement Shader:{})",
+            key.vertex_shader, key.fragment_shader
+        );
         let pipeline_label = format!(
             "RenderPipeline (Vertex Shader:{}, Fragement Shader:{}, Blend:{:?}, Format:{:?})",
             key.vertex_shader, key.fragment_shader, key.blend_mode, key.vertex_format
@@ -279,6 +283,11 @@ impl PipelineManager {
                             BindingTypeKey::Sampler => {
                                 wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering)
                             }
+                            BindingTypeKey::DynamicUniformBuffer => wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: true,
+                                min_binding_size: None,
+                            },
                         },
                         count: None,
                     })

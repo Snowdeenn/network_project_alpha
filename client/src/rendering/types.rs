@@ -10,7 +10,7 @@ pub struct FrameState<'a> {
 
 /// Regroupe temporairement les outils de ton Framework UI pour le rendu
 pub struct RenderContext<'a> {
-    pub buffer: &'a mut ui::DrawCommandBuffer,
+    pub buffer: &'a mut nodus::DrawCommandBuffer,
     pub shader_manager: &'a mut prism::ShaderManager,
-    pub ui_ctx: &'a mut ui::UiContext,
+    pub ui_ctx: &'a mut nodus::UiContext,
 }

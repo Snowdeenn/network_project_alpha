@@ -266,11 +266,11 @@ impl ClientState {
     }
 }
 
-pub fn handle_shop_ui_event(event: &GameEvent, ui_ctx: &mut ui::UiContext, shop_ids: &ShopHudIds) {
+pub fn handle_shop_ui_event(event: &GameEvent, ui_ctx: &mut nodus::UiContext, shop_ids: &ShopHudIds) {
     match &event.kind {
         GameEventKind::ShopOpened { inventory } => {
             // afficher le shop
-            ui_ctx.send_event(ui::UIEvent::SetVisible {
+            ui_ctx.send_event(nodus::UIEvent::SetVisible {
                 target: shop_ids.root,
                 visible: true,
             });
@@ -284,32 +284,32 @@ pub fn handle_shop_ui_event(event: &GameEvent, ui_ctx: &mut ui::UiContext, shop_
                         EffectType::Speed => utils::colors::Color::DARKBLUE,
                         EffectType::Gold => utils::colors::Color::GOLD,
                     };
-                    ui_ctx.send_event(ui::UIEvent::SetColor {
+                    ui_ctx.send_event(nodus::UIEvent::SetColor {
                         target: shop_ids.cards[slot].root,
                         color: border_color,
                     });
                 }
                 match item_opt {
                     Some(item) => {
-                        ui_ctx.send_event(ui::UIEvent::SetText {
+                        ui_ctx.send_event(nodus::UIEvent::SetText {
                             target: shop_ids.cards[slot].name,
                             content: item.name.clone(),
                         });
-                        ui_ctx.send_event(ui::UIEvent::SetText {
+                        ui_ctx.send_event(nodus::UIEvent::SetText {
                             target: shop_ids.cards[slot].desc,
                             content: item.description.clone(),
                         });
-                        ui_ctx.send_event(ui::UIEvent::SetText {
+                        ui_ctx.send_event(nodus::UIEvent::SetText {
                             target: shop_ids.cards[slot].price,
                             content: format!("PRIX: {} OR", item.price),
                         });
-                        ui_ctx.send_event(ui::UIEvent::SetVisible {
+                        ui_ctx.send_event(nodus::UIEvent::SetVisible {
                             target: shop_ids.cards[slot].sold_overlay,
                             visible: false,
                         });
                     }
                     None => {
-                        ui_ctx.send_event(ui::UIEvent::SetVisible {
+                        ui_ctx.send_event(nodus::UIEvent::SetVisible {
                             target: shop_ids.cards[slot].sold_overlay,
                             visible: true,
                         });
@@ -319,7 +319,7 @@ pub fn handle_shop_ui_event(event: &GameEvent, ui_ctx: &mut ui::UiContext, shop_
         }
 
         GameEventKind::WaveStart { .. } => {
-            ui_ctx.send_event(ui::UIEvent::SetVisible {
+            ui_ctx.send_event(nodus::UIEvent::SetVisible {
                 target: shop_ids.root,
                 visible: false,
             });
@@ -327,33 +327,33 @@ pub fn handle_shop_ui_event(event: &GameEvent, ui_ctx: &mut ui::UiContext, shop_
 
         GameEventKind::ItemBought { slot } => {
             // tween fade sur sold_overlay
-            ui_ctx.tween.add(ui::Tween {
+            ui_ctx.tween.add(nodus::Tween {
                 target: shop_ids.cards[*slot].sold_overlay,
-                property: ui::TweenProperty::Opacity { from: 0.0, to: 1.0 },
+                property: nodus::TweenProperty::Opacity { from: 0.0, to: 1.0 },
                 duration: SOLD_ANIM_DURATION,
                 elapsed: 0.0,
-                easing: ui::easing::ease_in_out_quad,
+                easing: nodus::easing::ease_in_out_quad,
                 done: false,
                 on_complete: vec![
-                    ui::UIEvent::SetColor {
+                    nodus::UIEvent::SetColor {
                         target: shop_ids.cards[*slot].sold_overlay,
                         color: utils::colors::Color::new(40, 40, 40, 255),
                     },
-                    ui::UIEvent::SetOpacity {
+                    nodus::UIEvent::SetOpacity {
                         target: shop_ids.cards[*slot].sold_overlay,
                         opacity: 1.0,
                     },
-                    ui::UIEvent::SetText {
+                    nodus::UIEvent::SetText {
                         target: shop_ids.cards[*slot].sold_text,
                         content: "VENDU".to_string(),
                     },
-                    ui::UIEvent::SetVisible {
+                    nodus::UIEvent::SetVisible {
                         target: shop_ids.cards[*slot].sold_text,
                         visible: true,
                     },
                 ],
             });
-            ui_ctx.send_event(ui::UIEvent::SetVisible {
+            ui_ctx.send_event(nodus::UIEvent::SetVisible {
                 target: shop_ids.cards[*slot].sold_overlay,
                 visible: true,
             });
@@ -361,23 +361,23 @@ pub fn handle_shop_ui_event(event: &GameEvent, ui_ctx: &mut ui::UiContext, shop_
 
         GameEventKind::PurchaseFailed { slot } => {
             // tween flash rouge
-            ui_ctx.tween.add(ui::Tween {
+            ui_ctx.tween.add(nodus::Tween {
                 target: shop_ids.cards[*slot].error_overlay,
-                property: ui::TweenProperty::Opacity { from: 0.7, to: 0.0 },
+                property: nodus::TweenProperty::Opacity { from: 0.7, to: 0.0 },
                 duration: 1.5,
                 elapsed: 0.0,
-                easing: ui::easing::ease_out_quad,
+                easing: nodus::easing::ease_out_quad,
                 done: false,
-                on_complete: vec![ui::UIEvent::SetVisible {
+                on_complete: vec![nodus::UIEvent::SetVisible {
                     target: shop_ids.cards[*slot].error_overlay,
                     visible: false,
                 }],
             });
-            ui_ctx.send_event(ui::UIEvent::SetVisible {
+            ui_ctx.send_event(nodus::UIEvent::SetVisible {
                 target: shop_ids.cards[*slot].error_overlay,
                 visible: true,
             });
-            ui_ctx.send_event(ui::UIEvent::SetOpacity {
+            ui_ctx.send_event(nodus::UIEvent::SetOpacity {
                 target: shop_ids.cards[*slot].error_overlay,
                 opacity: 0.7,
             });

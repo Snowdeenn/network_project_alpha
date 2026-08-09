@@ -21,7 +21,7 @@ use crate::ui::hud;
 pub struct App {
     window: Option<Arc<winit::window::Window>>,
     renderer: Option<prism::Renderer>,
-    ui_ctx: Option<ui::UiContext>,
+    ui_ctx: Option<nodus::UiContext>,
     client: Option<GameNetClient>,
     resource: Resources,
     client_id: u64,
@@ -41,7 +41,7 @@ impl App {
         resource.insert(VfxManager::new());
         resource.insert(BufferManager::with_capacity(16));
         resource.insert(ParticlePool::new());
-        resource.insert(ui::DrawCommandBuffer::new(2048));
+        resource.insert(nodus::DrawCommandBuffer::new(2048));
 
         let last_frame = std::time::Instant::now();
 
@@ -104,7 +104,7 @@ impl winit::application::ApplicationHandler for App {
         };
 
         let size = window.inner_size();
-        let mut ui_ctx = ui::UiContext::new(size.width as f32, size.height as f32);
+        let mut ui_ctx = nodus::UiContext::new(size.width as f32, size.height as f32);
         let scale = ScreenScale::new(size.width as i32, size.height as i32);
 
         let mut asset_manager = AssetManager::new();
@@ -347,7 +347,7 @@ impl winit::application::ApplicationHandler for App {
                         // Rendu de la scène InGame
                         self.in_game_scene
                             .render(&mut frame, client_state, &mut self.resource, dt);
-                        let mut buf = self.resource.write_resource::<ui::DrawCommandBuffer>();
+                        let mut buf = self.resource.write_resource::<nodus::DrawCommandBuffer>();
                         hud::prepare_hud(&mut frame, ui_ctx, &mut buf);
                     }
                     _ => {

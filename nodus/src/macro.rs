@@ -11,7 +11,7 @@ macro_rules! text_label {
         color: $color:expr
         $(,)?
     ) => {{
-        use ui::{LayoutProps, VisualKind, VisualProps};
+        use nodus::{LayoutProps, VisualKind, VisualProps};
         $ctx.add_node(
             $parent,
             LayoutProps::new($anchor, $offset, $size),
@@ -71,7 +71,7 @@ macro_rules! progress_bar {
         offset: $offset:expr, size: $size:expr, bg: $bg:expr,
         fill_color: $fill_color:expr, material: $material:expr,
         uniform_data: $uniform_data:expr, $(,)?) => {{
-        use ui::{Anchor, LayoutProps, UiVec2, VisualKind, VisualProps};
+        use nodus::{Anchor, LayoutProps, UiVec2, VisualKind, VisualProps};
 
         let bg_id = $ctx.add_node(
             $parent,

@@ -79,7 +79,7 @@ pub struct InGameIds {
 }
 
 pub struct GuiContext<'a> {
-    pub ui_ctx: &'a mut ui::UiContext,
+    pub ui_ctx: &'a mut nodus::UiContext,
     pub shader_manager: &'a mut prism::ShaderManager,
     pub ids: &'a InGameIds,
 }
@@ -331,7 +331,7 @@ impl InGameScene {
     ) {
         match input::handle_shop_input(input_state, client, client_state) {
             ShopInputAction::Close => {
-                gui.ui_ctx.send_event(ui::UIEvent::SetVisible {
+                gui.ui_ctx.send_event(nodus::UIEvent::SetVisible {
                     target: gui.ids.shop.root,
                     visible: false,
                 });

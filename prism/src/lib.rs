@@ -13,7 +13,7 @@ pub use errors::{GpuContextError, TextRendererError};
 pub use frame::{frame::Frame, manager::FrameManager};
 pub use geometry::{
     mesh::{RawMesh, Vertex},
-    shape::{Shape, UvRect},
+    shape::{Shape, UvRect, NinePatchMargins},
     tesselator::Tesselator,
 };
 pub use pass::{

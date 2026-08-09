@@ -393,6 +393,7 @@ impl Pass for HudPass {
                     Some(*material_id),
                     Some(uniform_data.as_slice()),
                 ),
+                DrawCommand::NinePatch { id, .. } => (*id, None, None),
                 DrawCommand::Text { .. } => continue,
             };
 
@@ -476,7 +477,26 @@ impl Pass for HudPass {
                 DrawCommand::Mesh { mesh, .. } => {
                     self.mesh.append(mesh);
                 }
-                DrawCommand::Text { .. } => {}
+                DrawCommand::NinePatch {
+                    pos,
+                    size,
+                    texture_size,
+                    margins,
+                    tint,
+                    ..
+                } => {
+                    Tesselator::tesselate(
+                        &Shape::NinePatch {
+                            pos: *pos,
+                            size: *size,
+                            texture_size: *texture_size,
+                            margins: *margins,
+                            color: *tint,
+                        },
+                        &mut self.mesh,
+                    );
+                }
+                DrawCommand::Text { .. } => (),
             }
         }
 

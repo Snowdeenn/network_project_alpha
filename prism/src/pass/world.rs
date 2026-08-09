@@ -253,6 +253,9 @@ impl Pass for WorldPass {
                     *layer,
                     texture_id.map(|t| t.index).unwrap_or(white_id.index),
                 ),
+                DrawCommand::NinePatch { id, layer, .. } => {
+                    (*layer, id.index)
+                }
             }
         };
 

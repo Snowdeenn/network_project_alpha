@@ -55,7 +55,7 @@ impl Tesselator {
 
                 mesh.push_triangle(i0, i1, i2);
                 mesh.push_triangle(i1, i3, i2);
-            },
+            }
             Shape::Polygon {
                 center,
                 sides,
@@ -87,7 +87,7 @@ impl Tesselator {
                     let next = (i + 1) % *sides as usize;
                     mesh.push_triangle(ci, rim[i], rim[next]);
                 }
-            },
+            }
             Shape::Ring {
                 center,
                 inner_r,
@@ -145,7 +145,7 @@ impl Tesselator {
                     mesh.push_triangle(i0, i1, i2);
                     mesh.push_triangle(i1, i3, i2);
                 }
-            },
+            }
             Shape::SlantedQuad {
                 pos,
                 size,
@@ -180,7 +180,7 @@ impl Tesselator {
 
                 mesh.push_triangle(i0, i1, i2);
                 mesh.push_triangle(i1, i3, i2);
-            },
+            }
             Shape::RoundedRect {
                 pos,
                 size,
@@ -250,7 +250,7 @@ impl Tesselator {
                 if let (Some(prev), Some(first)) = (prev_idx, first_idx) {
                     mesh.push_triangle(center_idx, prev, first);
                 }
-            },
+            }
             Shape::Quad {
                 pos,
                 size,
@@ -318,6 +318,79 @@ impl Tesselator {
                 });
                 mesh.push_triangle(i0, i1, i2);
                 mesh.push_triangle(i1, i3, i2);
+            }
+            Shape::NinePatch {
+                pos,
+                size,
+                texture_size,
+                margins,
+                color,
+            } => {
+                // Éviter les divisions par zéro si la taille de texture est invalide
+                if texture_size[0] <= 0.0 || texture_size[1] <= 0.0 {
+                    return;
+                }
+
+                // Coordonnées écran (X et Y)
+                let x = [
+                    pos[0],
+                    pos[0] + margins.left,
+                    pos[0] + size[0] - margins.right,
+                    pos[0] + size[0],
+                ];
+
+                let y = [
+                    pos[1],
+                    pos[1] + margins.top,
+                    pos[1] + size[1] - margins.bottom,
+                    pos[1] + size[1],
+                ];
+
+                // Coordonnées UV normalisées [0.0..1.0]
+                let u = [
+                    0.0,
+                    margins.left / texture_size[0],
+                    1.0 - (margins.right / texture_size[0]),
+                    1.0,
+                ];
+
+                let v = [
+                    0.0,
+                    margins.top / texture_size[1],
+                    1.0 - (margins.bottom / texture_size[1]),
+                    1.0,
+                ];
+
+                // Génération des 9 quads (3x3)
+                for row in 0..3 {
+                    for col in 0..3 {
+                        let cell_w = x[col + 1] - x[col];
+                        let cell_h = y[row + 1] - y[row];
+
+                        // Ignore les cellules si la taille cible est trop petite pour afficher les marges
+                        if cell_w <= 0.0 || cell_h <= 0.0 {
+                            continue;
+                        }
+
+                        let cell_uv_w = u[col + 1] - u[col];
+                        let cell_uv_h = v[row + 1] - v[row];
+
+                        let quad = Shape::Quad {
+                            pos: [x[col], y[row]],
+                            size: [cell_w, cell_h],
+                            rotation: 0.0,
+                            color: *color,
+                            uv: Some(UvRect {
+                                x: u[col],
+                                y: v[row],
+                                w: cell_uv_w,
+                                h: cell_uv_h,
+                            }),
+                        };
+
+                        Self::tesselate(&quad, mesh);
+                    }
+                }
             }
         }
     }

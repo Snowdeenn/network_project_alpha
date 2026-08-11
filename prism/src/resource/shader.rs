@@ -57,42 +57,42 @@ impl ShaderManager {
     }
 
     pub fn reload(&mut self, ctx: &GpuContext, id: ShaderId) -> Result<(), ShaderError> {
-    let _span = tracing::info_span!("ShaderManager::reload", ?id).entered();
+        let _span = tracing::info_span!("ShaderManager::reload", ?id).entered();
 
-    let path = self
-        .shaders
-        .get(id)
-        .ok_or_else(|| {
-            tracing::warn!(?id, "Tentative de recharger un shader inexistant");
-            ShaderError::NotFound { id }
-        })?
-        .path
-        .clone()
-        .ok_or_else(|| {
-            tracing::warn!(?id, "Impossible de recharger un shader créé inline");
-            ShaderError::InlineReload
-        })?;
-    let source = std::fs::read_to_string(&path).map_err(|source| {
+        let path = self
+            .shaders
+            .get(id)
+            .ok_or_else(|| {
+                tracing::warn!(?id, "Tentative de recharger un shader inexistant");
+                ShaderError::NotFound { id }
+            })?
+            .path
+            .clone()
+            .ok_or_else(|| {
+                tracing::warn!(?id, "Impossible de recharger un shader créé inline");
+                ShaderError::InlineReload
+            })?;
+        let source = std::fs::read_to_string(&path).map_err(|source| {
         tracing::error!(path = %path, "Échec de lecture lors du rechargement du shader : {source}");
         ShaderError::Io {
             path: path.clone(),
             source,
         }
     })?;
-    let module = ctx
-        .device
-        .create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some(&path),
-            source: wgpu::ShaderSource::Wgsl(source.into()),
-        });
-    if let Some(shader) = self.shaders.get_mut(id) {
-        shader.module = module;
-        tracing::info!(?id, path = %path, "Shader rechargé avec succès (Hot-reload)");
-        Ok(())
-    } else {
-        Err(ShaderError::NotFound { id })
+        let module = ctx
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some(&path),
+                source: wgpu::ShaderSource::Wgsl(source.into()),
+            });
+        if let Some(shader) = self.shaders.get_mut(id) {
+            shader.module = module;
+            tracing::info!(?id, path = %path, "Shader rechargé avec succès (Hot-reload)");
+            Ok(())
+        } else {
+            Err(ShaderError::NotFound { id })
+        }
     }
-}
 
     pub fn get(&self, id: ShaderId) -> Option<&GpuShader> {
         self.shaders.get(id)

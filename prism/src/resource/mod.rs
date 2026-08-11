@@ -28,8 +28,8 @@ impl GpuResources {
         &mut self,
         ctx: &crate::GpuContext,
         path: &str,
-    ) -> Result<utils::ids::ShaderId, crate::PrismError> {
-        Ok(self.shader.load(ctx, path)?)
+    ) -> Result<utils::ids::ShaderId, crate::ShaderError> {
+        self.shader.load(ctx, path)
     }
     pub fn load_shader_inline(
         &mut self,
@@ -52,16 +52,16 @@ impl GpuResources {
         &mut self,
         ctx: &crate::GpuContext,
         id: utils::ids::ShaderId,
-    ) -> Result<(), crate::PrismError> {
-        Ok(self.shader.reload(ctx, id)?)
+    ) -> Result<(), crate::ShaderError> {
+        self.shader.reload(ctx, id)
     }
 
     pub fn load_texture(
         &mut self,
         ctx: &crate::GpuContext,
         path: &str,
-    ) -> Result<utils::ids::TextureId, crate::PrismError> {
-        Ok(self.texture.load(ctx, path)?)
+    ) -> Result<utils::ids::TextureId, crate::TextureError> {
+        self.texture.load(ctx, path)
     }
     pub fn register_texture(&mut self, texture: GpuTexture) -> utils::ids::TextureId {
         self.texture.register(texture)
@@ -75,8 +75,8 @@ impl GpuResources {
     pub fn remove_texture(
         &mut self,
         id: utils::ids::TextureId,
-    ) -> Result<GpuTexture, crate::PrismError> {
-        Ok(self.texture.remove(id)?)
+    ) -> Result<GpuTexture, crate::TextureError> {
+        self.texture.remove(id)
     }
     pub fn white_texture(&self) -> utils::ids::TextureId {
         self.texture.white_texture()
@@ -106,7 +106,7 @@ impl GpuResources {
         label: Option<&str>,
         size: u64,
         usage: wgpu::BufferUsages,
-    ) -> Result<utils::ids::BufferId, crate::PrismError> {
+    ) -> Result<utils::ids::BufferId, crate::BufferError> {
         Ok(self.buffer.create_buffer(ctx, label, size, usage)?)
     }
     pub fn get_buffer(&self, id: utils::ids::BufferId) -> Option<&crate::GpuBuffer> {
@@ -115,10 +115,13 @@ impl GpuResources {
     pub fn get_buffer_mut(&mut self, id: utils::ids::BufferId) -> Option<&mut crate::GpuBuffer> {
         self.get_buffer_mut(id)
     }
-    pub fn write_buffer(&mut self, ctx: &crate::GpuContext, id: utils::ids::BufferId, data: &[u8]) {
-        self.buffer.write_buffer(ctx, id, data);
+    pub fn write_buffer(&mut self, ctx: &crate::GpuContext, id: utils::ids::BufferId, data: &[u8]) -> Result<(), crate::BufferError> {
+        self.buffer.write_buffer(ctx, id, data)
     }
-    pub fn remove_buffer(&mut self, id: utils::ids::BufferId) -> Result<crate::GpuBuffer, crate::PrismError> {
+    pub fn remove_buffer(
+        &mut self,
+        id: utils::ids::BufferId,
+    ) -> Result<crate::GpuBuffer, crate::BufferError> {
         Ok(self.buffer.remove(id)?)
     }
 }

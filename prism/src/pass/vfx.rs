@@ -2,16 +2,14 @@ use std::sync::Arc;
 use utils::ids::{BufferId, ShaderId};
 
 use crate::{
+    GpuResources,
     context::GpuContext,
     draw::commands::DrawCommand,
     errors::PassError,
     geometry::{mesh::RawMesh, shape::Shape, tesselator::Tesselator},
     pass::{Pass, VfxInput},
     resource::{
-        buffer::GpuBufferManager,
         pipeline::{BlendMode, PipelineKey, PipelineManager, VertexFormat},
-        shader::ShaderManager,
-        material::MaterialManager,
     },
 };
 
@@ -32,9 +30,8 @@ pub struct VfxPass {
 impl VfxPass {
     pub fn new(
         ctx: &GpuContext,
-        buffers: &mut GpuBufferManager,
+        gpu_resource: &mut GpuResources,
         pipelines: &mut PipelineManager,
-        shaders: &ShaderManager,
         vert_shader: ShaderId,
         frag_shader: ShaderId,
     ) -> Result<Self, PassError> {
@@ -43,14 +40,14 @@ impl VfxPass {
         let index_buffer_size = 1024 * 12;
         let vertex_buffer_size = 1024 * 64;
 
-        let index_buffer = buffers.create_buffer(
+        let index_buffer = gpu_resource.create_buffer(
             ctx,
             Some("VfxPass Index Buffer"),
             index_buffer_size,
             wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
         )?;
 
-        let vertex_buffer = buffers.create_buffer(
+        let vertex_buffer = gpu_resource.create_buffer(
             ctx,
             Some("VfxPass Vertex Buffer"),
             vertex_buffer_size,
@@ -75,13 +72,11 @@ impl VfxPass {
             bind_groups: &crate::CAM_BIND_GROUP,
         };
 
-        let pipeline = pipelines.get_or_create(ctx, shaders, pipeline_key.clone())?;
-        let layouts = pipelines
-            .get_layouts(&pipeline_key)
-            .ok_or_else(|| {
-                tracing::error!("Impossible de récupérer les BindGroupLayouts pour la VfxPass");
-                PassError::LayoutsNotFound
-            })?;
+        let pipeline = pipelines.get_or_create(ctx, gpu_resource, pipeline_key.clone())?;
+        let layouts = pipelines.get_layouts(&pipeline_key).ok_or_else(|| {
+            tracing::error!("Impossible de récupérer les BindGroupLayouts pour la VfxPass");
+            PassError::LayoutsNotFound
+        })?;
 
         let camera_bind_group = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("VfxPass Camera BindGroup"),
@@ -113,13 +108,13 @@ impl VfxPass {
         &mut self,
         ctx: &GpuContext,
         pipelines: &mut PipelineManager,
-        shaders: &ShaderManager,
+        gpu_resources: &GpuResources,
         vert_shader: ShaderId,
         frag_shader: ShaderId,
     ) -> Result<(), PassError> {
         let pipeline = pipelines.get_or_create(
             ctx,
-            shaders,
+            gpu_resources,
             PipelineKey {
                 vertex_shader: vert_shader,
                 fragment_shader: frag_shader,
@@ -144,7 +139,7 @@ impl Pass for VfxPass {
     fn prepare<'a>(
         &mut self,
         ctx: &GpuContext,
-        buffers: &mut GpuBufferManager,
+        gpu_resources: &mut GpuResources,
         input: &mut Self::Input<'a>,
     ) {
         let _span = tracing::trace_span!("VfxPass::prepare").entered();
@@ -186,8 +181,8 @@ impl Pass for VfxPass {
         }
 
         // Redimensionnement dynamique du Vertex Buffer
-        let required_vertex_bytes =
-            self.mesh.vertices().len() as u64 * std::mem::size_of::<crate::geometry::mesh::Vertex>() as u64;
+        let required_vertex_bytes = self.mesh.vertices().len() as u64
+            * std::mem::size_of::<crate::geometry::mesh::Vertex>() as u64;
 
         if required_vertex_bytes > self.vertex_buffer_size {
             self.vertex_buffer_size = (self.vertex_buffer_size * 2).max(required_vertex_bytes);
@@ -197,14 +192,14 @@ impl Pass for VfxPass {
             );
 
             let former_buffer = self.vertex_buffer;
-            if let Ok(new_buf) = buffers.create_buffer(
+            if let Ok(new_buf) = gpu_resources.create_buffer(
                 ctx,
                 Some("VfxPass Vertex Buffer (Resized)"),
                 self.vertex_buffer_size,
                 wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             ) {
                 self.vertex_buffer = new_buf;
-                let _ = buffers.remove(former_buffer);
+                let _ = gpu_resources.remove_buffer(former_buffer);
             }
         }
 
@@ -220,24 +215,25 @@ impl Pass for VfxPass {
             );
 
             let former_buffer = self.index_buffer;
-            if let Ok(new_buf) = buffers.create_buffer(
+            if let Ok(new_buf) = gpu_resources.create_buffer(
                 ctx,
                 Some("VfxPass Index Buffer (Resized)"),
                 self.index_buffer_size,
                 wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
             ) {
                 self.index_buffer = new_buf;
-                let _ = buffers.remove(former_buffer);
+                let _ = gpu_resources.remove_buffer(former_buffer);
             }
         }
 
         self.index_count = self.mesh.indices().len() as u32;
 
-        if let Err(err) = buffers.write_buffer(ctx, self.vertex_buffer, self.mesh.vertices_bytes()) {
+        if let Err(err) = gpu_resources.write_buffer(ctx, self.vertex_buffer, self.mesh.vertices_bytes())
+        {
             tracing::error!("Échec d'écriture dans le Vertex Buffer de VfxPass : {err}");
         }
 
-        if let Err(err) = buffers.write_buffer(ctx, self.index_buffer, self.mesh.indices_bytes()) {
+        if let Err(err) = gpu_resources.write_buffer(ctx, self.index_buffer, self.mesh.indices_bytes()) {
             tracing::error!("Échec d'écriture dans l'Index Buffer de VfxPass : {err}");
         }
     }
@@ -246,25 +242,30 @@ impl Pass for VfxPass {
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
         target: &wgpu::TextureView,
-        buffers: &GpuBufferManager,
-        _materials: &MaterialManager,
+        gpu_resources: &GpuResources,
     ) {
         if self.index_count == 0 {
             return;
         }
 
-        let index_buffer = match buffers.get(self.index_buffer) {
+        let index_buffer = match gpu_resources.get_buffer(self.index_buffer) {
             Some(b) => b,
             None => {
-                tracing::error!("Index Buffer introuvable dans VfxPass (ID : %{})", self.index_buffer);
+                tracing::error!(
+                    "Index Buffer introuvable dans VfxPass (ID : %{})",
+                    self.index_buffer
+                );
                 return;
             }
         };
 
-        let vertex_buffer = match buffers.get(self.vertex_buffer) {
+        let vertex_buffer = match gpu_resources.get_buffer(self.vertex_buffer) {
             Some(b) => b,
             None => {
-                tracing::error!("Vertex Buffer introuvable dans VfxPass (ID : %{})", self.vertex_buffer);
+                tracing::error!(
+                    "Vertex Buffer introuvable dans VfxPass (ID : %{})",
+                    self.vertex_buffer
+                );
                 return;
             }
         };

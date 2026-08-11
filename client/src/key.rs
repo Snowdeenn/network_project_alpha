@@ -1,28 +1,34 @@
 pub mod hud {
-    pub const ROOT: &'static str = "hud/root";
-    pub const WAVE_LABEL: &'static str = "hud/wave_label_id";
-    pub const HP_BG: &'static str = "hud/hp_bg_id";
-    pub const HP_FILL: &'static str = "hud/hp_fill_id";
-    pub const HP_TEXT: &'static str = "hud/hp_text_id";
-    pub const GOLD_LABEL: &'static str = "hud/gold_label_id";
+    pub const ROOT: &str = "hud/root";
+    pub const WAVE_LABEL: &str = "hud/wave_label_id";
+    pub const HP_BG: &str = "hud/hp_bg_id";
+    pub const HP_FILL: &str = "hud/hp_fill_id";
+    pub const HP_TEXT: &str = "hud/hp_text_id";
+    pub const GOLD_LABEL: &str = "hud/gold_label_id";
 }
 pub mod material {
-    pub const HP_MATERIAL: &'static str = "material/hp_material_id";
+    pub const HP_MATERIAL: &str = "material/hp_material_id";
 }
 pub mod shop {
-    pub const ROOT: &'static str = "shop/root";
-    pub const TITLE: &'static str = "shop/title_id";
-    pub const SHOP_CARD_KEYS: [&'static str; 3] = ["shop_card_0", "shop_card_1", "shop_card_2"];
-    pub const CLOSE: &'static str = "shop/close_id";
+    pub const ROOT: &str = "shop/root";
+    pub const TITLE: &str = "shop/title_id";
+    pub const SHOP_CARD_KEYS: [&str; 3] = ["shop_card_0", "shop_card_1", "shop_card_2"];
+    pub const CLOSE: &str = "shop/close_id";
 }
 pub mod lobby {
-    pub const ROOT: &'static str = "lobby/root";
-    pub const CODE_LABEL: &'static str = "lobby/code_label";
-    pub const SLOT_KEYS: [&'static str; 4] = ["slot_0", "slot_1", "slot_2", "slot_3"];
-    pub const INSTRUCTION: &'static str = "lobby/instruction";
-    pub const CLASS: &'static str = "lobby/class";
+    pub const ROOT: &str = "lobby/root";
+    pub const CODE_LABEL: &str = "lobby/code_label";
+    pub const SLOT_KEYS: [&str; 4] = ["lobby_slot_0", "lobby_slot_1", "lobby_slot_2", "lobby_slot_3"];
+    pub const INSTRUCTION: &str = "lobby/instruction";
+    pub const CLASS: &str = "lobby/class";
 }
 pub mod shader {
-    pub const TEXTURED_VERTEX: &'static str = "shader/textured_vertex";
-    pub const TEXTURED_FRAGEMENT: &'static str = "shader/textured_fragement";
+    pub const TEXTURED_VERTEX: &str = "shader/textured_vertex";
+    pub const TEXTURED_FRAGMENT: &str = "shader/textured_fragment";
+    pub const DEFAULT_VERTEX: &str = "shader/default_vertex";
+    pub const DEFAULT_FRAGMENT: &str = "shader/default_vertx";
+}
+pub mod post {
+    pub const DEFAULT_POST_VERTEX: &str = "post/default_post_vert";
+    pub const DEFAULT_POST_FRAGMENT: &str ="post/default_post_frag";
 }

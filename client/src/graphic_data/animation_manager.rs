@@ -139,7 +139,7 @@ impl AnimationManager {
     pub fn load_from_config(
         &mut self,
         ctx: &prism::GpuContext,
-        textures: &mut prism::TextureManager,
+        gpu_resources: &mut prism::GpuResources,
         config_path: impl AsRef<Path>,
     ) -> Result<(), AnimationError> {
         let path = config_path.as_ref();
@@ -161,7 +161,7 @@ impl AnimationManager {
             let mut frame_ids = Vec::with_capacity(cfg.frames.len());
 
             for frame_path in &cfg.frames {
-                if let Ok(tex_id) = textures.load(ctx, frame_path) {
+                if let Ok(tex_id) = gpu_resources.load_texture(ctx, frame_path) {
                     frame_ids.push(tex_id);
                 } else {
                     tracing::warn!(

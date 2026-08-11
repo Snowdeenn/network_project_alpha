@@ -7,7 +7,7 @@ use utils::buffer::BufferManager;
 
 use crate::app::input::Input;
 use crate::app::resources::Resources;
-use crate::app::states::in_game::{InGameIds, InGameScene};
+use crate::app::states::in_game::InGameScene;
 use crate::app::states::main_menu::MenuAction;
 use crate::core::client::GameNetClient;
 use crate::core::event::AppScreen;
@@ -24,10 +24,10 @@ pub struct App {
     ui_ctx: Option<nodus::UiContext>,
     client: Option<GameNetClient>,
     resource: Resources,
+    id_register: utils::ids::Register,
     client_id: u64,
     in_game_scene: InGameScene,
     screen: AppScreen,
-    in_game_ids: Option<InGameIds>,
     is_solo: bool,
     input_state: Input,
     last_frame: std::time::Instant,
@@ -44,6 +44,7 @@ impl App {
         resource.insert(nodus::DrawCommandBuffer::new(2048));
 
         let last_frame = std::time::Instant::now();
+        let id_register = utils::ids::Register::new();
 
         Self {
             window: None,
@@ -51,10 +52,10 @@ impl App {
             ui_ctx: None,
             client: None,
             resource,
+            id_register,
             client_id: rand::random::<u64>(),
             in_game_scene: InGameScene::default(),
             screen: AppScreen::MainMenu,
-            in_game_ids: None,
             is_solo: false,
             input_state: Input::new(),
             last_frame,
@@ -127,9 +128,13 @@ impl winit::application::ApplicationHandler for App {
             let vert_id = renderer
                 .load_shader("client/src/graphic_data/shader/default_textured.vert.wgsl")
                 .unwrap();
+            self.id_register
+                .insert(crate::key::shader::TEXTURED_VERTEX, vert_id);
+
             let frag_id = renderer
                 .load_shader("client/src/graphic_data/shader/progress_bar.frag.wgsl")
                 .unwrap();
+            self.id_register.insert("shader/progress_bar_frag", frag_id);
 
             // Créer la pipeline pour ce matériau
             let pipeline = match renderer.create_pipeline(prism::PipelineKey {
@@ -151,30 +156,39 @@ impl winit::application::ApplicationHandler for App {
                 pipeline,
                 vec![], // pas de bind groups custom supplémentaires — les uniforms passent par le scratch buffer
                 std::mem::size_of::<f32>(), // uniform_size : un f32 (le ratio)
-            )
+            )  
         };
+        self.id_register
+            .insert(crate::key::material::HP_MATERIAL, hp_material_id);
 
-        let hud_node_id = hud::init_hud(&mut ui_ctx, hp_material_id);
-        let shop_id = hud::init_shop(&mut ui_ctx);
-
-        self.in_game_ids = Some(InGameIds {
-            shop: shop_id,
-            hud: hud_node_id,
-            hp_material_id: hp_material_id,
-        });
+        // Init des élements du ui des différentes scènes
+        {
+            hud::init_hud(&mut ui_ctx, hp_material_id, &mut self.id_register);
+            hud::init_shop(&mut ui_ctx, &mut self.id_register);
+            states::lobby::init_lobby(&mut ui_ctx, &mut self.id_register);
+        }
 
         // Chargement des shaders texturés pour le World
-        match (
-            renderer.load_shader("client/src/graphic_data/shader/default_textured.vert.wgsl"),
-            renderer.load_shader("client/src/graphic_data/shader/default_textured.frag.wgsl"),
-        ) {
-            (Ok(vs), Ok(fs)) => {
-                if let Err(err) = renderer.set_world_shaders(vs, fs) {
-                    tracing::error!("Échec du paramétrage des shaders World : {err}");
+        {
+            let textured_vertex_id = self
+                .id_register
+                .get::<utils::ids::ShaderId>(crate::key::shader::TEXTURED_VERTEX)
+                // On panic parce que avoir l'id du shader est indispensable pour reconstruire la pipeline
+                .expect("L'id textured_vertex_id est introuvable dans le register");
+
+            match renderer.load_shader("client/src/graphic_data/shader/default_textured.frag.wgsl")
+            {
+                Ok(fs) => {
+                    self.id_register
+                        .insert(crate::key::shader::TEXTURED_FRAGEMENT, fs);
+
+                    if let Err(err) = renderer.set_world_shaders(textured_vertex_id, fs) {
+                        tracing::error!("Échec du paramétrage des shaders World : {err}");
+                    }
                 }
-            }
-            (Err(err), _) | (_, Err(err)) => {
-                tracing::error!("Impossible de charger les shaders texturés : {err}");
+                Err(err) => {
+                    tracing::error!("Impossible de charger les shaders texturés : {err}");
+                }
             }
         }
 
@@ -315,20 +329,23 @@ impl winit::application::ApplicationHandler for App {
                 }
 
                 // Rendu Lobby
-                crate::app::states::lobby::render(&mut frame, state, scale);
+                crate::app::states::lobby::update(
+                    &mut self.ui_ctx.as_mut().unwrap(),
+                    &self.id_register,
+                    state,
+                );
             }
 
             AppScreen::InGame(client_state) => {
                 let client_ok = self.client.as_mut();
                 let ui_ok = self.ui_ctx.as_mut();
-                let ids_ok = self.in_game_ids.as_ref();
 
-                match (client_ok, ui_ok, ids_ok) {
-                    (Some(client), Some(ui_ctx), Some(in_game_ids)) => {
+                match (client_ok, ui_ok) {
+                    (Some(client), Some(ui_ctx)) => {
                         let mut gui_ctx = crate::app::states::in_game::GuiContext {
                             ui_ctx,
                             shader_manager: renderer.shader_mut(),
-                            ids: in_game_ids,
+                            ids: &self.id_register,
                         };
 
                         // Mise à jour logique
@@ -347,20 +364,52 @@ impl winit::application::ApplicationHandler for App {
                         // Rendu de la scène InGame
                         self.in_game_scene
                             .render(&mut frame, client_state, &mut self.resource, dt);
-                        let mut buf = self.resource.write_resource::<nodus::DrawCommandBuffer>();
-                        hud::prepare_hud(&mut frame, ui_ctx, &mut buf);
                     }
                     _ => {
                         tracing::error!(
                             client = self.client.is_some(),
                             ui_ctx = self.ui_ctx.is_some(),
-                            in_game_ids = self.in_game_ids.is_some(),
                             "Impossible de rendre InGame : une ressource requise est None"
                         );
                     }
                 }
             }
         }
+        if let Some(ref mut ui_ctx) = self.ui_ctx {
+            let hud_root = match self.id_register.get::<nodus::NodeId>(crate::key::hud::ROOT) {
+                Some(id) => id,
+                None => {
+                    tracing::warn!("L'id {} est absent du register", crate::key::hud::ROOT);
+                    return;
+                }
+            };
+            let lobby_root = match self
+                .id_register
+                .get::<nodus::NodeId>(crate::key::lobby::ROOT)
+            {
+                Some(id) => id,
+                None => {
+                    tracing::warn!("L'id {} est absent du register", crate::key::lobby::ROOT);
+                    return;
+                }
+            };
+
+            let in_lobby = matches!(self.screen, AppScreen::Lobby(_));
+            let in_game = matches!(self.screen, AppScreen::InGame(_));
+
+            ui_ctx.send_event(nodus::UIEvent::SetVisible {
+                target: lobby_root,
+                visible: in_lobby,
+            });
+            ui_ctx.send_event(nodus::UIEvent::SetVisible {
+                target: hud_root, // nœud racine du HUD in-game
+                visible: in_game,
+            });
+            let mut buf = self.resource.write_resource::<nodus::DrawCommandBuffer>();
+            ui_ctx.update(dt);
+            hud::prepare_hud(&mut frame, ui_ctx, &mut buf);
+        }
+
         if let Err(rejected_frame) = renderer.frame_manager().push(frame) {
             tracing::warn!("Frame rejetée : la file d'attente du FrameManager est pleine");
             let _ = rejected_frame;

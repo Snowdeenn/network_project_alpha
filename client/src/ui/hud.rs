@@ -4,18 +4,32 @@ use std::fmt::Write;
 use utils::ids::MaterialId;
 use utils::protocol::StateSnapshot;
 
-pub struct HudIds {
-    pub wave_label_id: nodus::NodeId,
-    pub hp_bg_id: nodus::NodeId,
-    pub hp_fill_id: nodus::NodeId,
-    pub hp_text_id: nodus::NodeId,
-    pub gold_label_id: nodus::NodeId,
-}
-
-pub fn init_hud(ui_ctx: &mut nodus::UiContext, hp_material_id: MaterialId) -> HudIds {
+pub fn init_hud(
+    ui_ctx: &mut nodus::UiContext,
+    hp_material_id: MaterialId,
+    register: &mut utils::ids::Register,
+) {
+    let root = ui_ctx.add_node(
+        ui_ctx.root,
+        nodus::LayoutProps::new(
+            nodus::Anchor::TopLeft,
+            nodus::UiVec2::pixels(0.0, 0.0),
+            nodus::UiVec2::new(
+                nodus::UiUnit::ParentPercent(1.0),
+                nodus::UiUnit::ParentPercent(1.0),
+            ),
+        ),
+        nodus::VisualProps {
+            kind: nodus::VisualKind::Rect,
+            color: utils::colors::Color::TRANSPARENT,
+            visible: false, // caché par défaut
+            opacity: 1.0,
+        },
+    );
+    register.insert(crate::key::hud::ROOT, root);
     let wave_label_id = nodus::text_label! {
         ctx: ui_ctx,
-        parent: ui_ctx.root,
+        parent: root,
         anchor: nodus::Anchor::TopLeft,
         offset: nodus::UiVec2::screen(HUD_PADDING_X, HUD_WAVE_Y),
         size: nodus::UiVec2::screen(0.2, 0.05),
@@ -23,10 +37,11 @@ pub fn init_hud(ui_ctx: &mut nodus::UiContext, hp_material_id: MaterialId) -> Hu
         font_size: 24.0,
         color: utils::colors::Color::WHITE,
     };
+    register.insert(crate::key::hud::WAVE_LABEL, wave_label_id);
 
     let (hp_bg_id, hp_fill_id) = nodus::progress_bar! {
         ctx: ui_ctx,
-        parent: ui_ctx.root,
+        parent: root,
         anchor: nodus::Anchor::TopLeft,
         offset: nodus::UiVec2::screen(HUD_PADDING_X, HUD_BAR_Y),
         size: nodus::UiVec2::screen(HUD_BAR_W, HUD_BAR_H),
@@ -36,6 +51,8 @@ pub fn init_hud(ui_ctx: &mut nodus::UiContext, hp_material_id: MaterialId) -> Hu
         // ratio initial à 1.0 (barre pleine) encodé en f32 little-endian
         uniform_data: bytemuck::cast_slice(&[1.0f32]).to_vec(),
     };
+    register.insert(crate::key::hud::HP_BG, hp_bg_id);
+    register.insert(crate::key::hud::HP_FILL, hp_fill_id);
 
     let hp_text_id = nodus::text_label! {
         ctx: ui_ctx,
@@ -47,10 +64,11 @@ pub fn init_hud(ui_ctx: &mut nodus::UiContext, hp_material_id: MaterialId) -> Hu
         font_size: 16.0,
         color: utils::colors::Color::WHITE,
     };
+    register.insert(crate::key::hud::HP_TEXT, hp_text_id);
 
     let gold_label_id = nodus::text_label! {
         ctx: ui_ctx,
-        parent: ui_ctx.root,
+        parent: root,
         anchor: nodus::Anchor::TopLeft,
         offset: nodus::UiVec2::screen(HUD_PADDING_X, HUD_GOLD_Y),
         size: nodus::UiVec2::screen(0.1, 0.03),
@@ -58,16 +76,10 @@ pub fn init_hud(ui_ctx: &mut nodus::UiContext, hp_material_id: MaterialId) -> Hu
         font_size: 24.0,
         color: utils::colors::Color::GOLD,
     };
-
-    HudIds {
-        wave_label_id,
-        hp_bg_id,
-        hp_fill_id,
-        hp_text_id,
-        gold_label_id,
-    }
+    register.insert(crate::key::hud::GOLD_LABEL, gold_label_id);
 }
 
+#[derive(Clone, Copy)]
 pub struct ShopCardIds {
     pub root: nodus::NodeId,
     pub art: nodus::NodeId,
@@ -79,14 +91,7 @@ pub struct ShopCardIds {
     pub sold_text: nodus::NodeId,
 }
 
-pub struct ShopHudIds {
-    pub root: nodus::NodeId,
-    pub cards: [ShopCardIds; 3],
-    pub title: nodus::NodeId,
-    pub close: nodus::NodeId,
-}
-
-pub fn init_shop(ui_ctx: &mut nodus::UiContext) -> ShopHudIds {
+pub fn init_shop(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Register) {
     let shop_root = ui_ctx.add_node(
         ui_ctx.root,
         nodus::LayoutProps::new(
@@ -104,6 +109,7 @@ pub fn init_shop(ui_ctx: &mut nodus::UiContext) -> ShopHudIds {
             opacity: 1.0,
         },
     );
+    register.insert(crate::key::shop::ROOT, shop_root);
 
     let title_id = nodus::text_label! {
         ctx: ui_ctx,
@@ -115,13 +121,12 @@ pub fn init_shop(ui_ctx: &mut nodus::UiContext) -> ShopHudIds {
         font_size: SHOP_TITLE_FONT_SIZE * REFERENCE_H,
         color: utils::colors::Color::GOLD,
     };
+    register.insert(crate::key::shop::TITLE, title_id);
 
     let card_w_unit = nodus::UiUnit::ScreenWidth(SHOP_CARD_W);
     let card_h_unit = nodus::UiUnit::ScreenHeight(SHOP_CARD_H);
     let card_y_unit = nodus::UiUnit::ScreenHeight(SHOP_CARD_Y);
     let gap_unit = (1.0 - card_w_unit * 3.0) / 4.0;
-
-    let mut cards_list = Vec::with_capacity(3);
 
     for i in 0..3 {
         let card_x_unit = gap_unit + (card_w_unit + gap_unit) * (i as f32);
@@ -257,8 +262,7 @@ pub fn init_shop(ui_ctx: &mut nodus::UiContext) -> ShopHudIds {
                 opacity: 0.0,
             },
         );
-
-        cards_list.push(ShopCardIds {
+        let card_id = ShopCardIds {
             root: card_root,
             art: art_id,
             name: name_id,
@@ -267,7 +271,8 @@ pub fn init_shop(ui_ctx: &mut nodus::UiContext) -> ShopHudIds {
             sold_overlay: sold_overlay_id,
             error_overlay: error_overlay_id,
             sold_text: sold_text_id,
-        });
+        };
+        register.insert(crate::key::shop::SHOP_CARD_KEYS[i], card_id);
     }
 
     let close_id = nodus::text_label! {
@@ -280,25 +285,14 @@ pub fn init_shop(ui_ctx: &mut nodus::UiContext) -> ShopHudIds {
         font_size: CLOSE_SHOP_FONT,
         color: utils::colors::Color::GRAY,
     };
-
-    let cards = [
-        cards_list.remove(0),
-        cards_list.remove(0),
-        cards_list.remove(0),
-    ];
-
-    ShopHudIds {
-        root: shop_root,
-        cards,
-        title: title_id,
-        close: close_id,
-    }
+    register.insert(crate::key::shop::CLOSE, close_id);
 }
 
 pub fn update(gui: &mut GuiContext, snap: &StateSnapshot, bufs: &mut HudBuffers) {
     if let Some(info) = &snap.player_info {
         let ratio = info.health / info.max_health;
 
+        // TODO: Enelver les unwraps aucune raison de panic ici
         bufs.hp.clear();
         write!(bufs.hp, "{} / {}", info.health, info.max_health).unwrap();
 
@@ -314,35 +308,77 @@ pub fn update(gui: &mut GuiContext, snap: &StateSnapshot, bufs: &mut HudBuffers)
         )
         .unwrap();
 
-        // Mise à jour de la barre de vie via uniform_data
-        // Le shader hp reçoit un f32 ratio en group(2) binding(0)
-        gui.ui_ctx.send_event(nodus::UIEvent::SetMaterial {
-            target: gui.ids.hud.hp_fill_id,
-            id: gui.ids.hp_material_id,
-            texture_id: None,
-            uniform_data: bytemuck::cast_slice(&[ratio]).to_vec(),
-        });
+        let hp_material_id = match gui
+            .ids
+            .get::<utils::ids::MaterialId>(crate::key::material::HP_MATERIAL)
+        {
+            Some(id) => id,
+            None => {
+                tracing::warn!(
+                    "Le material id {} est introuvable dans le register",
+                    crate::key::material::HP_MATERIAL
+                );
+                return;
+            }
+        };
+        if let Some(hp_fill_id) = gui.ids.get::<nodus::NodeId>(crate::key::hud::HP_FILL) {
+            // Mise à jour de la barre de vie via uniform_data
+            // Le shader hp reçoit un f32 ratio en group(2) binding(0)
+            gui.ui_ctx.send_event(nodus::UIEvent::SetMaterial {
+                target: hp_fill_id,
+                id: hp_material_id,
+                texture_id: None,
+                uniform_data: bytemuck::cast_slice(&[ratio]).to_vec(),
+            });
 
-        gui.ui_ctx.send_event(nodus::UIEvent::SetSize {
-            target: gui.ids.hud.hp_fill_id,
-            size: nodus::UiVec2::new(
-                nodus::UiUnit::ParentPercent(ratio),
-                nodus::UiUnit::ParentPercent(1.0),
-            ),
-        });
+            gui.ui_ctx.send_event(nodus::UIEvent::SetSize {
+                target: hp_fill_id,
+                size: nodus::UiVec2::new(
+                    nodus::UiUnit::ParentPercent(ratio),
+                    nodus::UiUnit::ParentPercent(1.0),
+                ),
+            });
+        } else {
+            tracing::warn!("L'id {} est absent du register", crate::key::hud::HP_FILL);
+        }
 
+        let hp_text_id = match gui.ids.get::<nodus::NodeId>(crate::key::hud::HP_TEXT) {
+            Some(id) => id,
+            None => {
+                tracing::warn!("L'id {} est absent du register", crate::key::hud::HP_TEXT);
+                return;
+            }
+        };
         gui.ui_ctx.send_event(nodus::UIEvent::SetText {
-            target: gui.ids.hud.hp_text_id,
+            target: hp_text_id,
             content: bufs.hp.to_string(),
         });
-
+        let gold_label_id = match gui.ids.get::<nodus::NodeId>(crate::key::hud::GOLD_LABEL) {
+            Some(id) => id,
+            None => {
+                tracing::warn!(
+                    "L'id {} est absent du register",
+                    crate::key::hud::GOLD_LABEL
+                );
+                return;
+            }
+        };
         gui.ui_ctx.send_event(nodus::UIEvent::SetText {
-            target: gui.ids.hud.gold_label_id,
+            target: gold_label_id,
             content: bufs.gold.to_string(),
         });
-
+        let wave_label_id = match gui.ids.get::<nodus::NodeId>(crate::key::hud::WAVE_LABEL) {
+            Some(id) => id,
+            None => {
+                tracing::warn!(
+                    "L'id {} est absent du register",
+                    crate::key::hud::WAVE_LABEL
+                );
+                return;
+            }
+        };
         gui.ui_ctx.send_event(nodus::UIEvent::SetText {
-            target: gui.ids.hud.wave_label_id,
+            target: wave_label_id,
             content: bufs.wave.to_string(),
         });
     }

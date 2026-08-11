@@ -1,7 +1,5 @@
 use std::time::{Duration, Instant};
 use utils::math::Vec2;
-
-use utils::ids::{MaterialId};
 use utils::protocol::{
     EntityKind, GameEvent, GameEventKind, ShopAction, ShopActionKind, StateSnapshot,
 };
@@ -16,7 +14,7 @@ use crate::rendering::ScreenScale;
 use crate::rendering::camera::{self, Camera};
 use crate::rendering::vfx::particle::{Particle, ParticlePool};
 use crate::rendering::vfx::vfx_manager::VfxManager;
-use crate::ui::hud::{self, HudIds, ShopHudIds};
+use crate::ui::hud::{self};
 
 fn lerp(a: f32, b: f32, t: f32) -> f32 {
     a + (b - a) * t
@@ -72,16 +70,10 @@ impl HudBuffers {
     }
 }
 
-pub struct InGameIds {
-    pub shop: ShopHudIds,
-    pub hud: HudIds,
-    pub hp_material_id: MaterialId,
-}
-
 pub struct GuiContext<'a> {
     pub ui_ctx: &'a mut nodus::UiContext,
     pub shader_manager: &'a mut prism::ShaderManager,
-    pub ids: &'a InGameIds,
+    pub ids: &'a utils::ids::Register,
 }
 
 pub struct InGameScene {
@@ -134,7 +126,6 @@ impl InGameScene {
 
         // Caméra & UI
         self.update_camera(cam);
-        gui.ui_ctx.update(dt);
     }
 
     pub fn render(
@@ -169,7 +160,10 @@ impl InGameScene {
                         t,
                         dt,
                     );
-
+                    tracing::info!(
+                        "world commands: {}",
+                        frame.world_commands().commands().len()
+                    );
                     let vfx = resources.read_resource::<VfxManager>();
                     vfx.push_draw_commands(frame);
                 }
@@ -251,11 +245,11 @@ impl InGameScene {
         state: &mut ClientState,
         gui: &mut GuiContext,
         resources: &mut Resources,
-        cam: &mut Camera
+        cam: &mut Camera,
     ) {
         while let Some(event) = client.recv_event() {
             self.handle_vfx_event(&event, cam, resources);
-            handle_shop_ui_event(&event, gui.ui_ctx, &gui.ids.shop);
+            handle_shop_ui_event(&event, gui.ui_ctx, &gui.ids);
             state.handle_event(event);
         }
     }
@@ -329,10 +323,17 @@ impl InGameScene {
         gui: &mut GuiContext,
         input_state: &Input,
     ) {
+        let root = match gui.ids.get::<nodus::NodeId>(crate::key::shop::ROOT) {
+            Some(id) => id,
+            None => {
+                tracing::warn!("L'id {} est absent du register", crate::key::shop::ROOT);
+                return;
+            }
+        };
         match input::handle_shop_input(input_state, client, client_state) {
             ShopInputAction::Close => {
                 gui.ui_ctx.send_event(nodus::UIEvent::SetVisible {
-                    target: gui.ids.shop.root,
+                    target: root,
                     visible: false,
                 });
                 client_state.close_shop();

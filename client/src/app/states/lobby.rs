@@ -9,8 +9,326 @@ use crate::{
         client::GameNetClient,
         event::{AppScreen, ClientState, LobbyScreenState},
     },
-    rendering::ScreenScale,
 };
+
+#[derive(Debug, Clone, Copy)]
+pub struct SlotId {
+    pub root: nodus::NodeId,
+    pub waiting_text: nodus::NodeId,
+    pub player_name: nodus::NodeId,
+    pub class_text: nodus::NodeId,
+    pub ready_text: nodus::NodeId,
+    pub gold_border: nodus::NodeId, // overlay doré pour le slot local
+}
+
+pub fn init_lobby(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Register) {
+    let root = ui_ctx.add_node(
+        ui_ctx.root,
+        nodus::LayoutProps::new(
+            nodus::Anchor::TopLeft,
+            nodus::UiVec2::pixels(0.0, 0.0),
+            nodus::UiVec2::new(
+                nodus::UiUnit::ParentPercent(1.0),
+                nodus::UiUnit::ParentPercent(1.0),
+            ),
+        ),
+        nodus::VisualProps {
+            kind: nodus::VisualKind::Rect,
+            color: utils::colors::Color::TRANSPARENT,
+            visible: false, // caché par défaut
+            opacity: 1.0,
+        },
+    );
+    register.insert(crate::key::lobby::ROOT, root);
+
+    let code_label = nodus::text_label! {
+        ctx: ui_ctx,
+        parent: root,
+        anchor: nodus::Anchor::TopLeft,
+        offset: nodus::UiVec2::screen(0.02, 0.02),
+        size: nodus::UiVec2::screen(0.3, 0.05),
+        content: "Code : ----",
+        font_size: 24.0,
+        color: utils::colors::Color::GOLD,
+    };
+    register.insert(crate::key::lobby::CODE_LABEL, code_label);
+
+    for i in 0..4usize {
+        let x = 0.1 + i as f32 * 0.22;
+
+        let slot_root = ui_ctx.add_node(
+            root,
+            nodus::LayoutProps::new(
+                nodus::Anchor::TopLeft,
+                nodus::UiVec2::screen(x, 0.35),
+                nodus::UiVec2::screen(0.18, 0.3),
+            ),
+            nodus::VisualProps {
+                kind: nodus::VisualKind::Rect,
+                color: utils::colors::Color::new(30, 30, 30, 255),
+                visible: true,
+                opacity: 1.0,
+            },
+        );
+
+        let waiting_text = nodus::text_label! {
+            ctx: ui_ctx,
+            parent: slot_root,
+            anchor: nodus::Anchor::TopLeft,
+            offset: nodus::UiVec2::screen(0.02, 0.12),
+            size: nodus::UiVec2::screen(0.14, 0.03),
+            content: "En attente ...",
+            font_size: 16.0,
+            color: utils::colors::Color::GRAY,
+        };
+
+        let player_name = nodus::text_label! {
+            ctx: ui_ctx,
+            parent: slot_root,
+            anchor: nodus::Anchor::TopLeft,
+            offset: nodus::UiVec2::screen(0.01, 0.02),
+            size: nodus::UiVec2::screen(0.16, 0.03),
+            content: "",
+            font_size: 20.0,
+            color: utils::colors::Color::WHITE,
+        };
+
+        let class_text = nodus::text_label! {
+            ctx: ui_ctx,
+            parent: slot_root,
+            anchor: nodus::Anchor::TopLeft,
+            offset: nodus::UiVec2::screen(0.01, 0.1),
+            size: nodus::UiVec2::screen(0.16, 0.03),
+            content: "",
+            font_size: 18.0,
+            color: utils::colors::Color::SKYBLUE,
+        };
+
+        let ready_text = nodus::text_label! {
+            ctx: ui_ctx,
+            parent: slot_root,
+            anchor: nodus::Anchor::TopLeft,
+            offset: nodus::UiVec2::screen(0.01, 0.2),
+            size: nodus::UiVec2::screen(0.16, 0.03),
+            content: "",
+            font_size: 18.0,
+            color: utils::colors::Color::RED,
+        };
+
+        // Overlay doré pour le slot local — caché par défaut
+        let gold_border = ui_ctx.add_node(
+            slot_root,
+            nodus::LayoutProps::new(
+                nodus::Anchor::TopLeft,
+                nodus::UiVec2::pixels(0.0, 0.0),
+                nodus::UiVec2::new(
+                    nodus::UiUnit::ParentPercent(1.0),
+                    nodus::UiUnit::ParentPercent(1.0),
+                ),
+            ),
+            nodus::VisualProps {
+                kind: nodus::VisualKind::Rect,
+                color: utils::colors::Color::GOLD,
+                visible: false,
+                opacity: 0.15,
+            },
+        );
+        let slot_id = SlotId {
+            root: slot_root,
+            waiting_text,
+            player_name,
+            class_text,
+            ready_text,
+            gold_border,
+        };
+        register.insert(crate::key::lobby::SLOT_KEYS[i], slot_id);
+    }
+
+    let instructions = nodus::text_label! {
+        ctx: ui_ctx,
+        parent: root,
+        anchor: nodus::Anchor::TopLeft,
+        offset: nodus::UiVec2::screen(0.25, 0.75),
+        size: nodus::UiVec2::screen(0.5, 0.04),
+        content: "1/2/3/4 — Choisir une classe    ESPACE — Prêt",
+        font_size: 20.0,
+        color: utils::colors::Color::LIGHTGRAY,
+    };
+    register.insert(crate::key::lobby::INSTRUCTION, instructions);
+
+    let class_label = nodus::text_label! {
+        ctx: ui_ctx,
+        parent: root,
+        anchor: nodus::Anchor::TopLeft,
+        offset: nodus::UiVec2::screen(0.02, 0.9),
+        size: nodus::UiVec2::screen(0.3, 0.04),
+        content: "",
+        font_size: 22.0,
+        color: utils::colors::Color::GOLD,
+    };
+    register.insert(crate::key::lobby::CLASS, class_label);
+}
+
+pub fn update(ui_ctx: &mut nodus::UiContext, ids: &utils::ids::Register, state: &LobbyScreenState) {
+    let code_label = match ids.get::<nodus::NodeId>(crate::key::lobby::CODE_LABEL) {
+        Some(id) => id,
+        None => {
+            tracing::warn!(
+                "L'id {} est absent du register",
+                crate::key::lobby::CODE_LABEL
+            );
+            return;
+        }
+    };
+    // Code session
+    ui_ctx.send_event(nodus::UIEvent::SetText {
+        target: code_label,
+        content: format!("Code : {}", state.code),
+    });
+
+    // Slots
+    for (i, slot) in state.slots.iter().enumerate() {
+        let slot_id = match ids.get::<SlotId>(crate::key::lobby::SLOT_KEYS[i]) {
+            Some(id) => id,
+            None => {
+                tracing::warn!(
+                    "L'id {} est absent du register",
+                    crate::key::lobby::SLOT_KEYS[i]
+                );
+                return;
+            }
+        };
+        let is_local = i == state.slot_index as usize;
+        match slot {
+            None => {
+                // Fond vide
+                ui_ctx.send_event(nodus::UIEvent::SetColor {
+                    target: slot_id.root,
+                    color: utils::colors::Color::new(30, 30, 30, 255),
+                });
+                ui_ctx.send_event(nodus::UIEvent::SetVisible {
+                    target: slot_id.waiting_text,
+                    visible: true,
+                });
+                ui_ctx.send_event(nodus::UIEvent::SetVisible {
+                    target: slot_id.player_name,
+                    visible: false,
+                });
+                ui_ctx.send_event(nodus::UIEvent::SetVisible {
+                    target: slot_id.class_text,
+                    visible: false,
+                });
+                ui_ctx.send_event(nodus::UIEvent::SetVisible {
+                    target: slot_id.ready_text,
+                    visible: false,
+                });
+                ui_ctx.send_event(nodus::UIEvent::SetVisible {
+                    target: slot_id.gold_border,
+                    visible: false,
+                });
+            }
+            Some(info) => {
+                // Fond occupé
+                ui_ctx.send_event(nodus::UIEvent::SetColor {
+                    target: slot_id.root,
+                    color: utils::colors::Color::DARKGRAY,
+                });
+                ui_ctx.send_event(nodus::UIEvent::SetVisible {
+                    target: slot_id.waiting_text,
+                    visible: false,
+                });
+
+                // Nom joueur
+                ui_ctx.send_event(nodus::UIEvent::SetVisible {
+                    target: slot_id.player_name,
+                    visible: true,
+                });
+                ui_ctx.send_event(nodus::UIEvent::SetText {
+                    target: slot_id.player_name,
+                    content: format!("Joueur {}", info.slot_index + 1),
+                });
+
+                // Classe
+                let class_text = if is_local {
+                    match state.my_class {
+                        None => "Aucune classe".to_string(),
+                        Some(c) => format!("{:?}", c),
+                    }
+                } else {
+                    match info.class {
+                        None => "Aucune classe".to_string(),
+                        Some(c) => format!("{:?}", c),
+                    }
+                };
+                ui_ctx.send_event(nodus::UIEvent::SetVisible {
+                    target: slot_id.class_text,
+                    visible: true,
+                });
+                ui_ctx.send_event(nodus::UIEvent::SetText {
+                    target: slot_id.class_text,
+                    content: class_text,
+                });
+
+                // Ready
+                let (ready_text, ready_color) = if is_local {
+                    if state.ready {
+                        ("PRÊT ✓", utils::colors::Color::GREEN)
+                    } else {
+                        ("PAS PRÊT", utils::colors::Color::RED)
+                    }
+                } else if info.ready {
+                    ("PRÊT ✓", utils::colors::Color::GREEN)
+                } else {
+                    ("PAS PRÊT", utils::colors::Color::RED)
+                };
+                ui_ctx.send_event(nodus::UIEvent::SetVisible {
+                    target: slot_id.ready_text,
+                    visible: true,
+                });
+                ui_ctx.send_event(nodus::UIEvent::SetText {
+                    target: slot_id.ready_text,
+                    content: ready_text.to_string(),
+                });
+                ui_ctx.send_event(nodus::UIEvent::SetColor {
+                    target: slot_id.ready_text,
+                    color: ready_color,
+                });
+
+                // Overlay doré pour le slot local
+                ui_ctx.send_event(nodus::UIEvent::SetVisible {
+                    target: slot_id.gold_border,
+                    visible: is_local,
+                });
+            }
+        }
+    }
+
+    // Classe locale
+    let class_label = match ids.get::<nodus::NodeId>(crate::key::lobby::CLASS) {
+            Some(id) => id,
+            None => {
+                tracing::warn!(
+                    "L'id {} est absent du register",
+                    crate::key::lobby::CLASS
+                );
+                return;
+            }
+        };
+    match state.my_class {
+        None => {
+            ui_ctx.send_event(nodus::UIEvent::SetText {
+                target: class_label,
+                content: String::new(),
+            });
+        }
+        Some(class) => {
+            ui_ctx.send_event(nodus::UIEvent::SetText {
+                target: class_label,
+                content: format!("Ta classe : {:?}", class),
+            });
+        }
+    }
+}
 
 pub fn handle_lobby_message(msg: LobbyMessage, screen: &mut AppScreen, is_solo: &mut bool) {
     match msg {
@@ -35,7 +353,6 @@ pub fn handle_lobby_message(msg: LobbyMessage, screen: &mut AppScreen, is_solo: 
             *screen = AppScreen::InGame(ClientState::new());
         }
         LobbyMessage::SessionError { reason } => {
-            // TODO: afficher l'erreur dans le MainMenu
             println!("Session error: {:?}", reason);
         }
         _ => {}
@@ -71,193 +388,5 @@ pub fn handle_input(input_state: &Input, state: &mut LobbyScreenState, client: &
         tracing::info!("Toggle Ready envoyé");
         state.ready = !state.ready;
         client.send_lobby_message(&LobbyMessage::ToggleReady);
-    }
-}
-
-pub fn render(frame: &mut prism::Frame, state: &LobbyScreenState, s: &ScreenScale) {
-    frame.push_hud(prism::DrawCommand::Text {
-        content: format!("Code : {}", state.code),
-        pos: [s.x(0.02) as f32, s.y(0.02) as f32],
-        size: s.font(0.03) as f32,
-        color: [
-            (utils::colors::Color::GOLD.r as f32) / 255.0,
-            (utils::colors::Color::GOLD.g as f32) / 255.0,
-            (utils::colors::Color::GOLD.b as f32) / 255.0,
-            1.0,
-        ],
-        layer: 0,
-    });
-
-    // Slots joueurs
-    for (i, slot) in state.slots.iter().enumerate() {
-        let x = s.x(0.1 + i as f32 * 0.22);
-        let y = s.y(0.35);
-        let w = s.w(0.18);
-        let h = s.h(0.3);
-
-        // Fond du slot
-        let bg = if slot.is_some() {
-            utils::colors::Color::DARKGRAY
-        } else {
-            utils::colors::Color::new(30, 30, 30, 255)
-        };
-        frame.push_hud(prism::DrawCommand::Shape {
-            shape: prism::Shape::Quad {
-                pos: [x as f32, y as f32],
-                size: [w as f32, h as f32],
-                rotation: 0.0,
-                color: [
-                    (bg.r as f32) / 255.0,
-                    (bg.g as f32) / 255.0,
-                    (bg.b as f32) / 255.0,
-                    1.0,
-                ],
-                uv: None,
-            },
-            blend: prism::BlendMode::Opaque,
-            layer: 0,
-        });
-        match slot {
-            None => {
-                frame.push_hud(prism::DrawCommand::Text {
-                    content: "En attente ...".to_string(),
-                    pos: [(x + s.x(0.02)) as f32, (y + s.y(0.12)) as f32],
-                    size: s.font(0.02) as f32,
-                    color: [
-                        (utils::colors::Color::GRAY.r as f32) / 255.0,
-                        (utils::colors::Color::GRAY.b as f32) / 255.0,
-                        (utils::colors::Color::GRAY.g as f32) / 255.0,
-                        1.0,
-                    ],
-                    layer: 0,
-                });
-            }
-            Some(info) => {
-                frame.push_hud(prism::DrawCommand::Text {
-                    content: format!("Joueur {}", info.slot_index + 1),
-                    pos: [(x + s.x(0.01)) as f32, (y + s.y(0.02)) as f32],
-                    size: s.font(0.025) as f32,
-                    color: [1.0, 1.0, 1.0, 1.0], // BLANC
-                    layer: 0,
-                });
-                // Classe
-                let class_text = if info.slot_index == state.slot_index {
-                    match state.my_class {
-                        None => "Aucune classe".to_string(),
-                        Some(c) => format!("{:?}", c),
-                    }
-                } else {
-                    match info.class {
-                        None => "Aucune classe".to_string(),
-                        Some(c) => format!("{:?}", c),
-                    }
-                };
-                frame.push_hud(prism::DrawCommand::Text {
-                    content: class_text,
-                    pos: [(x + s.x(0.01)) as f32, (y + s.y(0.1)) as f32],
-                    size: s.font(0.022) as f32,
-                    color: [
-                        (utils::colors::Color::SKYBLUE.r as f32) / 255.0,
-                        (utils::colors::Color::SKYBLUE.g as f32) / 255.0,
-                        (utils::colors::Color::SKYBLUE.b as f32) / 255.0,
-                        1.0,
-                    ],
-                    layer: 0,
-                });
-                // Ready
-                let (ready_text, ready_color) = if info.slot_index == state.slot_index {
-                    if state.ready {
-                        ("PRÊT ✓", utils::colors::Color::GREEN)
-                    } else {
-                        ("PAS PRÊT", utils::colors::Color::RED)
-                    }
-                } else {
-                    if info.ready {
-                        ("PRÊT ✓", utils::colors::Color::GREEN)
-                    } else {
-                        ("PAS PRÊT", utils::colors::Color::RED)
-                    }
-                };
-                frame.push_hud(prism::DrawCommand::Text {
-                    content: ready_text.to_string(),
-                    pos: [(x + s.x(0.01)) as f32, (y + s.y(0.2)) as f32],
-                    size: s.font(0.022) as f32,
-                    color: [
-                        (ready_color.r as f32) / 255.0,
-                        (ready_color.g as f32) / 255.0,
-                        (ready_color.b as f32) / 255.0,
-                        1.0,
-                    ],
-                    layer: 0,
-                });
-                // Marquer le slot local
-                if info.slot_index == state.slot_index {
-                    let gold_color = [
-                        (utils::colors::Color::GOLD.r as f32) / 255.0,
-                        (utils::colors::Color::GOLD.g as f32) / 255.0,
-                        (utils::colors::Color::GOLD.b as f32) / 255.0,
-                        1.0,
-                    ];
-                    let mut mesh = prism::RawMesh::with_capacity(4, 6);
-                    let i0 = mesh.push_vertex(prism::Vertex {
-                        pos: [x as f32, y as f32],
-                        uv: [0.0, 0.0],
-                        color: gold_color,
-                    });
-                    let i1 = mesh.push_vertex(prism::Vertex {
-                        pos: [(x + w) as f32, y as f32],
-                        uv: [0.0, 0.0],
-                        color: gold_color,
-                    });
-                    let i2 = mesh.push_vertex(prism::Vertex {
-                        pos: [x as f32, (y + h) as f32],
-                        uv: [0.0, 0.0],
-                        color: gold_color,
-                    });
-                    let i3 = mesh.push_vertex(prism::Vertex {
-                        pos: [(x + w) as f32, (y + h) as f32],
-                        uv: [0.0, 0.0],
-                        color: gold_color,
-                    });
-                    mesh.push_triangle(i0, i1, i2);
-                    mesh.push_triangle(i1, i3, i2);
-
-                    frame.push_hud(prism::DrawCommand::Mesh {
-                        mesh,
-                        blend: prism::BlendMode::Alpha,
-                        layer: 0,
-                    });
-                }
-            }
-        }
-    }
-
-    // Instructions
-    frame.push_hud(prism::DrawCommand::Text {
-        content: "1/2/3/4 — Choisir une classe    ESPACE — Prêt".to_string(),
-        pos: [s.x(0.25) as f32, s.y(0.75) as f32],
-        size: s.font(0.025) as f32,
-        color: [
-            (utils::colors::Color::LIGHTGRAY.r as f32) / 255.0,
-            (utils::colors::Color::LIGHTGRAY.g as f32) / 255.0,
-            (utils::colors::Color::LIGHTGRAY.b as f32) / 255.0,
-            1.0,
-        ],
-        layer: 0,
-    });
-    // Classe choisie localement
-    if let Some(class) = state.my_class {
-        frame.push_hud(prism::DrawCommand::Text {
-            content: format!("Ta classe : {:?}", class),
-            pos: [s.x(0.02) as f32, s.y(0.9) as f32],
-            size: s.font(0.028) as f32,
-            color: [
-                (utils::colors::Color::GOLD.r as f32) / 255.0,
-                (utils::colors::Color::GOLD.g as f32) / 255.0,
-                (utils::colors::Color::GOLD.b as f32) / 255.0,
-                1.0,
-            ],
-            layer: 0,
-        });
     }
 }

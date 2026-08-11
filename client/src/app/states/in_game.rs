@@ -72,7 +72,7 @@ impl HudBuffers {
 
 pub struct GuiContext<'a> {
     pub ui_ctx: &'a mut nodus::UiContext,
-    pub shader_manager: &'a mut prism::ShaderManager,
+    pub gpu_resources: &'a mut prism::GpuResources,
     pub ids: &'a utils::ids::Register,
 }
 

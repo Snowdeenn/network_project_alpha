@@ -20,6 +20,8 @@ use crate::ui::hud;
 
 pub struct App {
     window: Option<Arc<winit::window::Window>>,
+    gpu_ctx: Option<prism::GpuContext>,
+    gpu_resources: Option<prism::GpuResources>,
     renderer: Option<prism::Renderer>,
     ui_ctx: Option<nodus::UiContext>,
     client: Option<GameNetClient>,
@@ -49,6 +51,8 @@ impl App {
         Self {
             window: None,
             renderer: None,
+            gpu_ctx: None,
+            gpu_resources: None,
             ui_ctx: None,
             client: None,
             resource,
@@ -88,13 +92,80 @@ impl winit::application::ApplicationHandler for App {
                 return;
             }
         };
+        let gpu_ctx = match pollster::block_on(prism::GpuContext::new(window.clone())) {
+            Ok(ctx) => ctx,
+            Err(e) => {
+                tracing::error!("Erreur lors de la création du gpu context : {e}");
+                event_loop.exit();
+                return;
+            }
+        };
+        let mut gpu_resources = prism::GpuResources::new(&gpu_ctx);
+
+        // Chargement des shaders par defaut
+        // On exit la loop si le chargement échoue parce que si les shaders par defaut
+        // ne sont pas charger le client n'affichera rien
+        let default_vert_id = match gpu_resources
+            .load_shader(&gpu_ctx, "client/src/graphic_data/shader/default.vert.wgsl")
+        {
+            Ok(id) => id,
+            Err(e) => {
+                tracing::error!("Erreur lors du chargement du shader : {e}");
+                event_loop.exit();
+                return;
+            }
+        };
+        self.id_register
+            .insert(crate::key::shader::DEFAULT_VERTEX, default_vert_id);
+
+        let default_frag_id = match gpu_resources
+            .load_shader(&gpu_ctx, "client/src/graphic_data/shader/default.frag.wgsl")
+        {
+            Ok(id) => id,
+            Err(e) => {
+                tracing::error!("Erreur lors du chargement du shader : {e}");
+                event_loop.exit();
+                return;
+            }
+        };
+        self.id_register
+            .insert(crate::key::shader::DEFAULT_FRAGMENT, default_frag_id);
+
+        let post_vert_id = match gpu_resources.load_shader(
+            &gpu_ctx,
+            "client/src/graphic_data/shader/default_post_process.vert.wgsl",
+        ) {
+            Ok(id) => id,
+            Err(e) => {
+                tracing::error!("Erreur lors du chargement du shader : {e}");
+                event_loop.exit();
+                return;
+            }
+        };
+        self.id_register
+            .insert(crate::key::post::DEFAULT_POST_VERTEX, post_vert_id);
+
+        let post_frag_id = match gpu_resources.load_shader(
+            &gpu_ctx,
+            "client/src/graphic_data/shader/default_post_process.frag.wgsl",
+        ) {
+            Ok(id) => id,
+            Err(e) => {
+                tracing::error!("Erreur lors du chargement du shader : {e}");
+                event_loop.exit();
+                return;
+            }
+        };
+        self.id_register
+            .insert(crate::key::post::DEFAULT_POST_FRAGMENT, post_frag_id);
 
         let mut renderer = match prism::Renderer::new(
-            window.clone(),
-            "client/src/graphic_data/shader/default.vert.wgsl",
-            "client/src/graphic_data/shader/default.frag.wgsl",
-            "client/src/graphic_data/shader/default_post_process.vert.wgsl",
-            "client/src/graphic_data/shader/default_post_process.frag.wgsl",
+            &gpu_ctx,
+            &mut gpu_resources,
+            default_vert_id,
+            default_frag_id,
+            post_vert_id,
+            post_frag_id,
         ) {
             Ok(r) => r,
             Err(err) => {
@@ -110,8 +181,11 @@ impl winit::application::ApplicationHandler for App {
 
         let mut asset_manager = AssetManager::new();
         {
-            let (ctx, textures) = renderer.ctx_and_textures_mut();
-            match asset_manager.load_animations(ctx, textures, "assets/config/animations.json") {
+            match asset_manager.load_animations(
+                &gpu_ctx,
+                &mut gpu_resources,
+                "assets/config/animations.json",
+            ) {
                 Ok(_) => (),
                 Err(e) => {
                     tracing::error!("Echec lors du chargement des animations : {e}");
@@ -125,25 +199,35 @@ impl winit::application::ApplicationHandler for App {
         let hp_material_id = {
             // Chargement du shader de barre de progression
             // Charger les shaders
-            let vert_id = renderer
-                .load_shader("client/src/graphic_data/shader/default_textured.vert.wgsl")
+            let vert_id = gpu_resources
+                .load_shader(
+                    &gpu_ctx,
+                    "client/src/graphic_data/shader/default_textured.vert.wgsl",
+                )
                 .unwrap();
             self.id_register
                 .insert(crate::key::shader::TEXTURED_VERTEX, vert_id);
 
-            let frag_id = renderer
-                .load_shader("client/src/graphic_data/shader/progress_bar.frag.wgsl")
+            let frag_id = gpu_resources
+                .load_shader(
+                    &gpu_ctx,
+                    "client/src/graphic_data/shader/progress_bar.frag.wgsl",
+                )
                 .unwrap();
             self.id_register.insert("shader/progress_bar_frag", frag_id);
 
             // Créer la pipeline pour ce matériau
-            let pipeline = match renderer.create_pipeline(prism::PipelineKey {
-                vertex_shader: vert_id,
-                fragment_shader: frag_id,
-                blend_mode: prism::BlendMode::Alpha,
-                vertex_format: prism::VertexFormat::Pos2UvColor,
-                bind_groups: &prism::MATERIAL_BIND_GROUP,
-            }) {
+            let pipeline = match renderer.create_pipeline(
+                &gpu_ctx,
+                &gpu_resources,
+                prism::PipelineKey {
+                    vertex_shader: vert_id,
+                    fragment_shader: frag_id,
+                    blend_mode: prism::BlendMode::Alpha,
+                    vertex_format: prism::VertexFormat::Pos2UvColor,
+                    bind_groups: &prism::MATERIAL_BIND_GROUP,
+                },
+            ) {
                 Ok(p) => p,
                 Err(e) => {
                     tracing::error!("Impossible de créer la pipeline : {e}");
@@ -152,11 +236,11 @@ impl winit::application::ApplicationHandler for App {
                 }
             };
 
-            renderer.material_mut().create(
+            gpu_resources.create_material(
                 pipeline,
                 vec![], // pas de bind groups custom supplémentaires — les uniforms passent par le scratch buffer
                 std::mem::size_of::<f32>(), // uniform_size : un f32 (le ratio)
-            )  
+            )
         };
         self.id_register
             .insert(crate::key::material::HP_MATERIAL, hp_material_id);
@@ -176,13 +260,17 @@ impl winit::application::ApplicationHandler for App {
                 // On panic parce que avoir l'id du shader est indispensable pour reconstruire la pipeline
                 .expect("L'id textured_vertex_id est introuvable dans le register");
 
-            match renderer.load_shader("client/src/graphic_data/shader/default_textured.frag.wgsl")
-            {
+            match gpu_resources.load_shader(
+                &gpu_ctx,
+                "client/src/graphic_data/shader/default_textured.frag.wgsl",
+            ) {
                 Ok(fs) => {
                     self.id_register
-                        .insert(crate::key::shader::TEXTURED_FRAGEMENT, fs);
+                        .insert(crate::key::shader::TEXTURED_FRAGMENT, fs);
 
-                    if let Err(err) = renderer.set_world_shaders(textured_vertex_id, fs) {
+                    if let Err(err) =
+                        renderer.set_world_shaders(&gpu_ctx, &gpu_resources, textured_vertex_id, fs)
+                    {
                         tracing::error!("Échec du paramétrage des shaders World : {err}");
                     }
                 }
@@ -196,6 +284,8 @@ impl winit::application::ApplicationHandler for App {
         self.renderer = Some(renderer);
         self.ui_ctx = Some(ui_ctx);
         self.scale = Some(scale);
+        self.gpu_ctx = Some(gpu_ctx);
+        self.gpu_resources = Some(gpu_resources);
 
         tracing::info!("Application initialisée et prête");
     }
@@ -211,8 +301,9 @@ impl winit::application::ApplicationHandler for App {
                 event_loop.exit();
             }
             winit::event::WindowEvent::Resized(s) => {
+                let gpu_ctx = self.gpu_ctx.as_mut().unwrap();
                 if let Some(renderer) = &mut self.renderer {
-                    renderer.resize(s.width, s.height);
+                    renderer.resize(gpu_ctx, s.width, s.height);
                 }
                 if let Some(ui_ctx) = &mut self.ui_ctx {
                     ui_ctx.resize(s.width as f32, s.height as f32);
@@ -242,9 +333,11 @@ impl winit::application::ApplicationHandler for App {
                     .set_mouse_position(position.x as f32, position.y as f32);
             }
             winit::event::WindowEvent::RedrawRequested => {
+                let gpu_ctx = self.gpu_ctx.as_mut().unwrap();
+                let gpu_resources = self.gpu_resources.as_mut().unwrap();
                 if let Some(renderer) = &mut self.renderer {
                     if let Some(frame) = renderer.frame_manager().pop() {
-                        renderer.render(frame);
+                        renderer.render(gpu_ctx, gpu_resources, frame);
                     } else {
                         tracing::trace!("Aucune frame prête lors du RedrawRequested");
                     }
@@ -264,7 +357,7 @@ impl winit::application::ApplicationHandler for App {
             return;
         }
 
-        let (Some(renderer), Some(scale)) = (&mut self.renderer, &self.scale) else {
+        let (Some(gpu_ctx), Some(scale), Some(renderer)) = (&mut self.gpu_ctx, &self.scale, &self.renderer) else {
             return;
         };
 
@@ -277,7 +370,7 @@ impl winit::application::ApplicationHandler for App {
         frame.camera_pos = self.cam.pos();
         frame.cam_shake_offset = self.cam.shake.offset();
 
-        let screen_size = renderer.screen_size();
+        let screen_size = gpu_ctx.size;
 
         if let Some(ref mut c) = self.client {
             c.update(frame_delta);
@@ -339,12 +432,13 @@ impl winit::application::ApplicationHandler for App {
             AppScreen::InGame(client_state) => {
                 let client_ok = self.client.as_mut();
                 let ui_ok = self.ui_ctx.as_mut();
+                let gpu_resources_ok = self.gpu_resources.as_mut();
 
-                match (client_ok, ui_ok) {
-                    (Some(client), Some(ui_ctx)) => {
+                match (client_ok, ui_ok, gpu_resources_ok) {
+                    (Some(client), Some(ui_ctx), Some(gpu_resources)) => {
                         let mut gui_ctx = crate::app::states::in_game::GuiContext {
                             ui_ctx,
-                            shader_manager: renderer.shader_mut(),
+                            gpu_resources,
                             ids: &self.id_register,
                         };
 
@@ -369,6 +463,7 @@ impl winit::application::ApplicationHandler for App {
                         tracing::error!(
                             client = self.client.is_some(),
                             ui_ctx = self.ui_ctx.is_some(),
+                            gpu_resources = self.gpu_resources.is_some(),
                             "Impossible de rendre InGame : une ressource requise est None"
                         );
                     }

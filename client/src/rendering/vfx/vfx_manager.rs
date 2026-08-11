@@ -348,6 +348,7 @@ mod tests_vfx {
     #[test]
     fn pool_spawn_active() {
         #[derive(Clone, Copy, Default)]
+        #[allow(dead_code)]
         struct Dummy(f32);
 
         let mut pool: Pool<Dummy, 4> = Pool::new();

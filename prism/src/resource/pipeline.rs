@@ -3,9 +3,9 @@ use std::sync::Arc;
 use utils::ids::ShaderId;
 use wgpu::VertexBufferLayout;
 
+use crate::GpuResources;
 use crate::context::GpuContext;
 use crate::errors::PipelineError;
-use crate::resource::shader::ShaderManager;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BindGroupLayoutEntryKey {
@@ -64,7 +64,7 @@ impl PipelineManager {
     pub fn get_or_create(
         &mut self,
         ctx: &GpuContext,
-        shaders: &ShaderManager,
+        gpu_resources: &GpuResources,
         key: PipelineKey,
     ) -> Result<Arc<wgpu::RenderPipeline>, PipelineError> {
         if let Some(pipeline) = self.pipelines.get(&key) {
@@ -79,7 +79,7 @@ impl PipelineManager {
         .entered();
 
         let layouts = Self::create_bind_group_layouts(ctx, &key);
-        let pipeline = self.create_pipeline(ctx, shaders, &key, &layouts)?;
+        let pipeline = self.create_pipeline(ctx, gpu_resources, &key, &layouts)?;
         let pipeline_arc = Arc::new(pipeline);
 
         self.layouts.insert(key.clone(), layouts);
@@ -111,19 +111,19 @@ impl PipelineManager {
     fn create_pipeline(
         &self,
         ctx: &GpuContext,
-        shaders: &ShaderManager,
+        gpu_resources: &GpuResources,
         key: &PipelineKey,
         bind_group_layouts: &[wgpu::BindGroupLayout],
     ) -> Result<wgpu::RenderPipeline, PipelineError> {
         let blend_mode = Self::blend_mode(key.blend_mode);
         let vertex_format = Self::vertex_layout(key.vertex_format);
 
-        let vertex_shader = shaders.get(key.vertex_shader).ok_or_else(|| {
+        let vertex_shader = gpu_resources.get_shader(key.vertex_shader).ok_or_else(|| {
             tracing::error!(id = %key.vertex_shader, "Vertex shader introuvable lors de la création du pipeline");
             PipelineError::ShaderNotFound { id: key.vertex_shader }
         })?;
 
-        let frag_shader = shaders.get(key.fragment_shader).ok_or_else(|| {
+        let frag_shader = gpu_resources.get_shader(key.fragment_shader).ok_or_else(|| {
             tracing::error!(id = %key.fragment_shader, "Fragment shader introuvable lors de la création du pipeline");
             PipelineError::ShaderNotFound { id: key.fragment_shader }
         })?;

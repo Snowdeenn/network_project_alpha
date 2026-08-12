@@ -2,8 +2,6 @@ use utils::colors;
 use utils::ids::{MaterialId, TextureId};
 use utils::math::Vec2;
 
-
-
 pub enum DrawCommand {
     Rect {
         pos: Vec2,
@@ -164,15 +162,30 @@ impl DrawCommandBuffer {
                         layer: *layer,
                     });
                 }
-                // DrawCommand::NinePatch {
-                //     texture_id,
-                //     pos,
-                //     size,
-                //     margins,
-                //     tint, 
-                //     layer,
-                // } => {},
-                _ => (), // Temp pour savoir quoi faire dans les commands commenter
+                DrawCommand::NinePatch {
+                    texture_id,
+                    pos,
+                    size,
+                    margins,
+                    tint,
+                    layer,
+                } => {
+                    frame.push_hud(prism::DrawCommand::NinePatch {
+                        id: *texture_id,
+                        pos: [pos.x, pos.y],
+                        size: [size.x, size.y],
+                        texture_size: [size.x, size.y],
+                        margins: *margins,
+                        tint: [
+                            (tint.r as f32) / 255.0,
+                            (tint.g as f32) / 255.0,
+                            (tint.b as f32) / 255.0,
+                            (tint.a as f32) / 255.0,
+                        ],
+                        blend: prism::BlendMode::Alpha,
+                        layer: *layer,
+                    });
+                }
             }
         }
     }
@@ -184,7 +197,12 @@ fn sort_key(command: &DrawCommand) -> (u8, u16, u16) {
         DrawCommand::Texture {
             layer, texture_id, ..
         } => (*layer, texture_id.index as u16, 0),
-        DrawCommand::Material { material_id, texture_id, layer,.. } => {
+        DrawCommand::Material {
+            material_id,
+            texture_id,
+            layer,
+            ..
+        } => {
             if let Some(texture_id) = texture_id {
                 (*layer, texture_id.index as u16, material_id.index as u16)
             } else {

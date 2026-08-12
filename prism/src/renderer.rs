@@ -2,15 +2,10 @@ use std::sync::Arc;
 
 use utils::ids::ShaderId;
 
-use crate::pass::Pass;
+use crate::{FrameManager, pass::Pass};
 
 pub struct Renderer {
-    ctx: crate::GpuContext,
-    buffers: crate::GpuBufferManager,
     pipelines: crate::PipelineManager,
-    shaders: crate::ShaderManager,
-    textures: crate::TextureManager,
-    materials: crate::MaterialManager,
     world: crate::WorldPass,
     vfx: crate::VfxPass,
     hud: crate::HudPass,
@@ -25,63 +20,44 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn new(
-        window: Arc<winit::window::Window>,
-        vert_shader_path: &str,
-        frag_shader_path: &str,
-        post_vert_path: &str,
-        post_frag_path: &str,
+        ctx: &crate::GpuContext,
+        gpu_resources: &mut crate::GpuResources,
+        vert_shader: ShaderId,
+        frag_shader: ShaderId,
+        post_vert: ShaderId,
+        post_frag: ShaderId,
     ) -> crate::Result<Self> {
-        let ctx = pollster::block_on(crate::GpuContext::new(window))?;
-        let mut buffers = crate::GpuBufferManager::new();
-        let mut shaders = crate::ShaderManager::new();
-        let textures = crate::TextureManager::new(&ctx);
         let mut pipelines = crate::PipelineManager::new(ctx.surface_format());
-        let vert_shader = shaders.load(&ctx, vert_shader_path)?;
-        let frag_shader = shaders.load(&ctx, frag_shader_path)?;
-        let post_vert_shader = shaders.load(&ctx, post_vert_path)?;
-        let post_frag_shader = shaders.load(&ctx, post_frag_path)?;
         let (intermediate_a, intermediate_view_a) = Self::create_intermediate(&ctx);
         let (intermediate_b, intermediate_view_b) = Self::create_intermediate(&ctx);
-        let materials = crate::MaterialManager::new();
-        let world = crate::WorldPass::new(
-            &ctx,
-            &mut buffers,
-            &mut pipelines,
-            &mut shaders,
-            vert_shader,
-            frag_shader,
-        )?;
+
+        let world =
+            crate::WorldPass::new(ctx, gpu_resources, &mut pipelines, vert_shader, frag_shader)?;
         let vfx = crate::VfxPass::new(
             &ctx,
-            &mut buffers,
+            gpu_resources,
             &mut pipelines,
-            &mut shaders,
             vert_shader,
             frag_shader,
         )?;
         let hud = crate::HudPass::new(
             &ctx,
-            &mut buffers,
+            gpu_resources,
             &mut pipelines,
-            &mut shaders,
             vert_shader,
             frag_shader,
             ctx.surface_format(),
         )?;
         let post_process_passes = vec![crate::PostProcessPass::new(
             &ctx,
-            &mut shaders,
-            post_vert_shader,
-            post_frag_shader,
+            gpu_resources,
+            post_vert,
+            post_frag,
             ctx.surface_format(),
         )?];
         let frame_manager = crate::FrameManager::new();
         Ok(Self {
-            ctx,
-            buffers,
             pipelines,
-            shaders,
-            textures,
             world,
             vfx,
             hud,
@@ -92,16 +68,20 @@ impl Renderer {
             intermediate_view_b,
             current_source: DoubleBufferIndex::Primary,
             frame_manager,
-            materials,
         })
     }
 
-    pub fn render(&mut self, mut frame: crate::Frame) {
-        let surface_texture = match self.ctx.current_texture() {
+    pub fn render(
+        &mut self,
+        ctx: &mut crate::GpuContext,
+        gpu_resources: &mut crate::GpuResources,
+        mut frame: crate::Frame,
+    ) {
+        let surface_texture = match ctx.current_texture() {
             wgpu::CurrentSurfaceTexture::Success(t) => t,
             wgpu::CurrentSurfaceTexture::Suboptimal(t) => {
                 tracing::warn!("Surface GPU suboptimale, reconfiguration au prochain cycle");
-                self.ctx.reconfigure();
+                ctx.reconfigure();
                 t
             }
             wgpu::CurrentSurfaceTexture::Occluded => {
@@ -110,8 +90,8 @@ impl Renderer {
             }
             wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
                 tracing::warn!("Surface GPU obsolète ou perdue, redimensionnement...");
-                let size = self.ctx.size;
-                self.ctx.resize(size.width, size.height);
+                let size = ctx.size;
+                ctx.resize(size.width, size.height);
                 return;
             }
             wgpu::CurrentSurfaceTexture::Timeout => {
@@ -128,14 +108,14 @@ impl Renderer {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
         self.current_source = DoubleBufferIndex::Primary;
-        let mut encoder = self.ctx.create_encoder("frame");
+        let mut encoder = ctx.create_encoder("frame");
 
         let (_source, target) = match self.current_source {
             DoubleBufferIndex::Primary => (&self.intermediate_view_a, &self.intermediate_view_b),
             DoubleBufferIndex::Secondary => (&self.intermediate_view_b, &self.intermediate_view_a),
         };
-        let screen_w = self.ctx.size.width;
-        let screen_h = self.ctx.size.height;
+        let screen_w = ctx.size.width;
+        let screen_h = ctx.size.height;
         let cam_matrix = build_camera_matrix(
             frame.camera_pos,
             frame.cam_shake_offset,
@@ -144,25 +124,26 @@ impl Renderer {
         );
 
         self.world.prepare(
-            &self.ctx,
-            &mut self.buffers,
+            &ctx,
+            gpu_resources,
             &mut crate::WorldInput {
                 commands: &mut frame.world,
                 camera: cam_matrix,
-                texture: &mut self.textures,
             },
         );
-        self.world.execute(&mut encoder, target, &self.buffers, &self.materials);
+        self.world
+            .execute(&mut encoder, target, gpu_resources);
 
         self.vfx.prepare(
-            &self.ctx,
-            &mut self.buffers,
+            &ctx,
+            gpu_resources,
             &mut crate::VfxInput {
                 commands: &frame.vfx,
                 camera: cam_matrix,
             },
         );
-        self.vfx.execute(&mut encoder, target, &self.buffers, &self.materials);
+        self.vfx
+            .execute(&mut encoder, target, gpu_resources);
 
         let last = self.post_process_passes.len().saturating_sub(1);
         for i in 0..self.post_process_passes.len() {
@@ -179,29 +160,38 @@ impl Renderer {
             let render_target = if i == last { &surface_view } else { tgt };
 
             self.post_process_passes[i].prepare(
-                &self.ctx,
-                &mut self.buffers,
+                &ctx,
+                gpu_resources,
                 &mut crate::PostProcessInput {
                     source: src,
                     target: tgt,
                 },
             );
-            self.post_process_passes[i].execute(&mut encoder, render_target, &self.buffers, &self.materials);
+            self.post_process_passes[i].execute(
+                &mut encoder,
+                render_target,
+                gpu_resources,
+            );
         }
 
+        let w = (ctx.size.width as f32).max(1.0);
+        let h = (ctx.size.height as f32).max(1.0);
+
+        // left = 0.0, right = w, bottom = h, top = 0.0, near = -1.0, far = 1.0
+        let hud_camera = utils::math::Mat4::orthographic(0.0, w, h, 0.0, -1.0, 1.0);
         self.hud.prepare(
-            &self.ctx,
-            &mut self.buffers,
+            &ctx,
+            gpu_resources,
             &mut crate::HudInput {
                 commands: &mut frame.hud,
-                camera: cam_matrix,
-                texture: &self.textures,
+                camera: hud_camera,
             },
         );
-        self.hud.execute(&mut encoder, &surface_view, &self.buffers, &self.materials);
+        self.hud
+            .execute(&mut encoder, &surface_view, gpu_resources);
 
-        self.ctx.submit(encoder);
-        self.ctx.present(surface_texture);
+        ctx.submit(encoder);
+        ctx.present(surface_texture);
     }
 
     fn create_intermediate(ctx: &crate::GpuContext) -> (wgpu::Texture, wgpu::TextureView) {
@@ -223,71 +213,27 @@ impl Renderer {
         (texture, view)
     }
 
-    pub fn resize(&mut self, width: u32, height: u32) {
-        self.ctx.resize(width, height);
-        let (intermediate_a, intermediate_view_a) = Self::create_intermediate(&self.ctx);
-        let (intermediate_b, intermediate_view_b) = Self::create_intermediate(&self.ctx);
+    pub fn resize(&mut self, ctx: &mut crate::GpuContext, width: u32, height: u32) {
+        ctx.resize(width, height);
+        let (intermediate_a, intermediate_view_a) = Self::create_intermediate(ctx);
+        let (intermediate_b, intermediate_view_b) = Self::create_intermediate(ctx);
         self.intermediate_a = intermediate_a;
         self.intermediate_view_a = intermediate_view_a;
         self.intermediate_b = intermediate_b;
         self.intermediate_view_b = intermediate_view_b;
     }
 
-    pub fn load_shader(&mut self, path: &str) -> crate::Result<utils::ids::ShaderId> {
-        Ok(self.shaders.load(&self.ctx, path)?)
-    }
-    pub fn load_texture(&mut self, path: &str) -> crate::Result<utils::ids::TextureId> {
-        Ok(self.textures.load(&self.ctx, path)?)
-    }
-
-    pub fn screen_size(&self) -> winit::dpi::PhysicalSize<u32> {
-        self.ctx.size
-    }
-
-    pub fn frame_manager(&self) -> &crate::FrameManager {
-        &self.frame_manager
-    }
-
-    pub fn texture_mut(&mut self) -> &mut crate::TextureManager {
-        &mut self.textures
-    }
-    pub fn texture(&self) -> &crate::TextureManager {
-        &self.textures
-    }
-    pub fn shader_mut(&mut self) -> &mut crate::ShaderManager {
-        &mut self.shaders
-    }
-    pub fn shader(&self) -> &crate::ShaderManager {
-        &self.shaders
-    }
-    pub fn ctx(&self) -> &crate::GpuContext {
-        &self.ctx
-    }
-    pub fn ctx_mut(&mut self) -> &mut crate::GpuContext {
-        &mut self.ctx
-    }
-    pub fn pipeline_mut(&mut self) -> &mut crate::PipelineManager {
-        &mut self.pipelines
-    }
-    pub fn pipeline(&self) -> &crate::PipelineManager {
-        &self.pipelines
-    }
-
-    pub fn material_mut(&mut self) -> &mut crate::MaterialManager {
-        &mut self.materials
-    }
-    pub fn material(&self) -> &crate::MaterialManager {
-        &self.materials
-    }
     pub fn set_world_shaders(
         &mut self,
+        ctx: &crate::GpuContext,
+        gpu_resources: &crate::GpuResources,
         vert_shader: ShaderId,
         frag_shader: ShaderId,
     ) -> Result<(), crate::PrismError> {
         self.world.set_shader(
-            &self.ctx,
+            ctx,
             &mut self.pipelines,
-            &self.shaders,
+            gpu_resources,
             vert_shader,
             frag_shader,
         )?;
@@ -296,13 +242,15 @@ impl Renderer {
 
     pub fn set_vfx_shaders(
         &mut self,
+        ctx: &crate::GpuContext,
+        gpu_resources: &crate::GpuResources,
         vert_shader: ShaderId,
         frag_shader: ShaderId,
     ) -> Result<(), crate::PrismError> {
         self.vfx.set_shader(
-            &self.ctx,
+            ctx,
             &mut self.pipelines,
-            &self.shaders,
+            gpu_resources,
             vert_shader,
             frag_shader,
         )?;
@@ -311,13 +259,15 @@ impl Renderer {
 
     pub fn set_hud_shaders(
         &mut self,
+        ctx: &crate::GpuContext,
+        gpu_resources: &crate::GpuResources,
         vert_shader: ShaderId,
         frag_shader: ShaderId,
     ) -> Result<(), crate::PrismError> {
         self.hud.set_shader(
-            &self.ctx,
+            ctx,
             &mut self.pipelines,
-            &self.shaders,
+            gpu_resources,
             vert_shader,
             frag_shader,
         )?;
@@ -326,12 +276,14 @@ impl Renderer {
 
     pub fn set_post_process_shaders(
         &mut self,
+        ctx: &crate::GpuContext,
+        gpu_resources: &crate::GpuResources,
         index: usize,
         vert_shader: ShaderId,
         frag_shader: ShaderId,
     ) -> Result<(), crate::PrismError> {
         if let Some(pass) = self.post_process_passes.get_mut(index) {
-            pass.set_shader(&self.ctx, &self.shaders, vert_shader, frag_shader)?;
+            pass.set_shader(ctx, gpu_resources, vert_shader, frag_shader)?;
             Ok(())
         } else {
             tracing::error!(
@@ -345,32 +297,35 @@ impl Renderer {
 
     pub fn add_post_process_pass(
         &mut self,
+        ctx: &crate::GpuContext,
+        gpu_resources: &crate::GpuResources,
         vert_shader: ShaderId,
         frag_shader: ShaderId,
     ) -> Result<(), crate::PrismError> {
         let pass = crate::PostProcessPass::new(
-            &self.ctx,
-            &self.shaders,
+            ctx,
+            gpu_resources,
             vert_shader,
             frag_shader,
-            self.ctx.surface_format(),
+            ctx.surface_format(),
         )?;
         self.post_process_passes.push(pass);
         Ok(())
     }
 
-    pub fn ctx_and_textures_mut(&mut self) -> (&crate::GpuContext, &mut crate::TextureManager) {
-        (&self.ctx, &mut self.textures)
-    }
-
     pub fn create_pipeline(
         &mut self,
+        ctx: &crate::GpuContext,
+        gpu_resources: &crate::GpuResources,
         key: crate::PipelineKey,
     ) -> Result<Arc<wgpu::RenderPipeline>, crate::PassError> {
-        Ok(self.pipelines.get_or_create(&self.ctx, &self.shaders, key)?)
+        Ok(self.pipelines.get_or_create(ctx, gpu_resources, key)?)
+    }
+    
+    pub fn frame_manager(&self) -> &FrameManager {
+        &self.frame_manager
     }
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DoubleBufferIndex {

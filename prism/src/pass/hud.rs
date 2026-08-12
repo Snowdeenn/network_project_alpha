@@ -1,17 +1,12 @@
 use std::sync::Arc;
 
 use crate::{
-    PassError, TextureManager,
+    GpuResources, PassError, TextureManager,
     context::GpuContext,
     draw::{commands::DrawCommand, text::TextRenderer},
     geometry::{mesh::RawMesh, shape::Shape, tesselator::Tesselator},
     pass::{HudInput, Pass},
-    resource::{
-        buffer::GpuBufferManager,
-        material::MaterialManager,
-        pipeline::{BlendMode, PipelineKey, PipelineManager, VertexFormat},
-        shader::ShaderManager,
-    },
+    resource::pipeline::{BlendMode, PipelineKey, PipelineManager, VertexFormat},
 };
 use utils::ids::{BufferId, MaterialId, ShaderId, TextureId};
 
@@ -62,9 +57,8 @@ pub struct HudPass {
 impl HudPass {
     pub fn new(
         ctx: &GpuContext,
-        buffers: &mut GpuBufferManager,
+        gpu_resources: &mut GpuResources,
         pipelines: &mut PipelineManager,
-        shaders: &ShaderManager,
         vert_shader: ShaderId,
         frag_shader: ShaderId,
         surface_format: wgpu::TextureFormat,
@@ -74,7 +68,7 @@ impl HudPass {
         let index_buffer_size = 1024 * 12;
         let vertex_buffer_size = 1024 * 64;
 
-        let index_buffer = buffers
+        let index_buffer = gpu_resources
             .create_buffer(
                 ctx,
                 Some("Index Buffer Hud Pass"),
@@ -86,7 +80,7 @@ impl HudPass {
                 e
             })?;
 
-        let vertex_buffer = buffers
+        let vertex_buffer = gpu_resources
             .create_buffer(
                 ctx,
                 Some("Vertex Buffer Hud Pass"),
@@ -168,7 +162,7 @@ impl HudPass {
         };
 
         let default_pipeline = pipelines
-            .get_or_create(ctx, shaders, pipeline_key.clone())
+            .get_or_create(ctx, gpu_resources, pipeline_key.clone())
             .map_err(|e| {
                 tracing::error!(vs = %vert_shader, fs = %frag_shader, "Échec de création de la pipeline HudPass : {e:?}");
                 e
@@ -236,14 +230,14 @@ impl HudPass {
         &mut self,
         ctx: &GpuContext,
         pipelines: &mut PipelineManager,
-        shaders: &ShaderManager,
+        gpu_resources: &GpuResources,
         vert_shader: ShaderId,
         frag_shader: ShaderId,
     ) -> Result<(), PassError> {
         let pipeline = pipelines
             .get_or_create(
                 ctx,
-                shaders,
+                gpu_resources,
                 PipelineKey {
                     vertex_shader: vert_shader,
                     fragment_shader: frag_shader,
@@ -319,7 +313,7 @@ impl Pass for HudPass {
     fn prepare<'a>(
         &mut self,
         ctx: &GpuContext,
-        buffers: &mut GpuBufferManager,
+        gpu_resources: &mut GpuResources,
         input: &mut Self::Input<'a>,
     ) {
         self.mesh.clear();
@@ -332,7 +326,7 @@ impl Pass for HudPass {
             bytemuck::cast_slice(&[input.camera]),
         );
 
-        let white_id = input.texture.white_texture();
+        let white_id = gpu_resources.white_texture();
         self.has_text = input
             .commands
             .commands()
@@ -351,10 +345,10 @@ impl Pass for HudPass {
         // Helper pour créer un texture bind group de manière sécurisée
         let make_tex_bg = |ctx: &GpuContext,
                            layout: &wgpu::BindGroupLayout,
-                           textures: &TextureManager,
+                           gpu_resources: &GpuResources,
                            tex_id: TextureId|
          -> Option<wgpu::BindGroup> {
-            let gpu_tex = match textures.get(tex_id) {
+            let gpu_tex = match gpu_resources.get_texture(tex_id) {
                 Some(t) => t,
                 None => {
                     tracing::error!(id = %tex_id, "[HudPass] Texture introuvable pendant la création du batch");
@@ -407,7 +401,7 @@ impl Pass for HudPass {
                         if let Some(texture_bind_group) = make_tex_bg(
                             ctx,
                             &self.texture_bind_group_layout,
-                            input.texture,
+                            gpu_resources,
                             prev_tex,
                         ) {
                             match current_material_id {
@@ -504,7 +498,7 @@ impl Pass for HudPass {
         if let Some(prev_tex) = current_texture_id {
             let index_count = self.mesh.indices().len() as u32 - batch_index_start;
             if index_count > 0 {
-                if let Some(gpu_tex) = input.texture.get(prev_tex) {
+                if let Some(gpu_tex) = gpu_resources.get_texture(prev_tex) {
                     let texture_bind_group =
                         ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
                             label: Some("HudPass Texture BindGroup"),
@@ -561,7 +555,7 @@ impl Pass for HudPass {
         {
             self.vertex_buffer_size *= 2;
             let former = self.vertex_buffer;
-            match buffers.create_buffer(
+            match gpu_resources.create_buffer(
                 ctx,
                 Some("Vertex Buffer Hud Pass resized"),
                 self.vertex_buffer_size,
@@ -569,7 +563,7 @@ impl Pass for HudPass {
             ) {
                 Ok(new_buf) => {
                     self.vertex_buffer = new_buf;
-                    if let Err(e) = buffers.remove(former) {
+                    if let Err(e) = gpu_resources.remove_buffer(former) {
                         tracing::error!("Echec lors de la suppression du buffer : {e}");
                     }
                 }
@@ -587,7 +581,7 @@ impl Pass for HudPass {
         {
             self.index_buffer_size *= 2;
             let former = self.index_buffer;
-            match buffers.create_buffer(
+            match gpu_resources.create_buffer(
                 ctx,
                 Some("Index Buffer Hud Pass resized"),
                 self.index_buffer_size,
@@ -595,7 +589,7 @@ impl Pass for HudPass {
             ) {
                 Ok(new_buf) => {
                     self.index_buffer = new_buf;
-                    if let Err(e) = buffers.remove(former) {
+                    if let Err(e) = gpu_resources.remove_buffer(former) {
                         tracing::error!("Echec lors de la suppression du buffer : {e}");
                     }
                 }
@@ -607,11 +601,15 @@ impl Pass for HudPass {
             }
         }
 
-        if let Err(e) = buffers.write_buffer(ctx, self.vertex_buffer, self.mesh.vertices_bytes()) {
+        if let Err(e) =
+            gpu_resources.write_buffer(ctx, self.vertex_buffer, self.mesh.vertices_bytes())
+        {
             tracing::error!("Impossible d'ecrire dans le buffer : {e}");
             return;
         }
-        if let Err(e) = buffers.write_buffer(ctx, self.index_buffer, self.mesh.indices_bytes()) {
+        if let Err(e) =
+            gpu_resources.write_buffer(ctx, self.index_buffer, self.mesh.indices_bytes())
+        {
             tracing::error!("Impossible d'ecrire dans le buffer : {e}");
             return;
         }
@@ -621,8 +619,7 @@ impl Pass for HudPass {
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
         target: &wgpu::TextureView,
-        buffers: &GpuBufferManager,
-        materials: &MaterialManager,
+        gpu_resources: &GpuResources,
     ) {
         let has_geometry = !self.batches.is_empty();
         // La render pass doit avoir des vertex a dessiner sinon on skip
@@ -632,12 +629,12 @@ impl Pass for HudPass {
             return;
         }
 
-        let Some(index_buffer) = buffers.get(self.index_buffer) else {
+        let Some(index_buffer) = gpu_resources.get_buffer(self.index_buffer) else {
             tracing::error!(id = ?self.index_buffer, "[HudPass] Index buffer introuvable dans GpuBufferManager");
             return;
         };
 
-        let Some(vertex_buffer) = buffers.get(self.vertex_buffer) else {
+        let Some(vertex_buffer) = gpu_resources.get_buffer(self.vertex_buffer) else {
             tracing::error!(id = ?self.vertex_buffer, "[HudPass] Vertex buffer introuvable dans GpuBufferManager");
             return;
         };
@@ -666,6 +663,7 @@ impl Pass for HudPass {
         let mut current_pipeline_is_default = false;
         let mut current_material: Option<MaterialId> = None;
 
+        tracing::info!("HudPass draw — batches: {}", self.batches.len());
         for batch in &self.batches {
             match batch {
                 HudBatch::Standard {
@@ -689,7 +687,7 @@ impl Pass for HudPass {
                     uniform_offset,
                 } => {
                     if current_material != Some(*material_id) {
-                        if let Some(mat) = materials.get(*material_id) {
+                        if let Some(mat) = gpu_resources.get_material(*material_id) {
                             pass.set_pipeline(&mat.pipeline);
                             current_pipeline_is_default = false;
                             current_material = Some(*material_id);

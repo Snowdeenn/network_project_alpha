@@ -15,10 +15,10 @@ impl AssetManager {
     pub fn load_animations(
         &mut self,
         ctx: &prism::GpuContext,
-        textures: &mut prism::TextureManager,
+        gpu_resources: &mut prism::GpuResources,
         config_path: &str,
     ) -> Result<(), AnimationError> {
-        self.anims.load_from_config(ctx, textures, config_path)?;
+        self.anims.load_from_config(ctx, gpu_resources, config_path)?;
         Ok(())
     }
 

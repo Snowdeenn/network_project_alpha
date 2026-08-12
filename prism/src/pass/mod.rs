@@ -3,11 +3,9 @@ pub mod vfx;
 pub mod hud;
 pub mod post_process;
 
-use crate::TextureManager;
+use crate::GpuResources;
 use crate::context::GpuContext;
 use crate::draw::batch::DrawCommandBuffer;
-use crate::resource::buffer::GpuBufferManager;
-use crate::resource::material::MaterialManager;
 use utils::math::Mat4;
 pub trait Pass {
     type Input<'a>
@@ -18,7 +16,7 @@ pub trait Pass {
     fn prepare<'a>(
         &mut self,
         ctx: &GpuContext,
-        buffers: &mut GpuBufferManager,
+        gpu_resources: &mut GpuResources,
         input: &mut Self::Input<'a>,
     );
 
@@ -27,8 +25,7 @@ pub trait Pass {
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
         target: &wgpu::TextureView,
-        buffers: &GpuBufferManager,
-        materials: &MaterialManager,
+        gpu_resources: &GpuResources,
     );
 }
 
@@ -36,7 +33,6 @@ pub trait Pass {
 pub struct WorldInput<'a> {
     pub commands: &'a mut DrawCommandBuffer,
     pub camera: Mat4,
-    pub texture: &'a TextureManager,
 }
 
 // VfxPass
@@ -49,7 +45,6 @@ pub struct VfxInput<'a> {
 pub struct HudInput<'a> {
     pub commands: &'a mut DrawCommandBuffer,
     pub camera: Mat4,
-    pub texture: &'a TextureManager,
 }
 
 // PostProcessPass

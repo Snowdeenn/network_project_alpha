@@ -2,10 +2,10 @@ use std::sync::Arc;
 use utils::ids::ShaderId;
 
 use crate::{
+    GpuResources,
     context::GpuContext,
     errors::PassError,
     pass::{Pass, PostProcessInput},
-    resource::{buffer::GpuBufferManager, shader::ShaderManager, material::MaterialManager},
 };
 
 pub struct PostProcessPass {
@@ -21,7 +21,7 @@ pub struct PostProcessPass {
 impl PostProcessPass {
     pub fn new(
         ctx: &GpuContext,
-        shaders: &ShaderManager,
+        gpu_resources: &GpuResources,
         vert_shader: ShaderId,
         frag_shader: ShaderId,
         surface_format: wgpu::TextureFormat,
@@ -71,7 +71,7 @@ impl PostProcessPass {
 
         let pipeline = Self::create_pipeline(
             ctx,
-            shaders,
+            gpu_resources,
             vert_shader,
             frag_shader,
             surface_format,
@@ -94,13 +94,13 @@ impl PostProcessPass {
     pub fn set_shader(
         &mut self,
         ctx: &GpuContext,
-        shaders: &ShaderManager,
+        gpu_resources: &GpuResources,
         vert_shader: ShaderId,
         frag_shader: ShaderId,
     ) -> Result<(), PassError> {
         let pipeline = Self::create_pipeline(
             ctx,
-            shaders,
+            gpu_resources,
             vert_shader,
             frag_shader,
             self.surface_format,
@@ -117,23 +117,24 @@ impl PostProcessPass {
 
     fn create_pipeline(
         ctx: &GpuContext,
-        shaders: &ShaderManager,
+        gpu_resources: &GpuResources,
         vert_shader: ShaderId,
         frag_shader: ShaderId,
         surface_format: wgpu::TextureFormat,
         bind_group_layout: &wgpu::BindGroupLayout,
     ) -> Result<wgpu::RenderPipeline, PassError> {
-        let vs_module = shaders.get(vert_shader).ok_or_else(|| {
+        let vs_module = gpu_resources.get_shader(vert_shader).ok_or_else(|| {
             tracing::error!(id = %vert_shader, "Vertex shader introuvable pour la PostProcessPass");
             crate::errors::PipelineError::ShaderNotFound { id: vert_shader }
         })?;
 
-        let fs_module = shaders.get(frag_shader).ok_or_else(|| {
+        let fs_module = gpu_resources.get_shader(frag_shader).ok_or_else(|| {
             tracing::error!(id = %frag_shader, "Fragment shader introuvable pour la PostProcessPass");
             crate::errors::PipelineError::ShaderNotFound { id: frag_shader }
         })?;
 
-        let pipeline_layout_label = format!("PostProcess PipelineLayout (VS:{vert_shader}, FS:{frag_shader})");
+        let pipeline_layout_label =
+            format!("PostProcess PipelineLayout (VS:{vert_shader}, FS:{frag_shader})");
         let pipeline_layout = ctx
             .device
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -180,7 +181,7 @@ impl Pass for PostProcessPass {
     fn prepare<'a>(
         &mut self,
         ctx: &GpuContext,
-        _buffers: &mut GpuBufferManager,
+        _gpu_resources: &mut GpuResources,
         input: &mut Self::Input<'a>,
     ) {
         let _span = tracing::trace_span!("PostProcessPass::prepare").entered();
@@ -205,8 +206,7 @@ impl Pass for PostProcessPass {
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
         target: &wgpu::TextureView,
-        _buffers: &GpuBufferManager,
-        _materials: &MaterialManager,
+        _gpu_resources: &GpuResources,
     ) {
         let _span = tracing::trace_span!("PostProcessPass::execute").entered();
 

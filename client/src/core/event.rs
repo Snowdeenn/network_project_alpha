@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use crate::core::config::SOLD_ANIM_DURATION;
-use crate::ui::hud::ShopHudIds;
 use utils::protocol::EffectType;
 use utils::{
     config::PlayerClass,
@@ -266,17 +265,40 @@ impl ClientState {
     }
 }
 
-pub fn handle_shop_ui_event(event: &GameEvent, ui_ctx: &mut nodus::UiContext, shop_ids: &ShopHudIds) {
+pub fn handle_shop_ui_event(
+    event: &GameEvent,
+    ui_ctx: &mut nodus::UiContext,
+    shop_ids: &utils::ids::Register,
+) {
+    let root = match shop_ids.get::<nodus::NodeId>(crate::key::shop::ROOT) {
+        Some(id) => id,
+        None => {
+            tracing::warn!("L'id {} est absent du register", crate::key::shop::ROOT);
+            return;
+        }
+    };
     match &event.kind {
         GameEventKind::ShopOpened { inventory } => {
             // afficher le shop
             ui_ctx.send_event(nodus::UIEvent::SetVisible {
-                target: shop_ids.root,
+                target: root,
                 visible: true,
             });
 
             // mettre à jour les 3 cartes
             for (slot, item_opt) in inventory.iter().enumerate() {
+                let card = match shop_ids
+                    .get::<crate::ui::hud::ShopCardIds>(crate::key::shop::SHOP_CARD_KEYS[slot])
+                {
+                    Some(id) => id,
+                    None => {
+                        tracing::warn!(
+                            "L'id {} est absent du register",
+                            crate::key::shop::SHOP_CARD_KEYS[slot]
+                        );
+                        return;
+                    }
+                };
                 if let Some(item) = item_opt {
                     let border_color = match item.effect_type {
                         EffectType::Health => utils::colors::Color::DARKGREEN,
@@ -285,32 +307,32 @@ pub fn handle_shop_ui_event(event: &GameEvent, ui_ctx: &mut nodus::UiContext, sh
                         EffectType::Gold => utils::colors::Color::GOLD,
                     };
                     ui_ctx.send_event(nodus::UIEvent::SetColor {
-                        target: shop_ids.cards[slot].root,
+                        target: card.root,
                         color: border_color,
                     });
                 }
                 match item_opt {
                     Some(item) => {
                         ui_ctx.send_event(nodus::UIEvent::SetText {
-                            target: shop_ids.cards[slot].name,
+                            target: card.name,
                             content: item.name.clone(),
                         });
                         ui_ctx.send_event(nodus::UIEvent::SetText {
-                            target: shop_ids.cards[slot].desc,
+                            target: card.desc,
                             content: item.description.clone(),
                         });
                         ui_ctx.send_event(nodus::UIEvent::SetText {
-                            target: shop_ids.cards[slot].price,
+                            target: card.price,
                             content: format!("PRIX: {} OR", item.price),
                         });
                         ui_ctx.send_event(nodus::UIEvent::SetVisible {
-                            target: shop_ids.cards[slot].sold_overlay,
+                            target: card.sold_overlay,
                             visible: false,
                         });
                     }
                     None => {
                         ui_ctx.send_event(nodus::UIEvent::SetVisible {
-                            target: shop_ids.cards[slot].sold_overlay,
+                            target: card.sold_overlay,
                             visible: true,
                         });
                     }
@@ -320,15 +342,27 @@ pub fn handle_shop_ui_event(event: &GameEvent, ui_ctx: &mut nodus::UiContext, sh
 
         GameEventKind::WaveStart { .. } => {
             ui_ctx.send_event(nodus::UIEvent::SetVisible {
-                target: shop_ids.root,
+                target: root,
                 visible: false,
             });
         }
 
         GameEventKind::ItemBought { slot } => {
+            let card = match shop_ids
+                .get::<crate::ui::hud::ShopCardIds>(crate::key::shop::SHOP_CARD_KEYS[*slot])
+            {
+                Some(id) => id,
+                None => {
+                    tracing::warn!(
+                        "L'id {} est absent du register",
+                        crate::key::shop::SHOP_CARD_KEYS[*slot]
+                    );
+                    return;
+                }
+            };
             // tween fade sur sold_overlay
             ui_ctx.tween.add(nodus::Tween {
-                target: shop_ids.cards[*slot].sold_overlay,
+                target: card.sold_overlay,
                 property: nodus::TweenProperty::Opacity { from: 0.0, to: 1.0 },
                 duration: SOLD_ANIM_DURATION,
                 elapsed: 0.0,
@@ -336,49 +370,61 @@ pub fn handle_shop_ui_event(event: &GameEvent, ui_ctx: &mut nodus::UiContext, sh
                 done: false,
                 on_complete: vec![
                     nodus::UIEvent::SetColor {
-                        target: shop_ids.cards[*slot].sold_overlay,
+                        target: card.sold_overlay,
                         color: utils::colors::Color::new(40, 40, 40, 255),
                     },
                     nodus::UIEvent::SetOpacity {
-                        target: shop_ids.cards[*slot].sold_overlay,
+                        target: card.sold_overlay,
                         opacity: 1.0,
                     },
                     nodus::UIEvent::SetText {
-                        target: shop_ids.cards[*slot].sold_text,
+                        target: card.sold_text,
                         content: "VENDU".to_string(),
                     },
                     nodus::UIEvent::SetVisible {
-                        target: shop_ids.cards[*slot].sold_text,
+                        target: card.sold_text,
                         visible: true,
                     },
                 ],
             });
             ui_ctx.send_event(nodus::UIEvent::SetVisible {
-                target: shop_ids.cards[*slot].sold_overlay,
+                target: card.sold_overlay,
                 visible: true,
             });
         }
 
         GameEventKind::PurchaseFailed { slot } => {
+            let card = match shop_ids
+                .get::<crate::ui::hud::ShopCardIds>(crate::key::shop::SHOP_CARD_KEYS[*slot])
+            {
+                Some(id) => id,
+                None => {
+                    tracing::warn!(
+                        "L'id {} est absent du register",
+                        crate::key::shop::SHOP_CARD_KEYS[*slot]
+                    );
+                    return;
+                }
+            };
             // tween flash rouge
             ui_ctx.tween.add(nodus::Tween {
-                target: shop_ids.cards[*slot].error_overlay,
+                target: card.error_overlay,
                 property: nodus::TweenProperty::Opacity { from: 0.7, to: 0.0 },
                 duration: 1.5,
                 elapsed: 0.0,
                 easing: nodus::easing::ease_out_quad,
                 done: false,
                 on_complete: vec![nodus::UIEvent::SetVisible {
-                    target: shop_ids.cards[*slot].error_overlay,
+                    target: card.error_overlay,
                     visible: false,
                 }],
             });
             ui_ctx.send_event(nodus::UIEvent::SetVisible {
-                target: shop_ids.cards[*slot].error_overlay,
+                target: card.error_overlay,
                 visible: true,
             });
             ui_ctx.send_event(nodus::UIEvent::SetOpacity {
-                target: shop_ids.cards[*slot].error_overlay,
+                target: card.error_overlay,
                 opacity: 0.7,
             });
         }

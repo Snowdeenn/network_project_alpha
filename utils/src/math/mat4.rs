@@ -127,10 +127,10 @@ impl Mat4 {
 
         mat_ortho.columns[0] = 2.0 / (right - left);
         mat_ortho.columns[5] = 2.0 / (top - bot);
-        mat_ortho.columns[10] = -2.0 / (far - near);
+        mat_ortho.columns[10] = -1.0 / (far - near);
         mat_ortho.columns[12] = -(right + left) / (right - left);
         mat_ortho.columns[13] = -(top + bot) / (top - bot);
-        mat_ortho.columns[14] = -(far + near) / (far - near);
+        mat_ortho.columns[14] = -near / (far - near);
 
         mat_ortho
     }

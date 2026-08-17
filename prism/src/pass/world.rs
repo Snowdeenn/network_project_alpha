@@ -166,7 +166,7 @@ impl WorldPass {
         self.frag_shader = frag_shader;
         self.pipeline = pipeline;
 
-        tracing::debug!(vs = %vert_shader, fs = %frag_shader, "Shaders de la WorldPass mis à jour");
+        tracing::info!(vs = %vert_shader, fs = %frag_shader, "Shaders de la WorldPass mis à jour");
         Ok(())
     }
 
@@ -218,10 +218,9 @@ impl Pass for WorldPass {
         input: &mut Self::Input<'a>,
     ) {
         let _span = tracing::trace_span!("WorldPass::prepare").entered();
-
         self.mesh.clear();
         self.batches.clear();
-
+       
         ctx.queue.write_buffer(
             &self.camera_buffer,
             0,
@@ -322,11 +321,6 @@ impl Pass for WorldPass {
                 });
             }
         }
-        tracing::info!(
-            "après boucle — batches: {}, mesh indices: {}",
-            self.batches.len(),
-            self.mesh.indices().len()
-        );
         let required_vertex_bytes = self.mesh.vertices().len() as u64
             * std::mem::size_of::<crate::geometry::mesh::Vertex>() as u64;
 
@@ -338,11 +332,10 @@ impl Pass for WorldPass {
             );
 
             let former_buffer = self.vertex_buffer;
-            let new_size = self.vertex_buffer_size * 2;
             if let Ok(new_buf) = gpu_resources.create_buffer(
                 ctx,
                 Some("WorldPass Vertex Buffer (Resized)"),
-                new_size,
+                self.vertex_buffer_size,
                 wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             ) {
                 self.vertex_buffer = new_buf;
@@ -360,11 +353,10 @@ impl Pass for WorldPass {
             );
 
             let former_buffer = self.index_buffer;
-            let new_size = self.index_buffer_size * 2;
             if let Ok(new_buf) = gpu_resources.create_buffer(
                 ctx,
                 Some("WorldPass Index Buffer (Resized)"),
-                new_size,
+                self.index_buffer_size,
                 wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
             ) {
                 self.index_buffer = new_buf;
@@ -393,6 +385,7 @@ impl Pass for WorldPass {
         target: &wgpu::TextureView,
         gpu_resources: &GpuResources,
     ) {
+        tracing::info!("target WorldPass addr: {:p}", target as *const _);
         if self.index_count == 0 {
             tracing::warn!("Il n'y a rien a afficher dans la world pass");
             return;
@@ -443,7 +436,6 @@ impl Pass for WorldPass {
             .set_index_buffer(index_buffer.buffer.slice(..), wgpu::IndexFormat::Uint32);
         world_render_pass.set_vertex_buffer(0, vertex_buffer.buffer.slice(..));
 
-        tracing::info!("WorldPass draw — batches: {}", self.batches.len());
         for batch in &self.batches {
             world_render_pass.set_bind_group(1, &batch.bind_group, &[]);
             world_render_pass.draw_indexed(

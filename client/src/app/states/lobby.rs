@@ -33,7 +33,7 @@ pub fn init_lobby(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regi
             ),
         ),
         nodus::VisualProps {
-            kind: nodus::VisualKind::Rect,
+            kind: nodus::VisualKind::None, // Node qui contient tout le lobby
             color: utils::colors::Color::TRANSPARENT,
             visible: false, // caché par défaut
             opacity: 1.0,

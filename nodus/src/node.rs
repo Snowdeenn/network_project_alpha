@@ -54,6 +54,7 @@ pub enum VisualKind {
         content: String,
         font_size: f32,
     },
+    None,
 }
 
 pub struct VisualProps {

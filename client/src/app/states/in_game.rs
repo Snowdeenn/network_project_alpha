@@ -160,10 +160,6 @@ impl InGameScene {
                         t,
                         dt,
                     );
-                    tracing::info!(
-                        "world commands: {}",
-                        frame.world_commands().commands().len()
-                    );
                     let vfx = resources.read_resource::<VfxManager>();
                     vfx.push_draw_commands(frame);
                 }

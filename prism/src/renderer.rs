@@ -26,13 +26,20 @@ impl Renderer {
         frag_shader: ShaderId,
         post_vert: ShaderId,
         post_frag: ShaderId,
+        text_vert_id: ShaderId,
+        text_frag_id: ShaderId,
     ) -> crate::Result<Self> {
         let mut pipelines = crate::PipelineManager::new(ctx.surface_format());
         let (intermediate_a, intermediate_view_a) = Self::create_intermediate(&ctx);
         let (intermediate_b, intermediate_view_b) = Self::create_intermediate(&ctx);
 
-        let world =
-            crate::WorldPass::new(ctx, gpu_resources, &mut pipelines, vert_shader, frag_shader)?;
+        let world = crate::WorldPass::new(
+            ctx,
+            gpu_resources,
+            &mut pipelines,
+            text_vert_id,
+            text_frag_id,
+        )?;
         let vfx = crate::VfxPass::new(
             &ctx,
             gpu_resources,
@@ -107,6 +114,7 @@ impl Renderer {
         let surface_view = surface_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
+        tracing::info!("surface_view addr: {:p}", &surface_view as *const _);
         self.current_source = DoubleBufferIndex::Primary;
         let mut encoder = ctx.create_encoder("frame");
 
@@ -131,9 +139,6 @@ impl Renderer {
                 camera: cam_matrix,
             },
         );
-        self.world
-            .execute(&mut encoder, target, gpu_resources);
-
         self.vfx.prepare(
             &ctx,
             gpu_resources,
@@ -142,8 +147,22 @@ impl Renderer {
                 camera: cam_matrix,
             },
         );
-        self.vfx
-            .execute(&mut encoder, target, gpu_resources);
+        let w = (ctx.size.width as f32).max(1.0);
+        let h = (ctx.size.height as f32).max(1.0);
+
+        // left = 0.0, right = w, bottom = h, top = 0.0, near = -1.0, far = 1.0
+        let hud_camera = utils::math::Mat4::orthographic_wgpu(0.0, w, h, 0.0, -1.0, 1.0);
+        self.hud.prepare(
+            &ctx,
+            gpu_resources,
+            &mut crate::HudInput {
+                commands: &mut frame.hud,
+                camera: hud_camera,
+            },
+        );
+
+        self.world.execute(&mut encoder, target, gpu_resources);
+        self.vfx.execute(&mut encoder, target, gpu_resources);
 
         let last = self.post_process_passes.len().saturating_sub(1);
         for i in 0..self.post_process_passes.len() {
@@ -156,9 +175,7 @@ impl Renderer {
                     (&self.intermediate_view_b, &self.intermediate_view_a)
                 }
             };
-
             let render_target = if i == last { &surface_view } else { tgt };
-
             self.post_process_passes[i].prepare(
                 &ctx,
                 gpu_resources,
@@ -167,28 +184,9 @@ impl Renderer {
                     target: tgt,
                 },
             );
-            self.post_process_passes[i].execute(
-                &mut encoder,
-                render_target,
-                gpu_resources,
-            );
+            self.post_process_passes[i].execute(&mut encoder, render_target, gpu_resources);
         }
-
-        let w = (ctx.size.width as f32).max(1.0);
-        let h = (ctx.size.height as f32).max(1.0);
-
-        // left = 0.0, right = w, bottom = h, top = 0.0, near = -1.0, far = 1.0
-        let hud_camera = utils::math::Mat4::orthographic(0.0, w, h, 0.0, -1.0, 1.0);
-        self.hud.prepare(
-            &ctx,
-            gpu_resources,
-            &mut crate::HudInput {
-                commands: &mut frame.hud,
-                camera: hud_camera,
-            },
-        );
-        self.hud
-            .execute(&mut encoder, &surface_view, gpu_resources);
+        self.hud.execute(&mut encoder, &surface_view, gpu_resources);
 
         ctx.submit(encoder);
         ctx.present(surface_texture);
@@ -321,7 +319,7 @@ impl Renderer {
     ) -> Result<Arc<wgpu::RenderPipeline>, crate::PassError> {
         Ok(self.pipelines.get_or_create(ctx, gpu_resources, key)?)
     }
-    
+
     pub fn frame_manager(&self) -> &FrameManager {
         &self.frame_manager
     }
@@ -348,7 +346,7 @@ fn build_camera_matrix(
     screen_w: f32,
     screen_h: f32,
 ) -> utils::math::Mat4 {
-    let proj = utils::math::Mat4::orthographic(0.0, screen_w, screen_h, 0.0, -1.0, 1.0);
+    let proj = utils::math::Mat4::orthographic_wgpu(0.0, screen_w, screen_h, 0.0, -1.0, 1.0);
     let view = utils::math::Mat4::translation(
         -pos.x + (screen_w * 0.5) + shake.x,
         -pos.y + (screen_h * 0.5) + shake.y,

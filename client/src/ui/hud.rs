@@ -20,7 +20,7 @@ pub fn init_hud(
             ),
         ),
         nodus::VisualProps {
-            kind: nodus::VisualKind::Rect,
+            kind: nodus::VisualKind::None, // Node qui contient tout le hud
             color: utils::colors::Color::TRANSPARENT,
             visible: false, // caché par défaut
             opacity: 1.0,
@@ -103,7 +103,7 @@ pub fn init_shop(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regis
             ),
         ),
         nodus::VisualProps {
-            kind: nodus::VisualKind::Rect,
+            kind: nodus::VisualKind::None,
             color: utils::colors::Color::new(0, 0, 0, 150),
             visible: false,
             opacity: 1.0,

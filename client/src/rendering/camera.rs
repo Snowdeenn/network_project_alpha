@@ -101,7 +101,7 @@ impl Default for Camera {
 
 impl Camera {
     pub fn get_view_proj(&self, screen_w: f32, screen_h: f32) -> utils::math::Mat4 {
-        let proj = utils::math::Mat4::orthographic(0.0, screen_w, screen_h, 0.0, -1.0, 1.0);
+        let proj = utils::math::Mat4::orthographic_wgpu(0.0, screen_w, screen_h, 0.0, -1.0, 1.0);
         let view = utils::math::Mat4::translation(
             -self.pos.x + (screen_w * 0.5) + self.shake.offset().x,
             -self.pos.y + (screen_h * 0.5) + self.shake.offset().y,
@@ -141,6 +141,7 @@ pub fn update(cam: &mut Camera, prev: Option<&StateSnapshot>, current: &StateSna
             utils::math::lerp(prev_pos[1], curr.position[1], t),
         );
         cam.set_pos(base_target.x, base_target.y);
+        cam.shake.update(t);
     }
 }
 

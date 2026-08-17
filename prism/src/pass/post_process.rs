@@ -209,12 +209,11 @@ impl Pass for PostProcessPass {
         _gpu_resources: &GpuResources,
     ) {
         let _span = tracing::trace_span!("PostProcessPass::execute").entered();
-
         let Some(bind_group) = &self.bind_group else {
             tracing::warn!("Exécution de PostProcessPass ignorée : BindGroup non disponible");
             return;
         };
-
+        
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("PostProcess Render Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -222,7 +221,7 @@ impl Pass for PostProcessPass {
                 depth_slice: None,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    load: wgpu::LoadOp::Clear(wgpu::Color::RED),
                     store: wgpu::StoreOp::Store,
                 },
             })],

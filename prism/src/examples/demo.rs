@@ -51,9 +51,8 @@ fn size_to_clip(sw: f32, sh: f32, w: f32, h: f32) -> [f32; 2] {
 struct Demo {
     // GPU
     ctx: prism::GpuContext,
-    buffers: prism::GpuBufferManager,
-    shaders: prism::ShaderManager,
     pipelines: prism::PipelineManager,
+    resources: prism::GpuResources,
 
     // Passes
     world: prism::WorldPass,
@@ -75,12 +74,11 @@ impl Demo {
         ctx.resize(size.width, size.height);
 
         // ── Ressources ───────────────────────────────────────────────────────
-        let mut buffers = prism::GpuBufferManager::new();
-        let mut shaders = prism::ShaderManager::new();
+        let mut resources = prism::GpuResources::new(&ctx);
 
         // Shader unique partagé par toutes les passes
 
-        let vert_id = shaders.load_inline(&ctx, BASIC_WGSL_INLINE, "basic_inline");
+        let vert_id = resources.load_shader_inline(&ctx, BASIC_WGSL_INLINE, "basic_inline");
 
         let frag_id = vert_id; // même module WGSL pour vs_main et fs_main
 
@@ -90,25 +88,22 @@ impl Demo {
         // ── Passes ───────────────────────────────────────────────────────────
         let world = prism::WorldPass::new(
             &ctx,
-            &mut buffers,
+            &mut resources,
             &mut pipelines,
-            &mut shaders,
             vert_id,
             frag_id,
         )?;
         let vfx = prism::VfxPass::new(
             &ctx,
-            &mut buffers,
+            &mut resources,
             &mut pipelines,
-            &mut shaders,
             vert_id,
             frag_id,
         )?;
         let hud = prism::HudPass::new(
             &ctx,
-            &mut buffers,
+            &mut resources,
             &mut pipelines,
-            &mut shaders,
             vert_id,
             frag_id,
             surface_format,
@@ -116,8 +111,7 @@ impl Demo {
 
         Ok(Self {
             ctx,
-            buffers,
-            shaders,
+            resources,
             pipelines,
             world,
             vfx,
@@ -263,25 +257,24 @@ impl Demo {
         let mut world_input = prism::WorldInput {
             commands: &mut world_cmds,
             camera: Mat4::identity(),
-            texture: &prism::TextureManager::new(&self.ctx)
         };
         self.world
-            .prepare(&self.ctx, &mut self.buffers, &mut world_input);
-        self.world.execute(&mut encoder, &surface_texture.texture.create_view(&wgpu::TextureViewDescriptor::default()), &self.buffers);
+            .prepare(&self.ctx, &mut self.resources, &mut world_input);
+        self.world.execute(&mut encoder, &surface_texture.texture.create_view(&wgpu::TextureViewDescriptor::default()), &self.resources);
 
         let mut vfx_input = prism::VfxInput {
             commands: &vfx_cmds,
             camera: Mat4::identity(),
         };
-        self.vfx.prepare(&self.ctx, &mut self.buffers, &mut vfx_input);
-        self.vfx.execute(&mut encoder, &surface_texture.texture.create_view(&wgpu::TextureViewDescriptor::default()), &self.buffers);
+        self.vfx.prepare(&self.ctx, &mut self.resources, &mut vfx_input);
+        self.vfx.execute(&mut encoder, &surface_texture.texture.create_view(&wgpu::TextureViewDescriptor::default()), &self.resources);
 
         let mut hud_input = prism::HudInput {
-            commands: &hud_cmds,
+            commands: &mut hud_cmds,
             camera: Mat4::identity()
         };
-        self.hud.prepare(&self.ctx, &mut self.buffers, &mut hud_input);
-        self.hud.execute(&mut encoder, &surface_texture.texture.create_view(&wgpu::TextureViewDescriptor::default()), &self.buffers);
+        self.hud.prepare(&self.ctx, &mut self.resources, &mut hud_input);
+        self.hud.execute(&mut encoder, &surface_texture.texture.create_view(&wgpu::TextureViewDescriptor::default()), &self.resources);
 
         self.ctx.submit(encoder);
         self.ctx.present(surface_texture);

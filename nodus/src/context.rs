@@ -35,7 +35,9 @@ impl UiContext {
         if let Some(root_node) = arena.get_mut(root_id) {
             root_node.layout.computed_pos = Vec2::zero();
             root_node.layout.computed_size = Vec2::new(screen_w, screen_h);
-            root_node.visual.visible = false;
+            root_node.visual.visible = true;
+            root_node.visual.opacity = 0.0;
+            root_node.visual.kind = VisualKind::Rect;
         }
 
         Self {
@@ -138,7 +140,7 @@ impl UiContext {
         let order = self.build_traversal_order();
         let mut hidden: HashSet<NodeId> = HashSet::new();
 
-        for (depth, id) in order[1..].iter().enumerate() {
+        for (index, id) in order.iter().enumerate() {
             if let Some(node) = self.arena.get(*id) {
                 let parent_hidden = node.parent.map(|p| hidden.contains(&p)).unwrap_or(false);
 
@@ -146,15 +148,19 @@ impl UiContext {
                     hidden.insert(*id);
                     continue;
                 }
+                if index == 0 {
+                    continue;
+                }
 
                 let color = node.visual.color.alpha(node.visual.opacity);
+                let layer = index.min(255) as u8;
                 match &node.visual.kind {
                     VisualKind::Rect => {
                         buf.push(DrawCommand::Rect {
                             pos: node.layout.computed_pos,
                             size: node.layout.computed_size,
                             color,
-                            layer: depth as u8,
+                            layer,
                         });
                     }
                     VisualKind::Texture { id } => {
@@ -163,7 +169,7 @@ impl UiContext {
                             pos: node.layout.computed_pos,
                             size: node.layout.computed_size,
                             tint: color,
-                            layer: depth as u8,
+                            layer,
                         });
                     }
                     VisualKind::Material {
@@ -176,9 +182,9 @@ impl UiContext {
                             texture_id: *texture_id,
                             pos: node.layout.computed_pos,
                             size: node.layout.computed_size,
-                            tint: node.visual.color,
+                            tint: color,
                             uniform_data: uniform_data.clone(),
-                            layer: depth as u8,
+                            layer,
                         });
                     }
                     VisualKind::NinePatch { id, margins } => {
@@ -188,7 +194,7 @@ impl UiContext {
                             size: node.layout.computed_size,
                             margins: *margins,
                             tint: color,
-                            layer: depth as u8,
+                            layer,
                         });
                     }
                     VisualKind::Text { content, font_size } => {
@@ -197,9 +203,10 @@ impl UiContext {
                             pos: node.layout.computed_pos,
                             font_size: *font_size,
                             color,
-                            layer: depth as u8,
+                            layer,
                         });
-                    }
+                    },
+                    VisualKind::None => () // Pour les nodes juste conteneurs
                 }
             }
         }

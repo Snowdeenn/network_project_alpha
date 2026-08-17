@@ -14,6 +14,14 @@ impl Mat4 {
         }
     }
 
+    pub fn from_cols(cols: &[f32]) -> Mat4 {
+        let columns: [f32; 16] = cols
+            .try_into()
+            .expect("Mat4::from_cols nécessite un slice de 16 éléments");
+
+        Mat4 { columns }
+    }
+
     pub fn identity() -> Mat4 {
         let mut mat4: Mat4 = Mat4::zero();
         mat4.columns[0] = 1.0;
@@ -121,18 +129,31 @@ impl Mat4 {
 
         mat_perspective
     }
+    
+    pub fn orthographic_wgpu(left: f32, right: f32, bot: f32, top: f32, near: f32, far: f32) -> Mat4 {
+        let rml = right - left;
+        let tmb = top - bot;
+        let fmn = far - near;
 
-    pub fn orthographic(left: f32, right: f32, bot: f32, top: f32, near: f32, far: f32) -> Mat4 {
-        let mut mat_ortho: Mat4 = Mat4::identity();
+        Mat4::from_cols(&[
+            2.0 / rml,             0.0,                0.0,         0.0,
+            0.0,                   2.0 / tmb,          0.0,         0.0,
+            0.0,                   0.0,               -1.0 / fmn,   0.0,
+            -(right + left) / rml, -(top + bot) / tmb, -near / fmn,  1.0,
+        ])
+    }
 
-        mat_ortho.columns[0] = 2.0 / (right - left);
-        mat_ortho.columns[5] = 2.0 / (top - bot);
-        mat_ortho.columns[10] = -1.0 / (far - near);
-        mat_ortho.columns[12] = -(right + left) / (right - left);
-        mat_ortho.columns[13] = -(top + bot) / (top - bot);
-        mat_ortho.columns[14] = -near / (far - near);
+    pub fn orthographic_opengl(left: f32, right: f32, bot: f32, top: f32, near: f32, far: f32) -> Mat4 {
+        let rml = right - left;
+        let tmb = top - bot;
+        let fmn = far - near;
 
-        mat_ortho
+        Mat4::from_cols(&[
+            2.0 / rml,             0.0,                0.0,                  0.0,
+            0.0,                   2.0 / tmb,          0.0,                  0.0,
+            0.0,                   0.0,               -2.0 / fmn,            0.0,
+            -(right + left) / rml, -(top + bot) / tmb, -(far + near) / fmn,  1.0,
+        ])
     }
 
     pub fn look_at(eye: Vec3, center: Vec3, up: Vec3) -> Mat4 {

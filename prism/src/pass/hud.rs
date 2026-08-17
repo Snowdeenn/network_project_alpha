@@ -549,11 +549,15 @@ impl Pass for HudPass {
         }
 
         // Resize vertex buffer
-        if self.mesh.vertices().len() as u64
-            * std::mem::size_of::<crate::geometry::mesh::Vertex>() as u64
-            > self.vertex_buffer_size
-        {
-            self.vertex_buffer_size *= 2;
+        let required_vertex_bytes = self.mesh.vertices().len() as u64
+            * std::mem::size_of::<crate::geometry::mesh::Vertex>() as u64;
+
+        if required_vertex_bytes > self.vertex_buffer_size {
+            self.vertex_buffer_size = (self.vertex_buffer_size * 2).max(required_vertex_bytes);
+            tracing::info!(
+                new_size = self.vertex_buffer_size,
+                "Agrandissement du Vertex Buffer dans HudPass"
+            );
             let former = self.vertex_buffer;
             match gpu_resources.create_buffer(
                 ctx,
@@ -576,10 +580,15 @@ impl Pass for HudPass {
         }
 
         // Resize index buffer
-        if self.mesh.indices().len() as u64 * std::mem::size_of::<u32>() as u64
-            > self.index_buffer_size
-        {
-            self.index_buffer_size *= 2;
+        let required_index_bytes = self.mesh.vertices().len() as u64
+            * std::mem::size_of::<crate::geometry::mesh::Vertex>() as u64;
+
+        if required_index_bytes > self.index_buffer_size {
+            self.vertex_buffer_size = (self.vertex_buffer_size * 2).max(required_index_bytes);
+            tracing::info!(
+                new_size = self.vertex_buffer_size,
+                "Agrandissement de l'index Buffer dans HudPass"
+            );
             let former = self.index_buffer;
             match gpu_resources.create_buffer(
                 ctx,
@@ -663,7 +672,6 @@ impl Pass for HudPass {
         let mut current_pipeline_is_default = false;
         let mut current_material: Option<MaterialId> = None;
 
-        tracing::info!("HudPass draw — batches: {}", self.batches.len());
         for batch in &self.batches {
             match batch {
                 HudBatch::Standard {

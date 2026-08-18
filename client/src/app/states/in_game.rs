@@ -10,15 +10,12 @@ use crate::core::client::GameNetClient;
 use crate::core::config;
 use crate::core::event::{ClientState, handle_shop_ui_event};
 use crate::graphic_data::animation::AnimEntityManager;
+use crate::graphic_data::post_process_effect_type;
 use crate::rendering::ScreenScale;
 use crate::rendering::camera::{self, Camera};
 use crate::rendering::vfx::particle::{Particle, ParticlePool};
 use crate::rendering::vfx::vfx_manager::VfxManager;
 use crate::ui::hud::{self};
-
-fn lerp(a: f32, b: f32, t: f32) -> f32 {
-    a + (b - a) * t
-}
 
 pub struct Snapshots {
     pub prev_snapshot: Option<StateSnapshot>,
@@ -124,6 +121,14 @@ impl InGameScene {
             resources.write_resource::<VfxManager>().update(dt);
         }
 
+        // Maj Post process effect
+        // Hit Flash
+        {
+            let mut hit_flash =
+                resources.write_resource::<post_process_effect_type::HitFlashEffect>();
+            post_process_effect_type::update_hit_flash(&mut hit_flash, dt);
+        }
+
         // Caméra & UI
         self.update_camera(cam);
     }
@@ -199,8 +204,8 @@ impl InGameScene {
 
                 let (x, y) = match prev_entity {
                     Some(prev) => (
-                        lerp(prev.position[0], entity.position[0], t),
-                        lerp(prev.position[1], entity.position[1], t),
+                        utils::math::lerp(prev.position[0], entity.position[0], t),
+                        utils::math::lerp(prev.position[1], entity.position[1], t),
                     ),
                     None => (entity.position[0], entity.position[1]),
                 };

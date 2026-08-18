@@ -12,6 +12,7 @@ use crate::app::states::main_menu::MenuAction;
 use crate::core::client::GameNetClient;
 use crate::core::event::AppScreen;
 use crate::graphic_data::asset_manager::AssetManager;
+use crate::graphic_data::post_process_effect_type;
 use crate::rendering::ScreenScale;
 use crate::rendering::camera::Camera;
 use crate::rendering::vfx::particle::ParticlePool;
@@ -68,12 +69,12 @@ impl App {
         }
     }
 
-    pub fn renderer(&self) -> Option<&prism::Renderer> {
-        self.renderer.as_ref()
+    pub fn renderer(&self) -> &prism::Renderer {
+        self.renderer.as_ref().unwrap()
     }
 
-    pub fn renderer_mut(&mut self) -> Option<&mut prism::Renderer> {
-        self.renderer.as_mut()
+    pub fn renderer_mut(&mut self) -> &mut prism::Renderer {
+        self.renderer.as_mut().unwrap()
     }
 }
 
@@ -159,31 +160,58 @@ impl winit::application::ApplicationHandler for App {
         self.id_register
             .insert(crate::key::post::DEFAULT_POST_FRAGMENT, post_frag_id);
 
-        match gpu_resources.load_shader(&gpu_ctx, "client/src/graphic_data/shader/default_textured.vert.wgsl") {
-            Ok(id) => self.id_register.insert(crate::key::shader::TEXTURED_VERTEX, id),
+        match gpu_resources.load_shader(
+            &gpu_ctx,
+            "client/src/graphic_data/shader/default_textured.vert.wgsl",
+        ) {
+            Ok(id) => self
+                .id_register
+                .insert(crate::key::shader::TEXTURED_VERTEX, id),
             Err(e) => {
                 tracing::error!("Erreur lors du chargement du shader : {e}");
                 event_loop.exit();
                 return;
             }
         }
-        match gpu_resources.load_shader(&gpu_ctx, "client/src/graphic_data/shader/default_textured.frag.wgsl") {
-            Ok(id) => self.id_register.insert(crate::key::shader::TEXTURED_FRAGMENT, id),
+        match gpu_resources.load_shader(
+            &gpu_ctx,
+            "client/src/graphic_data/shader/default_textured.frag.wgsl",
+        ) {
+            Ok(id) => self
+                .id_register
+                .insert(crate::key::shader::TEXTURED_FRAGMENT, id),
             Err(e) => {
                 tracing::error!("Erreur lors du chargement du shader : {e}");
                 event_loop.exit();
                 return;
             }
         }
-        let text_vert_id = self.id_register.get::<utils::ids::ShaderId>(crate::key::shader::TEXTURED_VERTEX).unwrap();
-        let text_frag_id = self.id_register.get::<utils::ids::ShaderId>(crate::key::shader::TEXTURED_FRAGMENT).unwrap();
+        match gpu_resources.load_shader(
+            &gpu_ctx,
+            "client/src/graphic_data/shader/hit_flash_effect.frag.wgsl",
+        ) {
+            Ok(id) => self
+                .id_register
+                .insert(crate::key::post::HIT_FLASH_FRAG, id),
+            Err(e) => {
+                tracing::error!("Erreur lors du chargement du shader : {e}");
+                event_loop.exit();
+                return;
+            }
+        }
+        let text_vert_id = self
+            .id_register
+            .get::<utils::ids::ShaderId>(crate::key::shader::TEXTURED_VERTEX)
+            .unwrap();
+        let text_frag_id = self
+            .id_register
+            .get::<utils::ids::ShaderId>(crate::key::shader::TEXTURED_FRAGMENT)
+            .unwrap();
         let mut renderer = match prism::Renderer::new(
             &gpu_ctx,
             &mut gpu_resources,
             default_vert_id,
             default_frag_id,
-            post_vert_id,
-            post_frag_id,
             text_vert_id,
             text_frag_id,
         ) {
@@ -194,6 +222,53 @@ impl winit::application::ApplicationHandler for App {
                 return;
             }
         };
+
+        // Ajout des RenderPass du post process
+        {
+            // Pass par defaut pass throught
+            let _default_pass_id = match renderer.add_post_process_pass::<()>(
+                &gpu_ctx,
+                &gpu_resources,
+                post_vert_id,
+                post_frag_id,
+                None,
+            ) {
+                Ok(id) => id,
+                Err(e) => {
+                    tracing::error!("Erreur lors de la création de la Post Process Pass: {e}");
+                    event_loop.exit();
+                    return;
+                }
+            };
+
+            let hit_flash_shader_id = self
+                .id_register
+                .get::<utils::ids::ShaderId>(crate::key::post::HIT_FLASH_FRAG)
+                .expect("Le hit flash id devrait être la");
+
+            let uniform = post_process_effect_type::HitFlashUniform { intensity: 1.0 };
+            let hit_flash_id = match renderer.add_post_process_pass(
+                &gpu_ctx,
+                &gpu_resources,
+                post_vert_id,
+                hit_flash_shader_id,
+                Some(uniform),
+            ) {
+                Ok(id) => id,
+                Err(e) => {
+                    tracing::error!("Erreur lors de la création de la Post Process Pass: {e}");
+                    event_loop.exit();
+                    return;
+                }
+            };
+            let hit_flash = post_process_effect_type::HitFlashEffect {
+                id: hit_flash_id,
+                timer: 0.5, // Valeur Temp a changer si besoin
+                total_duration: 0.5,
+                intensity: uniform.intensity,
+            };
+            self.resource.insert(hit_flash);
+        }
 
         let size = window.inner_size();
         let mut ui_ctx = nodus::UiContext::new(size.width as f32, size.height as f32);
@@ -217,8 +292,10 @@ impl winit::application::ApplicationHandler for App {
         self.resource.insert(asset_manager);
 
         let hp_material_id = {
-            
-            let vert_id = self.id_register.get::<utils::ids::ShaderId>(crate::key::shader::TEXTURED_VERTEX).unwrap();
+            let vert_id = self
+                .id_register
+                .get::<utils::ids::ShaderId>(crate::key::shader::TEXTURED_VERTEX)
+                .unwrap();
             let frag_id = gpu_resources
                 .load_shader(
                     &gpu_ctx,
@@ -341,7 +418,7 @@ impl winit::application::ApplicationHandler for App {
         }
 
         let (Some(gpu_ctx), Some(scale), Some(renderer)) =
-            (&mut self.gpu_ctx, &self.scale, &self.renderer)
+            (&mut self.gpu_ctx, &self.scale, &mut self.renderer)
         else {
             return;
         };
@@ -439,15 +516,20 @@ impl winit::application::ApplicationHandler for App {
                             &mut self.cam,
                             dt,
                         );
-                        tracing::info!(
-                            "camera_pos: {:?}, shake: {:?}",
-                            frame.camera_pos,
-                            frame.cam_shake_offset
-                        );
-                        tracing::info!("screen: {}x{}", screen_size.width, screen_size.width);
                         // Rendu de la scène InGame
                         self.in_game_scene
                             .render(&mut frame, client_state, &mut self.resource, dt);
+
+                        {
+                            let hit_flash = self
+                                .resource
+                                .read_resource::<post_process_effect_type::HitFlashEffect>();
+                            renderer.write_post_process_uniform(
+                                gpu_ctx,
+                                *hit_flash.id,
+                                hit_flash.intensity,
+                            );
+                        }
                     }
                     _ => {
                         tracing::error!(
@@ -494,7 +576,7 @@ impl winit::application::ApplicationHandler for App {
             ui_ctx.update(dt);
             hud::prepare_hud(&mut frame, ui_ctx, &mut buf);
         }
-        
+
         if let Err(rejected_frame) = renderer.frame_manager().push(frame) {
             tracing::warn!("Frame rejetée : la file d'attente du FrameManager est pleine");
             let _ = rejected_frame;

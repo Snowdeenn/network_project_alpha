@@ -316,6 +316,14 @@ impl Renderer {
         let pass = &self.post_process_passes[id];
         pass.write_scratch_buffer(ctx, data);
     }
+
+    pub fn enable_post_process_pass(&mut self, id: crate::PostProcessPassId) {
+        self.post_process_passes[*id].enabled = true;
+    }
+
+    pub fn disable_post_process_pass(&mut self, id: crate::PostProcessPassId) {
+        self.post_process_passes[*id].enabled = false;
+    }
     
     pub fn create_pipeline(
         &mut self,

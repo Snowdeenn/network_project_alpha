@@ -33,6 +33,8 @@ pub struct PostProcessPass {
     scratch_buffer_size: u64,
     scratch_bind_group_layout: wgpu::BindGroupLayout,
     scratch_bind_group: Option<wgpu::BindGroup>,
+
+    pub enabled: bool,
 }
 
 impl PostProcessPass {
@@ -147,6 +149,7 @@ impl PostProcessPass {
             scratch_bind_group_layout,
             scratch_buffer,
             scratch_buffer_size,
+            enabled: true,
         })
     }
 
@@ -280,6 +283,10 @@ impl Pass for PostProcessPass {
         _gpu_resources: &GpuResources,
     ) {
         let _span = tracing::trace_span!("PostProcessPass::execute").entered();
+        if !self.enabled {
+            // Pass non active on ignore l'éxecution
+            return;
+        }
         let Some(bind_group) = &self.bind_group else {
             tracing::warn!("Exécution de PostProcessPass ignorée : BindGroup non disponible");
             return;

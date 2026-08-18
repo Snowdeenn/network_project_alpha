@@ -1,0 +1,19 @@
+@group(0) @binding(0) var scene_texture: texture_2d<f32>;
+@group(0) @binding(1) var scene_sampler: sampler;
+
+struct FlashUniform {
+    intensity: f32,
+}
+
+@group(1) @binding(0) var<uniform> flash: FlashUniform;
+
+struct FragmentInput {
+    @location(0) uv: vec2<f32>,
+};
+
+@fragment
+fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
+    let scene = textureSample(scene_texture, scene_sampler, in.uv);
+    let flash_color = vec4<f32>(1.0, 0.0, 0.0, flash.intensity);
+    return mix(scene, flash_color, flash_color.a);
+}

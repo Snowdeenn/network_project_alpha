@@ -385,9 +385,7 @@ impl Pass for WorldPass {
         target: &wgpu::TextureView,
         gpu_resources: &GpuResources,
     ) {
-        tracing::info!("target WorldPass addr: {:p}", target as *const _);
         if self.index_count == 0 {
-            tracing::warn!("Il n'y a rien a afficher dans la world pass");
             return;
         }
 

@@ -632,9 +632,7 @@ impl Pass for HudPass {
     ) {
         let has_geometry = !self.batches.is_empty();
         // La render pass doit avoir des vertex a dessiner sinon on skip
-        // ajout du log pour etre informer sans que le return soit silencieux
         if !has_geometry && !self.has_text {
-            tracing::warn!("Il n'y a rien a dessiner dans la hud pass");
             return;
         }
 

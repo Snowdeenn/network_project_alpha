@@ -243,7 +243,8 @@ impl ClientState {
                 self.ui.shared_lives.current = remaining;
                 self.ui.shared_lives.max = max;
             }
-            GameEventKind::GameOver => {}
+            GameEventKind::GameOver => {},
+            GameEventKind::PlayerHit => (), // On gère ça sur le niveau au dessus
         }
     }
 

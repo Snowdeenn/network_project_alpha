@@ -251,6 +251,12 @@ impl InGameScene {
         while let Some(event) = client.recv_event() {
             self.handle_vfx_event(&event, cam, resources);
             handle_shop_ui_event(&event, gui.ui_ctx, &gui.ids);
+
+            if matches!(event.kind, GameEventKind::PlayerHit) {
+                let mut hit_flash = resources.write_resource::<post_process_effect_type::HitFlashEffect>();
+                hit_flash.timer = hit_flash.total_duration;
+            }
+            
             state.handle_event(event);
         }
     }

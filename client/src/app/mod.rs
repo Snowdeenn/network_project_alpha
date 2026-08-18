@@ -246,7 +246,7 @@ impl winit::application::ApplicationHandler for App {
                 .get::<utils::ids::ShaderId>(crate::key::post::HIT_FLASH_FRAG)
                 .expect("Le hit flash id devrait être la");
 
-            let uniform = post_process_effect_type::HitFlashUniform { intensity: 1.0 };
+            let uniform = post_process_effect_type::HitFlashUniform { intensity: 0.5 };
             let hit_flash_id = match renderer.add_post_process_pass(
                 &gpu_ctx,
                 &gpu_resources,
@@ -261,10 +261,11 @@ impl winit::application::ApplicationHandler for App {
                     return;
                 }
             };
+            renderer.disable_post_process_pass(hit_flash_id);
             let hit_flash = post_process_effect_type::HitFlashEffect {
                 id: hit_flash_id,
-                timer: 0.5, // Valeur Temp a changer si besoin
-                total_duration: 0.5,
+                timer: 0.0, // Init à 0 parce que le joueur n'est pas hit
+                total_duration: 0.2,
                 intensity: uniform.intensity,
             };
             self.resource.insert(hit_flash);
@@ -495,6 +496,12 @@ impl winit::application::ApplicationHandler for App {
                 let client_ok = self.client.as_mut();
                 let ui_ok = self.ui_ctx.as_mut();
                 let gpu_resources_ok = self.gpu_resources.as_mut();
+
+                // Activation des RenderPass post process
+                {
+                    let hit_flash = self.resource.read_resource::<post_process_effect_type::HitFlashEffect>();
+                    renderer.enable_post_process_pass(hit_flash.id);
+                }
 
                 match (client_ok, ui_ok, gpu_resources_ok) {
                     (Some(client), Some(ui_ctx), Some(gpu_resources)) => {

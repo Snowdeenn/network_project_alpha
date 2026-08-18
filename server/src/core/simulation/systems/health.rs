@@ -73,11 +73,22 @@ pub fn health(
 
 #[system]
 #[write_component(Health)]
-pub fn apply_damage(world: &mut SubWorld, #[resource] damage_queue: &mut Queue<DamageEvent>) {
+#[read_component(Player)]
+pub fn apply_damage(
+    world: &mut SubWorld,
+    #[resource] damage_queue: &mut Queue<DamageEvent>,
+    #[resource] game_event_queue: &mut Queue<GameEvent>,
+) {
     for event in damage_queue.data.iter() {
         if let Ok(mut entry) = world.entry_mut(event.target) {
             if let Ok(health) = entry.get_component_mut::<Health>() {
                 health.hp = health.hp.saturating_sub(event.amount);
+                // On envoi l'event quand c'est le joueur
+                if let Ok(_) = entry.get_component::<Player>() {
+                    game_event_queue.push(GameEvent {
+                        kind: GameEventKind::PlayerHit,
+                    });
+                }
             }
         }
     }

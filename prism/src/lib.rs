@@ -17,7 +17,7 @@ pub use geometry::{
     tesselator::Tesselator,
 };
 pub use pass::{
-    HudInput, PostProcessInput, VfxInput, WorldInput, hud::HudPass, post_process::PostProcessPass,
+    HudInput, PostProcessInput, VfxInput, WorldInput, hud::HudPass, post_process::{PostProcessPass, PostProcessPassId},
     vfx::VfxPass, world::WorldPass,
     Pass,
 };

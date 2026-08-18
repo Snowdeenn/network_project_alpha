@@ -24,8 +24,6 @@ impl Renderer {
         gpu_resources: &mut crate::GpuResources,
         vert_shader: ShaderId,
         frag_shader: ShaderId,
-        post_vert: ShaderId,
-        post_frag: ShaderId,
         text_vert_id: ShaderId,
         text_frag_id: ShaderId,
     ) -> crate::Result<Self> {
@@ -55,13 +53,7 @@ impl Renderer {
             frag_shader,
             ctx.surface_format(),
         )?;
-        let post_process_passes = vec![crate::PostProcessPass::new(
-            &ctx,
-            gpu_resources,
-            post_vert,
-            post_frag,
-            ctx.surface_format(),
-        )?];
+        let post_process_passes = vec![];
         let frame_manager = crate::FrameManager::new();
         Ok(Self {
             pipelines,
@@ -114,7 +106,6 @@ impl Renderer {
         let surface_view = surface_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
-        tracing::info!("surface_view addr: {:p}", &surface_view as *const _);
         self.current_source = DoubleBufferIndex::Primary;
         let mut encoder = ctx.create_encoder("frame");
 
@@ -293,13 +284,14 @@ impl Renderer {
         }
     }
 
-    pub fn add_post_process_pass(
+    pub fn add_post_process_pass<Data: bytemuck::Pod + bytemuck::Zeroable>(
         &mut self,
         ctx: &crate::GpuContext,
         gpu_resources: &crate::GpuResources,
         vert_shader: ShaderId,
         frag_shader: ShaderId,
-    ) -> Result<(), crate::PrismError> {
+        uniform_data: Option<Data>,
+    ) -> Result<crate::PostProcessPassId, crate::PrismError> {
         let pass = crate::PostProcessPass::new(
             ctx,
             gpu_resources,
@@ -307,10 +299,24 @@ impl Renderer {
             frag_shader,
             ctx.surface_format(),
         )?;
+        if let Some(uniform_data) = uniform_data {
+            pass.write_scratch_buffer(ctx, uniform_data);
+        }
+        let id = crate::PostProcessPassId(self.post_process_passes.len());
         self.post_process_passes.push(pass);
-        Ok(())
+        Ok(id)
     }
 
+    pub fn write_post_process_uniform<Data: bytemuck::Pod + bytemuck::Zeroable>(
+        &mut self,
+        ctx: &crate::GpuContext,
+        id: usize,
+        data: Data,
+    ) {
+        let pass = &self.post_process_passes[id];
+        pass.write_scratch_buffer(ctx, data);
+    }
+    
     pub fn create_pipeline(
         &mut self,
         ctx: &crate::GpuContext,

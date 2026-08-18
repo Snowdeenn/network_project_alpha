@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{ops::Deref, sync::Arc};
 use utils::ids::ShaderId;
 
 use crate::{
@@ -8,6 +8,17 @@ use crate::{
     pass::{Pass, PostProcessInput},
 };
 
+#[repr(C)]
+#[derive(bytemuck::Zeroable, bytemuck::Pod, Clone, Copy)]
+pub struct PostProcessPassId(pub usize);
+
+impl Deref for PostProcessPassId {
+    type Target = usize;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 pub struct PostProcessPass {
     vert_shader: ShaderId,
     frag_shader: ShaderId,
@@ -16,6 +27,12 @@ pub struct PostProcessPass {
     bind_group: Option<wgpu::BindGroup>,
     sampler: wgpu::Sampler,
     surface_format: wgpu::TextureFormat,
+
+    // Buffer scratch pour les uniforms custom
+    scratch_buffer: wgpu::Buffer,
+    scratch_buffer_size: u64,
+    scratch_bind_group_layout: wgpu::BindGroupLayout,
+    scratch_bind_group: Option<wgpu::BindGroup>,
 }
 
 impl PostProcessPass {
@@ -53,6 +70,43 @@ impl PostProcessPass {
                         },
                     ],
                 });
+        // Scratch buffer pour les uniforms custom des matériaux (4KB)
+        let scratch_buffer_size = 4096u64;
+        let scratch_buffer = ctx.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Post-Process Pass Scratch Uniform Buffer"),
+            size: scratch_buffer_size,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        // Layout pour les uniforms custom
+        let scratch_bind_group_layout =
+            ctx.device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("Post-Process Pass Scratch BindGroup Layout"),
+                    entries: &[wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    }],
+                });
+        let scratch_bind_group = Some(ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Post-Process scratch buffer bind group"),
+            layout: &scratch_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                    buffer: &scratch_buffer,
+                    offset: 0,
+                    size: None, // TODO: Faire en sort d'exposer N byte en fonction du type de l'uniform
+                }),
+            }],
+        }));
 
         let sampler = ctx.device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("PostProcess Sampler"),
@@ -76,6 +130,7 @@ impl PostProcessPass {
             frag_shader,
             surface_format,
             &bind_group_layout,
+            &scratch_bind_group_layout,
         )?;
 
         tracing::info!("Passe de rendu PostProcessPass initialisée avec succès");
@@ -88,6 +143,10 @@ impl PostProcessPass {
             bind_group: None,
             sampler,
             surface_format,
+            scratch_bind_group,
+            scratch_bind_group_layout,
+            scratch_buffer,
+            scratch_buffer_size,
         })
     }
 
@@ -105,6 +164,7 @@ impl PostProcessPass {
             frag_shader,
             self.surface_format,
             &self.bind_group_layout,
+            &self.scratch_bind_group_layout,
         )?;
 
         self.vert_shader = vert_shader;
@@ -122,6 +182,7 @@ impl PostProcessPass {
         frag_shader: ShaderId,
         surface_format: wgpu::TextureFormat,
         bind_group_layout: &wgpu::BindGroupLayout,
+        scratch_goup_layout: &wgpu::BindGroupLayout,
     ) -> Result<wgpu::RenderPipeline, PassError> {
         let vs_module = gpu_resources.get_shader(vert_shader).ok_or_else(|| {
             tracing::error!(id = %vert_shader, "Vertex shader introuvable pour la PostProcessPass");
@@ -139,7 +200,7 @@ impl PostProcessPass {
             .device
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some(&pipeline_layout_label),
-                bind_group_layouts: &[Some(bind_group_layout)],
+                bind_group_layouts: &[Some(bind_group_layout), Some(scratch_goup_layout)],
                 immediate_size: 0,
             });
 
@@ -172,6 +233,16 @@ impl PostProcessPass {
                 multiview_mask: None,
                 cache: None,
             }))
+    }
+
+    // Helper pour écrire dans le scratch buffer sans l'exposer
+    pub fn write_scratch_buffer<Data: bytemuck::Pod + bytemuck::Zeroable>(
+        &self,
+        ctx: &GpuContext,
+        data: Data,
+    ) {
+        ctx.queue
+            .write_buffer(&self.scratch_buffer, 0, bytemuck::bytes_of(&data));
     }
 }
 
@@ -213,7 +284,13 @@ impl Pass for PostProcessPass {
             tracing::warn!("Exécution de PostProcessPass ignorée : BindGroup non disponible");
             return;
         };
-        
+        let Some(scratch_bind_group) = &self.scratch_bind_group else {
+            tracing::warn!(
+                "Exécution de PostProcessPass ignorée : Scratch BindGroup non disponible"
+            );
+            return;
+        };
+
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("PostProcess Render Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -221,7 +298,7 @@ impl Pass for PostProcessPass {
                 depth_slice: None,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::RED),
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                     store: wgpu::StoreOp::Store,
                 },
             })],
@@ -233,6 +310,7 @@ impl Pass for PostProcessPass {
 
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, bind_group, &[]);
+        pass.set_bind_group(1, scratch_bind_group, &[]);
         pass.draw(0..3, 0..1); // Triplet de sommets généré procéduralement dans le VS
     }
 }

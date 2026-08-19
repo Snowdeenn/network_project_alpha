@@ -6,3 +6,4 @@ pub mod net;
 pub mod protocol;
 pub mod math;
 pub mod colors;
+pub mod map;

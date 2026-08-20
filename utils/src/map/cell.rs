@@ -1,10 +1,11 @@
-#[derive(Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CellKind {
     #[default]
     Floor,
     Wall,
     Spawn,
     Water,
+    Debris
 }
 
 #[derive(Default, Clone, Copy)]

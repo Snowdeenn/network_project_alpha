@@ -25,7 +25,7 @@ impl Grid {
     }
 
     pub fn get<'a>(&'a self, x: u32, y: u32) -> Option<&'a Cell> {
-        let idx = (y as f32 * self.cell_size + x as f32) as usize;
+        let idx = self.cell_index(x, y);
         if idx < self.cells.len() {
             Some(&self.cells[idx])
         } else {
@@ -34,7 +34,7 @@ impl Grid {
     }
 
     pub fn get_mut<'a>(&'a mut self, x: u32, y: u32) -> Option<&'a mut Cell> {
-        let idx = (y as f32 * self.cell_size + x as f32) as usize;
+        let idx = self.cell_index(x, y);
         if idx < self.cells.len() {
             Some(&mut self.cells[idx])
         } else {
@@ -224,17 +224,18 @@ mod tests {
 
         // Coin haut-gauche : seulement 2 voisins
         let corner_neighbors = grid.neighbors(0, 0);
-        assert_eq!(corner_neighbors.len(), 2);
+        assert_eq!(corner_neighbors.len(), 3);
         assert!(corner_neighbors.contains(&(1, 0)));
         assert!(corner_neighbors.contains(&(0, 1)));
+        assert!(corner_neighbors.contains(&(1, 1)));
 
-        // Centre : 4 voisins
+        // Centre : 8 voisins
         let center_neighbors = grid.neighbors(2, 2);
-        assert_eq!(center_neighbors.len(), 4);
+        assert_eq!(center_neighbors.len(), 8);
 
-        // Bord droit : 3 voisins
+        // Bord droit : 5 voisins
         let edge_neighbors = grid.neighbors(4, 2);
-        assert_eq!(edge_neighbors.len(), 3);
+        assert_eq!(edge_neighbors.len(), 5);
     }
 
     #[test]

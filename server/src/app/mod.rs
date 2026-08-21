@@ -11,20 +11,22 @@ use utils::config::{ClassConfig, ClassRegistery, GameConfig, PlayerClass};
 use utils::protocol::*;
 
 use crate::core::config::*;
+use crate::core::flow_field_manager::FlowFieldManager;
 use crate::core::lobby;
-use crate::net::server::GameNetServer;
 use crate::core::player_registry::PlayerRegistry;
 use crate::core::pool::{GamePools, PoolManager};
 use crate::core::queue::Queue;
 use crate::core::session::*;
+use crate::core::simulation::spatial_grid::SpatialGrid;
+use crate::core::simulation::systems::flow_field::update_flow_fields_system;
 use crate::core::simulation::systems::{
     attack::*, coin::*, debug::*, health::*, ia::*, physics::*, state::dash_system, wave::*,
 };
 use crate::core::simulation::{
     components::*, eco::*, event::*, helper::clear_resource_queues, shop::PlayerShops, wave::*,
 };
+use crate::net::server::GameNetServer;
 use crate::net::snapshot::{build_entities, build_player_info, build_wave_info};
-use crate::core::simulation::spatial_grid::SpatialGrid;
 
 const TICK_DURATION: Duration = Duration::from_millis(50);
 
@@ -173,8 +175,28 @@ impl ServerApp {
             resources.insert(physics_config);
         }
 
+        // --- Map Grid --
+        {
+            let grid = {
+                let game_config = resources.get::<GameConfig>().unwrap();
+                let cell_size = 64.0;
+                let grid_w = (game_config.arena_w as f32 / cell_size).ceil() as u32; // ex: 1920 / 64 = 30 cases
+                let grid_h = (game_config.arena_h as f32 / cell_size).ceil() as u32; // ex: 1080 / 64 = 17 cases
+
+                utils::map::grid::Grid::new(grid_w, grid_h, cell_size)
+            };
+            resources.insert(grid);
+        }
+
+        // --- FlowFieldManager ---
+        {
+            let flow_field_manager = FlowFieldManager::default();
+            resources.insert(flow_field_manager);
+        }
+
         let schedule = Schedule::builder()
             .add_system(ia_targeting_system())
+            .add_system(update_flow_fields_system())
             .add_system(friction_system())
             .add_system(update_velocity_system())
             .add_system(melee_ia_movement_system())

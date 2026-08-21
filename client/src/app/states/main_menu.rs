@@ -75,7 +75,7 @@ pub fn render(frame: &mut prism::Frame, s: &crate::rendering::ScreenScale) {
 
 pub fn render_connecting(frame: &mut prism::Frame, s: &crate::rendering::ScreenScale) {
     frame.push_hud(prism::DrawCommand::Text {
-        content: "Project Alpha".to_string(),
+        content: "Connecting ...".to_string(),
         pos: [s.x(0.38) as f32, s.y(0.48) as f32],
         size: s.font(0.035) as f32,
         color: [

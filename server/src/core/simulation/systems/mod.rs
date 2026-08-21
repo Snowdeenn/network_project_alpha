@@ -7,3 +7,4 @@ pub mod physics;
 pub mod spawn;
 pub mod state;
 pub mod wave;
+pub mod flow_field;

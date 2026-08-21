@@ -1,11 +1,13 @@
+use crate::core::flow_field_manager::FlowFieldManager;
 use crate::core::queue::Queue;
 use crate::core::simulation::components::*;
 use crate::core::simulation::event::DamageEvent;
 use arrayvec::ArrayVec;
 use legion::world::SubWorld;
 use legion::*;
-use utils::buffer::BufferManager;
+use utils::map::grid::Grid;
 use std::collections::HashMap;
+use utils::buffer::BufferManager;
 
 #[system]
 #[read_component(Player)]
@@ -60,7 +62,21 @@ pub fn ia_targeting(world: &mut SubWorld, #[resource] buff_manager: &mut BufferM
 #[read_component(MeleeBrain)]
 #[read_component(AttackStats)]
 #[read_component(MovementStats)]
-pub fn melee_ia_movement(world: &mut SubWorld, #[resource] buff_manager: &mut BufferManager) {
+#[filter(component::<IA>() & (component::<MeleeBrain>() | component::<KamikazeBrain>()))]
+pub fn melee_ia_movement(
+    world: &mut SubWorld,
+    #[resource] buff_manager: &mut BufferManager,
+    #[resource] flow_field_manager: &FlowFieldManager,
+    #[resource] grid: &Grid,
+    query: &mut Query<(
+        &Position,
+        &Active,
+        &Target,
+        &mut Velocity,
+        &AttackStats,
+        &MovementStats,
+    )>,
+) {
     let (player_pos_id, player_positions) =
         buff_manager.acquire::<HashMap<Entity, Position>>().expect(
             "[BufferManager] devrait retourner un tuple avec l'id et le HashMap<Entity, Position>",
@@ -72,16 +88,6 @@ pub fn melee_ia_movement(world: &mut SubWorld, #[resource] buff_manager: &mut Bu
             .iter(&*world)
             .map(|(entity, pos)| (*entity, *pos)),
     );
-
-    let mut query = <(
-        &Position,
-        &Active,
-        &Target,
-        &mut Velocity,
-        &AttackStats,
-        &MovementStats,
-    )>::query()
-    .filter(component::<IA>() & (component::<MeleeBrain>() | component::<KamikazeBrain>()));
 
     for (ia_pos, active, target, velo, stats, mov_stats) in query.iter_mut(world) {
         if !active.0 {
@@ -95,14 +101,14 @@ pub fn melee_ia_movement(world: &mut SubWorld, #[resource] buff_manager: &mut Bu
                 let distance = (dx * dx + dy * dy).sqrt();
 
                 if distance > (stats.range - 5.0) {
-                    velo.dx = (dx / distance)
-                        * mov_stats
-                            .accel
-                            .clamp(-mov_stats.max_speed, mov_stats.max_speed);
-                    velo.dy = (dy / distance)
-                        * mov_stats
-                            .accel
-                            .clamp(-mov_stats.max_speed, mov_stats.max_speed);
+                   let ia_vec = utils::math::Vec2::new(ia_pos.x as f32, ia_pos.y as f32);
+                    
+                    // On récupère le vecteur de direction qui évite les murs
+                    let dir = flow_field_manager.get_direction(grid, target_entity, ia_vec);
+                    let speed = mov_stats.accel.clamp(-mov_stats.max_speed, mov_stats.max_speed);
+
+                    velo.dx = dir.x as f64 * speed;
+                    velo.dy = dir.y as f64 * speed;
                 } else {
                     velo.dx = 0.0;
                     velo.dy = 0.0;

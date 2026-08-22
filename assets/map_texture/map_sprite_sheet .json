@@ -1,0 +1,345 @@
+{
+  "frames": {
+    "map_sprite_sheet .png": {
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 1025,
+        "h": 1025
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1025,
+        "h": 1025
+      },
+      "sourceSize": {
+        "w": 1025,
+        "h": 1025
+      },
+      "duration": 100
+    }
+  },
+  "meta": {
+    "app": "https://www.aseprite.org/",
+    "version": "1.3.18.2-4-gd586b3f3f-dev",
+    "format": "RGBA8888",
+    "size": {
+      "w": 1025,
+      "h": 1025
+    },
+    "scale": "1",
+    "frameTags": [],
+    "layers": [
+      {
+        "name": "Layer",
+        "opacity": 255,
+        "blendMode": "normal"
+      }
+    ],
+    "slices": [
+      {
+        "name": "mur_plat_angle_bas_gauche",
+        "color": "#0000ffff",
+        "keys": [
+          {
+            "frame": 0,
+            "bounds": {
+              "x": 152,
+              "y": 120,
+              "w": 24,
+              "h": 16
+            }
+          }
+        ]
+      },
+      {
+        "name": "mur_plat_angle_bas_droit",
+        "color": "#0000ffff",
+        "keys": [
+          {
+            "frame": 0,
+            "bounds": {
+              "x": 240,
+              "y": 120,
+              "w": 24,
+              "h": 16
+            }
+          }
+        ]
+      },
+      {
+        "name": "mur_plat_angle_droit",
+        "color": "#0000ffff",
+        "keys": [
+          {
+            "frame": 0,
+            "bounds": {
+              "x": 426,
+              "y": 64,
+              "w": 22,
+              "h": 16
+            }
+          }
+        ]
+      },
+      {
+        "name": "mur_plat_angle_gauche",
+        "color": "#0000ffff",
+        "keys": [
+          {
+            "frame": 0,
+            "bounds": {
+              "x": 384,
+              "y": 64,
+              "w": 22,
+              "h": 16
+            }
+          }
+        ]
+      },
+      {
+        "name": "mur_plat",
+        "color": "#0000ffff",
+        "keys": [
+          {
+            "frame": 0,
+            "bounds": {
+              "x": 384,
+              "y": 32,
+              "w": 64,
+              "h": 8
+            }
+          }
+        ]
+      },
+      {
+        "name": "mur_plat_droit",
+        "color": "#0000ffff",
+        "keys": [
+          {
+            "frame": 0,
+            "bounds": {
+              "x": 335,
+              "y": 64,
+              "w": 17,
+              "h": 64
+            }
+          }
+        ]
+      },
+      {
+        "name": "mur_plat_gauche",
+        "color": "#0000ffff",
+        "keys": [
+          {
+            "frame": 0,
+            "bounds": {
+              "x": 288,
+              "y": 65,
+              "w": 16,
+              "h": 64
+            }
+          }
+        ]
+      },
+      {
+        "name": "mur_angle_bas_droit",
+        "color": "#0000ffff",
+        "keys": [
+          {
+            "frame": 0,
+            "bounds": {
+              "x": 240,
+              "y": 32,
+              "w": 25,
+              "h": 64
+            }
+          }
+        ]
+      },
+      {
+        "name": "mur_angle_bas_gauche",
+        "color": "#0000ffff",
+        "keys": [
+          {
+            "frame": 0,
+            "bounds": {
+              "x": 152,
+              "y": 32,
+              "w": 25,
+              "h": 64
+            }
+          }
+        ]
+      },
+      {
+        "name": "mur_angle_haut_droit",
+        "color": "#0000ffff",
+        "keys": [
+          {
+            "frame": 0,
+            "bounds": {
+              "x": 106,
+              "y": 90,
+              "w": 22,
+              "h": 70
+            }
+          }
+        ]
+      },
+      {
+        "name": "mur_angle_haut_gauche",
+        "color": "#0000ffff",
+        "keys": [
+          {
+            "frame": 0,
+            "bounds": {
+              "x": 32,
+              "y": 91,
+              "w": 22,
+              "h": 69
+            }
+          }
+        ]
+      },
+      {
+        "name": "mur_simple_2",
+        "color": "#0000ffff",
+        "keys": [
+          {
+            "frame": 0,
+            "bounds": {
+              "x": 128,
+              "y": 288,
+              "w": 64,
+              "h": 64
+            }
+          }
+        ]
+      },
+      {
+        "name": "mur_simple",
+        "color": "#0000ffff",
+        "keys": [
+          {
+            "frame": 0,
+            "bounds": {
+              "x": 32,
+              "y": 288,
+              "w": 64,
+              "h": 64
+            }
+          }
+        ]
+      },
+      {
+        "name": "tree",
+        "color": "#0000ffff",
+        "keys": [
+          {
+            "frame": 0,
+            "bounds": {
+              "x": 159,
+              "y": 522,
+              "w": 105,
+              "h": 150
+            }
+          }
+        ]
+      },
+      {
+        "name": "wall_bush",
+        "color": "#0000ffff",
+        "keys": [
+          {
+            "frame": 0,
+            "bounds": {
+              "x": 282,
+              "y": 695,
+              "w": 43,
+              "h": 52
+            }
+          }
+        ]
+      },
+      {
+        "name": "moyen_cailloux",
+        "color": "#0000ffff",
+        "keys": [
+          {
+            "frame": 0,
+            "bounds": {
+              "x": 673,
+              "y": 479,
+              "w": 32,
+              "h": 32
+            }
+          }
+        ]
+      },
+      {
+        "name": "flower",
+        "color": "#0000ffff",
+        "keys": [
+          {
+            "frame": 0,
+            "bounds": {
+              "x": 638,
+              "y": 589,
+              "w": 64,
+              "h": 64
+            }
+          }
+        ]
+      },
+      {
+        "name": "tile",
+        "color": "#0000ffff",
+        "keys": [
+          {
+            "frame": 0,
+            "bounds": {
+              "x": 513,
+              "y": 640,
+              "w": 64,
+              "h": 64
+            }
+          }
+        ]
+      },
+      {
+        "name": "grass",
+        "color": "#0000ffff",
+        "keys": [
+          {
+            "frame": 0,
+            "bounds": {
+              "x": 512,
+              "y": 512,
+              "w": 64,
+              "h": 64
+            }
+          }
+        ]
+      },
+      {
+        "name": "gros_cailloux",
+        "color": "#0000ffff",
+        "keys": [
+          {
+            "frame": 0,
+            "bounds": {
+              "x": 509,
+              "y": 428,
+              "w": 69,
+              "h": 46
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -15,3 +15,4 @@ serde      = { version = "1", features = ["derive"] }
 serde_json = "1"
 arrayvec = "0.7.7"
 itertools = "0.15"
+weave = { git = "https://github.com/Snowdeenn/weave.git" }

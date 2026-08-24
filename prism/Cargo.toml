@@ -14,6 +14,7 @@ bytemuck = "1"
 thiserror = "2.0.19"
 utils = { path = "../utils" }
 tracing = "0.1"
+weave = { git = "https://github.com/Snowdeenn/weave.git" }
 
 [[example]]
 name = "demo"

@@ -495,6 +495,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "utils",
+ "weave",
  "wgpu",
  "winit",
 ]
@@ -1825,6 +1826,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "num_cpus"
+version = "1.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91df4bbde75afed763b708b7eee1e8e7651e02d97f6d5dd763e89367e957b23b"
+dependencies = [
+ "hermit-abi",
+ "libc",
+]
+
+[[package]]
 name = "num_enum"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2375,6 +2386,7 @@ dependencies = [
  "thiserror 2.0.19",
  "tracing",
  "utils",
+ "weave",
  "wgpu",
  "winit",
 ]
@@ -2978,6 +2990,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "utils",
+ "weave",
 ]
 
 [[package]]
@@ -3529,6 +3542,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tracing",
+ "weave",
 ]
 
 [[package]]
@@ -3800,6 +3814,15 @@ dependencies = [
  "log",
  "once_cell",
  "pkg-config",
+]
+
+[[package]]
+name = "weave"
+version = "0.1.0"
+source = "git+https://github.com/Snowdeenn/weave.git#6471729388e1bf8f2f597cb63912aa7065c3f91e"
+dependencies = [
+ "num_cpus",
+ "tracing",
 ]
 
 [[package]]

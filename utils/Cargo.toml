@@ -12,3 +12,4 @@ bytemuck = { version = "1.25", features = ["derive"] }
 tracing = "0.1"
 noise = "0.9"
 rand  = "0.8"
+weave = { git = "https://github.com/Snowdeenn/weave.git" }

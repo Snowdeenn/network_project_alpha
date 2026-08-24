@@ -2983,6 +2983,7 @@ dependencies = [
  "bincode",
  "itertools 0.15.0",
  "legion",
+ "num_cpus",
  "rand 0.10.1",
  "renet",
  "renet_netcode",
@@ -3819,7 +3820,7 @@ dependencies = [
 [[package]]
 name = "weave"
 version = "0.1.0"
-source = "git+https://github.com/Snowdeenn/weave.git#6471729388e1bf8f2f597cb63912aa7065c3f91e"
+source = "git+https://github.com/Snowdeenn/weave.git#cf385efc3fa811be9014dae69c4f1fed5ea88a38"
 dependencies = [
  "num_cpus",
  "tracing",

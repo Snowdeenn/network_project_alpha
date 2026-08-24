@@ -18,14 +18,40 @@ impl Generator {
             width,
             height,
             scale: 1.0,
-            wall_threshold: 0.3,
+            wall_threshold: 0.15,
         }
     }
 
     pub fn generate(&self) -> super::grid::Grid {
         let mut grid = super::grid::Grid::new(self.width, self.height, 64.0);
         self.apply_noise(&mut grid);
+        let floor_after_noise = grid
+            .iter()
+            .filter(|c| matches!(c.kind, crate::map::cell::CellKind::Floor))
+            .count();
+        let wall_after_noise = grid
+            .iter()
+            .filter(|c| matches!(c.kind, crate::map::cell::CellKind::Wall))
+            .count();
+        tracing::info!(
+            "Après noise — Floor: {}, Wall: {}",
+            floor_after_noise,
+            wall_after_noise
+        );
         self.smooth(&mut grid);
+        let floor_after_noise = grid
+            .iter()
+            .filter(|c| matches!(c.kind, crate::map::cell::CellKind::Floor))
+            .count();
+        let wall_after_noise = grid
+            .iter()
+            .filter(|c| matches!(c.kind, crate::map::cell::CellKind::Wall))
+            .count();
+        tracing::info!(
+            "Après smooth — Floor: {}, Wall: {}",
+            floor_after_noise,
+            wall_after_noise
+        );
         Self::flood_fill_connectivity(&mut grid);
         Self::clear_player_zone(&mut grid);
         Self::place_spawn_zone(&mut grid);

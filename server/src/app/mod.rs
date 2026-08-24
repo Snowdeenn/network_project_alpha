@@ -183,7 +183,9 @@ impl ServerApp {
                 let grid_w = (game_config.arena_w as f32 / cell_size).ceil() as u32; // ex: 1920 / 64 = 30 cases
                 let grid_h = (game_config.arena_h as f32 / cell_size).ceil() as u32; // ex: 1080 / 64 = 17 cases
 
-                utils::map::grid::Grid::new(grid_w, grid_h, cell_size)
+                let generator = utils::map::generator::Generator::new(42, grid_w, grid_h);
+                generator.generate()
+                // utils::map::grid::Grid::new(grid_w, grid_h, 64.0)
             };
             resources.insert(grid);
         }
@@ -192,6 +194,15 @@ impl ServerApp {
         {
             let flow_field_manager = FlowFieldManager::default();
             resources.insert(flow_field_manager);
+        }
+
+        // --- ThreadPool ---
+        {
+            let thread_pool = weave::ThreadPoolBuidler::new()
+                .num_thread(num_cpus::get())
+                .thread_name("ThreadPool Server")
+                .build();
+            resources.insert(thread_pool);
         }
 
         let schedule = Schedule::builder()

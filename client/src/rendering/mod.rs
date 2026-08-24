@@ -4,6 +4,7 @@ pub mod vfx;
 
 use crate::graphic_data::animation::AnimEntityManager;
 use crate::graphic_data::animation_manager::{AnimKey, BossState, EnemyState, PlayerState};
+
 #[derive(Clone, Copy)]
 pub struct ScreenScale {
     pub w: f32,

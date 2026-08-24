@@ -13,6 +13,7 @@ use crate::core::client::GameNetClient;
 use crate::core::event::AppScreen;
 use crate::graphic_data::asset_manager::AssetManager;
 use crate::graphic_data::post_process_effect_type;
+use crate::graphic_data::tile_map::TileMap;
 use crate::rendering::ScreenScale;
 use crate::rendering::camera::Camera;
 use crate::rendering::vfx::particle::ParticlePool;
@@ -26,6 +27,7 @@ pub struct App {
     renderer: Option<prism::Renderer>,
     ui_ctx: Option<nodus::UiContext>,
     client: Option<GameNetClient>,
+    map: Option<TileMap>,
     resource: Resources,
     id_register: utils::ids::Register,
     client_id: u64,
@@ -56,6 +58,7 @@ impl App {
             gpu_resources: None,
             ui_ctx: None,
             client: None,
+            map: None,
             resource,
             id_register,
             client_id: rand::random::<u64>(),
@@ -101,6 +104,14 @@ impl winit::application::ApplicationHandler for App {
                 return;
             }
         };
+
+        // Création de la grid temp a la fin il faut la créer via la seed envoyer par le server
+        {
+            let generator =
+                utils::map::generator::Generator::new(42, 150, 100);
+            let grid = generator.generate();
+            self.resource.insert(grid);
+        }
         let mut gpu_resources = prism::GpuResources::new(&gpu_ctx);
 
         // Chargement des shaders par defaut
@@ -341,12 +352,22 @@ impl winit::application::ApplicationHandler for App {
             states::lobby::init_lobby(&mut ui_ctx, &mut self.id_register);
         }
 
+        let map = match TileMap::new(&mut gpu_resources, &gpu_ctx) {
+            Ok(map) => map,
+            Err(e) => {
+                tracing::error!("Erreur lors de la création de la map : {e}");
+                event_loop.exit();
+                return;
+            }
+        };
+
         self.window = Some(window);
         self.renderer = Some(renderer);
         self.ui_ctx = Some(ui_ctx);
         self.scale = Some(scale);
         self.gpu_ctx = Some(gpu_ctx);
         self.gpu_resources = Some(gpu_resources);
+        self.map = Some(map);
 
         tracing::info!("Application initialisée et prête");
     }
@@ -499,7 +520,9 @@ impl winit::application::ApplicationHandler for App {
 
                 // Activation des RenderPass post process
                 {
-                    let hit_flash = self.resource.read_resource::<post_process_effect_type::HitFlashEffect>();
+                    let hit_flash = self
+                        .resource
+                        .read_resource::<post_process_effect_type::HitFlashEffect>();
                     renderer.enable_post_process_pass(hit_flash.id);
                 }
 
@@ -526,6 +549,16 @@ impl winit::application::ApplicationHandler for App {
                         // Rendu de la scène InGame
                         self.in_game_scene
                             .render(&mut frame, client_state, &mut self.resource, dt);
+
+                        if let Some(map) = &self.map {
+                            map.draw(
+                                &self.resource,
+                                gpu_resources,
+                                &mut frame,
+                                screen_size.width as f32,
+                                screen_size.height as f32,
+                            );
+                        }
 
                         {
                             let hit_flash = self

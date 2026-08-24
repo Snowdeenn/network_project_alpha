@@ -7,8 +7,8 @@ use utils::buffer::BufferManager;
 use std::time::Duration;
 
 const FRICTION: f64 = 0.85;
-const ARENA_W: f64 = 1920.0;
-const ARENA_H: f64 = 1080.0;
+const ARENA_W: f64 = 9600.0;
+const ARENA_H: f64 = 6400.0;
 
 #[system(for_each)]
 pub fn update_position(pos: &mut Position, velo: &Velocity, #[resource] dt: &Duration) {

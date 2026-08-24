@@ -2,8 +2,8 @@
   "max_players": 4,
   "shared_lives": 4,
   "respawn_delay_secs": 5.0,
-  "arena_w": 1920.0,
-  "arena_h": 1080.0,
+  "arena_w": 9600.0,
+  "arena_h": 6400.0,
   "spectator_toggle_key": "Tab",
   "spawn_points": [
     { "x": 200.0, "y": 200.0 },

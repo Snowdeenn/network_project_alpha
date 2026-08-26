@@ -1,5 +1,5 @@
+use crate::app::resources::Resources;
 use crate::core::client::GameNetClient;
-use crate::core::event::ClientState;
 use utils::protocol::InputPacket;
 use utils::protocol::{ShopAction, ShopActionKind};
 use std::collections::HashSet;
@@ -122,24 +122,26 @@ pub enum ShopInputAction {
 pub fn handle_shop_input(
     input_state: &Input,
     client: &mut GameNetClient,
-    state: &mut ClientState,
+    resource: &mut Resources,
 ) -> ShopInputAction {
     if !input_state.is_just_pressed(winit::keyboard::KeyCode::KeyG) {
         return ShopInputAction::None;
     }
 
-    if state.phase.can_show_shop() && !state.shop_ui.is_open() {
+    let phase = resource.read_resource::<crate::core::game_phase::GamePhase>();
+    let mut shop = resource.write_resource::<crate::core::shop_state::ShopUiState>();
+    if phase.can_show_shop() && !shop.is_open() {
         client.send_shop_action(&ShopAction {
             kind: ShopActionKind::Open,
             slot: 0,
         });
         ShopInputAction::Open
-    } else if state.shop_ui.is_open() {
+    } else if shop.is_open() {
         client.send_shop_action(&ShopAction {
             kind: ShopActionKind::Close,
             slot: 0,
         });
-        state.close_shop();
+        shop.close();
         ShopInputAction::Close
     } else {
         ShopInputAction::None

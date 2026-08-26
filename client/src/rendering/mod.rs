@@ -155,8 +155,10 @@ fn draw_fallback(
     }
 }
 
-pub(crate) fn render_hud(frame: &mut prism::Frame, client_state: &crate::core::event::ClientState) {
-    if let crate::core::event::GamePhase::BetweenWave { time_remaining, .. } = client_state.phase {
+pub(crate) fn render_hud(frame: &mut prism::Frame, resources: &crate::app::resources::Resources) {
+    if let crate::core::game_phase::GamePhase::BetweenWave { time_remaining, .. } =
+        *resources.read_resource::<crate::core::game_phase::GamePhase>()
+    {
         frame.push_hud(prism::DrawCommand::Text {
             content: format!(
                 "Temps avant la prochaine vague {}s",
@@ -168,7 +170,6 @@ pub(crate) fn render_hud(frame: &mut prism::Frame, client_state: &crate::core::e
             layer: 10,
         });
     }
-    
 }
 
 fn resolve_anim(

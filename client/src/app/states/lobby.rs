@@ -7,7 +7,8 @@ use crate::{
     app::input::Input,
     core::{
         client::GameNetClient,
-        event::{AppScreen, ClientState, LobbyScreenState},
+        screen::AppScreen,
+        lobby::LobbyScreenState,
     },
 };
 
@@ -350,7 +351,7 @@ pub fn handle_lobby_message(msg: LobbyMessage, screen: &mut AppScreen, is_solo: 
             }
         }
         LobbyMessage::GameStarting { .. } => {
-            *screen = AppScreen::InGame(ClientState::new());
+            *screen = AppScreen::InGame;
         }
         LobbyMessage::SessionError { reason } => {
             println!("Session error: {:?}", reason);

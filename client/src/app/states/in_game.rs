@@ -8,7 +8,7 @@ use crate::app::input::{self, Input, ShopInputAction};
 use crate::app::resources::Resources;
 use crate::core::client::GameNetClient;
 use crate::core::config;
-use crate::core::event::{ClientState, LocalId, handle_shop_ui_event};
+use crate::core::event::{handle_shop_ui_event};
 use crate::graphic_data::animation::AnimEntityManager;
 use crate::graphic_data::post_process_effect_type;
 use crate::rendering::ScreenScale;
@@ -97,7 +97,6 @@ impl InGameScene {
         resources: &mut Resources,
         client: &mut GameNetClient,
         screen_size: winit::dpi::PhysicalSize<u32>,
-        client_state: &mut ClientState,
         gui: &mut GuiContext,
         input_state: &Input,
         scale: &ScreenScale,
@@ -105,13 +104,13 @@ impl InGameScene {
         dt: f32,
     ) {
         self.process_snapshots(client, gui, resources);
-        self.process_game_event(client, client_state, gui, resources, cam);
-        self.handle_ui(client_state, gui, input_state);
-        self.handle_shop(scale, client, client_state, gui, input_state);
+        self.process_game_event(client, gui, resources, cam);
+        self.handle_ui(gui, input_state, resources);
+        self.handle_shop(scale, client, gui, input_state, resources);
         self.process_network_ticks(client, screen_size, input_state);
 
         // Mises à jour logiques
-        client_state.update_timers(dt);
+        crate::core::update_state_timer(resources, dt);
         {
             resources.write_resource::<ParticlePool>().update(dt);
             resources.write_resource::<VfxManager>().update(dt);
@@ -132,7 +131,6 @@ impl InGameScene {
     pub fn render(
         &mut self,
         frame: &mut prism::Frame,
-        client_state: &mut ClientState,
         resources: &mut Resources,
         dt: f32,
     ) {
@@ -140,8 +138,9 @@ impl InGameScene {
             / Ticks::TICK_DURATION.as_secs_f32())
         .clamp(0.0, 1.0);
 
-        match &client_state.phase {
-            crate::core::event::GamePhase::Dead => {
+        let phase = resources.read_resource::<crate::core::game_phase::GamePhase>();
+        match *phase {
+            crate::core::game_phase::GamePhase::Dead => {
                 frame.push_world(prism::DrawCommand::Text {
                     content: "YOU'RE DEAD".to_string(),
                     pos: [400.0, 300.0],
@@ -166,7 +165,7 @@ impl InGameScene {
                 }
             }
         }
-        crate::rendering::render_hud(frame, client_state);
+        crate::rendering::render_hud(frame, resources);
     }
 
     /// Réception des snapshots, MAJ du HUD et génération des particules de mouvement
@@ -194,7 +193,7 @@ impl InGameScene {
                     .as_ref()
                     .and_then(|p| p.entities.iter().find(|e| e.entity_id == entity.entity_id));
 
-                let player_entity_id = resources.read_resource::<LocalId>().entity_id;
+                let player_entity_id = resources.read_resource::<crate::core::LocalId>().entity_id;
                 
                 if entity.entity_id == player_entity_id {
                     resources.insert(utils::math::Vec2::new(entity.position[0], entity.position[1]));
@@ -245,7 +244,6 @@ impl InGameScene {
     fn process_game_event(
         &mut self,
         client: &mut GameNetClient,
-        state: &mut ClientState,
         gui: &mut GuiContext,
         resources: &mut Resources,
         cam: &mut Camera,
@@ -259,7 +257,7 @@ impl InGameScene {
                 hit_flash.timer = hit_flash.total_duration;
             }
             
-            state.handle_event(event);
+            crate::core::event::handle_event(event, resources);
         }
     }
 
@@ -310,9 +308,9 @@ impl InGameScene {
     /// Traitement des entrées utilisateur globales et dépouillement des événements réseau
     fn handle_ui(
         &mut self,
-        client_state: &mut ClientState,
         gui: &mut GuiContext,
         input_state: &Input,
+        resources: &mut Resources
     ) {
         let mouse_pos = input_state.mouse_position();
         let pressed = input_state.is_mouse_pressed(winit::event::MouseButton::Left);
@@ -320,7 +318,8 @@ impl InGameScene {
         gui.ui_ctx
             .process_input(Vec2::new(mouse_pos.0, mouse_pos.1), pressed, released);
 
-        client_state.debug.cleared = false;
+        let mut debug = resources.write_resource::<crate::core::debug_state::DebugState>();
+        debug.cleared = false;
     }
 
     /// Gestion des raccourcis et des clics d'achat dans la boutique
@@ -328,9 +327,9 @@ impl InGameScene {
         &mut self,
         scale: &ScreenScale,
         client: &mut GameNetClient,
-        client_state: &mut ClientState,
         gui: &mut GuiContext,
         input_state: &Input,
+        resources: &mut Resources,
     ) {
         let root = match gui.ids.get::<nodus::NodeId>(crate::key::shop::ROOT) {
             Some(id) => id,
@@ -339,18 +338,19 @@ impl InGameScene {
                 return;
             }
         };
-        match input::handle_shop_input(input_state, client, client_state) {
+        match input::handle_shop_input(input_state, client, resources) {
             ShopInputAction::Close => {
                 gui.ui_ctx.send_event(nodus::UIEvent::SetVisible {
                     target: root,
                     visible: false,
                 });
-                client_state.close_shop();
+                let mut shop = resources.write_resource::<crate::core::shop_state::ShopUiState>();
+                shop.close();
             }
             ShopInputAction::Open | ShopInputAction::None => {}
         }
 
-        if client_state.phase.can_show_shop()
+        if resources.read_resource::<crate::core::game_phase::GamePhase>().can_show_shop()
             && input_state.is_mouse_pressed(winit::event::MouseButton::Left)
         {
             let mouse_pos = input_state.mouse_position();

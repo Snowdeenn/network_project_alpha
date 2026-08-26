@@ -9,8 +9,8 @@ use crate::app::input::Input;
 use crate::app::resources::Resources;
 use crate::app::states::in_game::InGameScene;
 use crate::app::states::main_menu::MenuAction;
+use crate::core;
 use crate::core::client::GameNetClient;
-use crate::core::event::{AppScreen, DebugMode};
 use crate::graphic_data::asset_manager::AssetManager;
 use crate::graphic_data::post_process_effect_type;
 use crate::graphic_data::tile_map::TileMap;
@@ -54,7 +54,7 @@ pub struct App {
     id_register: utils::ids::Register,
     client_id: ClientId,
     in_game_scene: InGameScene,
-    screen: AppScreen,
+    screen: core::screen::AppScreen,
     is_solo: bool,
     input_state: Input,
     last_frame: std::time::Instant,
@@ -69,6 +69,13 @@ impl App {
         resource.insert(BufferManager::with_capacity(16));
         resource.insert(ParticlePool::new());
         resource.insert(nodus::DrawCommandBuffer::new(2048));
+        resource.insert(core::ui_state::UiState::default());
+        let spec_mod: Option<core::ui_state::SpectatorMode> = None;
+        resource.insert(spec_mod);
+        resource.insert(core::game_phase::GamePhase::default());
+        resource.insert(core::debug_state::DebugState::default());
+        resource.insert(core::LocalId::default());
+        resource.insert(core::shop_state::ShopUiState::default());
         let client_id = ClientId(rand::random::<u64>());
         resource.insert(client_id);
 
@@ -89,7 +96,7 @@ impl App {
             id_register,
             client_id: client_id,
             in_game_scene: InGameScene::default(),
-            screen: AppScreen::MainMenu,
+            screen: core::screen::AppScreen::MainMenu,
             is_solo: false,
             input_state: Input::new(),
             last_frame,
@@ -456,13 +463,18 @@ impl winit::application::ApplicationHandler for App {
                     if let Some(frame) = renderer.frame_manager().pop() {
                         if let Some(mut frame_ctx) = renderer.render(gpu_ctx, gpu_resources, frame)
                         {
-                            if let AppScreen::InGame(client_state) = &self.screen {
-                                if client_state.debug.mode != crate::core::event::DebugMode::Off {
+                            if let core::screen::AppScreen::InGame = &self.screen {
+                                let mode = self
+                                    .resource
+                                    .read_resource::<crate::core::debug_state::DebugState>()
+                                    .mode;
+                                if mode != crate::core::debug_state::DebugMode::Off {
                                     if let Some(debug_renderer) = self.debug_renderer.as_mut() {
                                         debug_renderer.begin_frame(window);
+
                                         crate::ui::debug_ui::run_debug(
                                             debug_renderer,
-                                            client_state.debug.mode,
+                                            mode,
                                             &self.debug_data,
                                             &self.resource,
                                         );
@@ -521,7 +533,10 @@ impl winit::application::ApplicationHandler for App {
         if let Some(ref mut c) = self.client {
             c.update(frame_delta);
 
-            if matches!(self.screen, AppScreen::MainMenu | AppScreen::Lobby(_)) {
+            if matches!(
+                self.screen,
+                core::screen::AppScreen::MainMenu | core::screen::AppScreen::Lobby(_)
+            ) {
                 while let Some(msg) = c.recv_lobby_message() {
                     crate::app::states::lobby::handle_lobby_message(
                         msg,
@@ -530,12 +545,12 @@ impl winit::application::ApplicationHandler for App {
                     );
                 }
             }
-            if matches!(self.screen, AppScreen::InGame(_)) {
+            if matches!(self.screen, core::screen::AppScreen::InGame) {
                 renderer.frame_manager().clear();
             }
         }
         match &mut self.screen {
-            AppScreen::MainMenu => {
+            core::screen::AppScreen::MainMenu => {
                 let action = crate::app::states::main_menu::handle_input(
                     &self.input_state,
                     &mut self.client,
@@ -561,7 +576,7 @@ impl winit::application::ApplicationHandler for App {
                 }
             }
 
-            AppScreen::Lobby(state) => {
+            core::screen::AppScreen::Lobby(state) => {
                 if let Some(ref mut c) = self.client {
                     crate::app::states::lobby::handle_input(&self.input_state, state, c);
                     c.flush();
@@ -575,13 +590,19 @@ impl winit::application::ApplicationHandler for App {
                 );
             }
 
-            AppScreen::InGame(client_state) => {
+            core::screen::AppScreen::InGame => {
                 let client_ok = self.client.as_mut();
                 let ui_ok = self.ui_ctx.as_mut();
                 let gpu_resources_ok = self.gpu_resources.as_mut();
 
-                if self.input_state.is_just_pressed(winit::keyboard::KeyCode::KeyP) {
-                    client_state.debug.cycle();
+                if self
+                    .input_state
+                    .is_just_pressed(winit::keyboard::KeyCode::KeyP)
+                {
+                    let mut debug = self
+                        .resource
+                        .write_resource::<core::debug_state::DebugState>();
+                    debug.cycle();
                 }
 
                 // Activation des RenderPass post process
@@ -599,15 +620,12 @@ impl winit::application::ApplicationHandler for App {
                             gpu_resources,
                             ids: &self.id_register,
                         };
-                        let local_id = client_state.local_id;
-                        self.resource.insert(local_id);
 
                         // Mise à jour logique
                         self.in_game_scene.update(
                             &mut self.resource,
                             client,
                             screen_size,
-                            client_state,
                             &mut gui_ctx,
                             &self.input_state,
                             scale,
@@ -616,7 +634,7 @@ impl winit::application::ApplicationHandler for App {
                         );
                         // Rendu de la scène InGame
                         self.in_game_scene
-                            .render(&mut frame, client_state, &mut self.resource, dt);
+                            .render(&mut frame, &mut self.resource, dt);
 
                         if let Some(map) = &self.map {
                             map.draw(
@@ -628,21 +646,27 @@ impl winit::application::ApplicationHandler for App {
                             );
                         }
 
-                        if client_state.debug.mode != DebugMode::Off {
-                            self.debug_data
-                                .insert(client_state.debug.attack_box.clone());
-                            self.debug_data.insert(client_state.debug.collider.clone());
+                        {
+                            let debug_state = self
+                                .resource
+                                .read_resource::<core::debug_state::DebugState>();
+                            if debug_state.mode != core::debug_state::DebugMode::Off {
+                                self.debug_data.insert(debug_state.attack_box.clone());
+                                self.debug_data.insert(debug_state.collider.clone());
 
-                            // Maj flow field seulement en mod debug
-                            {
-                                let grid = self.resource.read_resource::<utils::map::grid::Grid>();
-                                let new_target = self.resource.read_resource::<utils::math::Vec2>();
-                                let flow_field = self
-                                    .debug_data
-                                    .update_data::<utils::map::flow_field::FlowField>();
-                                if let Some(flow_field) = flow_field {
-                                    if flow_field.needs_update(&grid, *new_target) {
-                                        flow_field.compute(&grid, *new_target);
+                                // Maj flow field seulement en mod debug
+                                {
+                                    let grid =
+                                        self.resource.read_resource::<utils::map::grid::Grid>();
+                                    let new_target =
+                                        self.resource.read_resource::<utils::math::Vec2>();
+                                    let flow_field =
+                                        self.debug_data
+                                            .update_data::<utils::map::flow_field::FlowField>();
+                                    if let Some(flow_field) = flow_field {
+                                        if flow_field.needs_update(&grid, *new_target) {
+                                            flow_field.compute(&grid, *new_target);
+                                        }
                                     }
                                 }
                             }
@@ -690,8 +714,8 @@ impl winit::application::ApplicationHandler for App {
                 }
             };
 
-            let in_lobby = matches!(self.screen, AppScreen::Lobby(_));
-            let in_game = matches!(self.screen, AppScreen::InGame(_));
+            let in_lobby = matches!(self.screen, core::screen::AppScreen::Lobby(_));
+            let in_game = matches!(self.screen, core::screen::AppScreen::InGame);
 
             ui_ctx.send_event(nodus::UIEvent::SetVisible {
                 target: lobby_root,

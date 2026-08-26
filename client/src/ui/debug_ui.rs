@@ -1,6 +1,6 @@
 use crate::{
     app::resources::Resources,
-    core::event::{DebugCollider, DebugMode, DebugRectState},
+    core::debug_state::{DebugCollider, DebugMode, DebugRectState},
     rendering::camera::Camera,
 };
 

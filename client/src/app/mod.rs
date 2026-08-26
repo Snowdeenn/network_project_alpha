@@ -10,7 +10,7 @@ use crate::app::resources::Resources;
 use crate::app::states::in_game::InGameScene;
 use crate::app::states::main_menu::MenuAction;
 use crate::core::client::GameNetClient;
-use crate::core::event::AppScreen;
+use crate::core::event::{AppScreen, DebugMode};
 use crate::graphic_data::asset_manager::AssetManager;
 use crate::graphic_data::post_process_effect_type;
 use crate::graphic_data::tile_map::TileMap;
@@ -18,19 +18,41 @@ use crate::rendering::ScreenScale;
 use crate::rendering::camera::Camera;
 use crate::rendering::vfx::particle::ParticlePool;
 use crate::rendering::vfx::vfx_manager::VfxManager;
+use crate::ui::debug_ui::{DebugData, DebugRenderer};
+
+fn build_camera_matrix(
+    pos: utils::math::Vec2,
+    shake: utils::math::Vec2,
+    screen_w: f32,
+    screen_h: f32,
+) -> utils::math::Mat4 {
+    let proj = utils::math::Mat4::orthographic_wgpu(0.0, screen_w, screen_h, 0.0, -1.0, 1.0);
+    let view = utils::math::Mat4::translation(
+        -pos.x + (screen_w * 0.5) + shake.x,
+        -pos.y + (screen_h * 0.5) + shake.y,
+        0.0,
+    );
+    proj.multiply(view)
+}
+
 use crate::ui::hud;
+
+#[derive(Clone, Copy)]
+pub struct ClientId(pub u64);
 
 pub struct App {
     window: Option<Arc<winit::window::Window>>,
     gpu_ctx: Option<prism::GpuContext>,
     gpu_resources: Option<prism::GpuResources>,
     renderer: Option<prism::Renderer>,
+    debug_renderer: Option<DebugRenderer>,
     ui_ctx: Option<nodus::UiContext>,
     client: Option<GameNetClient>,
     map: Option<TileMap>,
     resource: Resources,
+    debug_data: DebugData,
     id_register: utils::ids::Register,
-    client_id: u64,
+    client_id: ClientId,
     in_game_scene: InGameScene,
     screen: AppScreen,
     is_solo: bool,
@@ -47,6 +69,8 @@ impl App {
         resource.insert(BufferManager::with_capacity(16));
         resource.insert(ParticlePool::new());
         resource.insert(nodus::DrawCommandBuffer::new(2048));
+        let client_id = ClientId(rand::random::<u64>());
+        resource.insert(client_id);
 
         let last_frame = std::time::Instant::now();
         let id_register = utils::ids::Register::new();
@@ -54,14 +78,16 @@ impl App {
         Self {
             window: None,
             renderer: None,
+            debug_renderer: None,
             gpu_ctx: None,
             gpu_resources: None,
             ui_ctx: None,
             client: None,
             map: None,
             resource,
+            debug_data: DebugData::default(),
             id_register,
-            client_id: rand::random::<u64>(),
+            client_id: client_id,
             in_game_scene: InGameScene::default(),
             screen: AppScreen::MainMenu,
             is_solo: false,
@@ -105,11 +131,15 @@ impl winit::application::ApplicationHandler for App {
             }
         };
 
+        let debug_renderer = DebugRenderer::init(&window, &gpu_ctx);
+
         // Création de la grid temp a la fin il faut la créer via la seed envoyer par le server
         {
-            let generator =
-                utils::map::generator::Generator::new(42, 150, 100);
+            let generator = utils::map::generator::Generator::new(42, 150, 100);
             let grid = generator.generate();
+            let flow_field = utils::map::flow_field::FlowField::new(150, 100);
+
+            self.debug_data.insert(flow_field);
             self.resource.insert(grid);
         }
         let mut gpu_resources = prism::GpuResources::new(&gpu_ctx);
@@ -363,6 +393,7 @@ impl winit::application::ApplicationHandler for App {
 
         self.window = Some(window);
         self.renderer = Some(renderer);
+        self.debug_renderer = Some(debug_renderer);
         self.ui_ctx = Some(ui_ctx);
         self.scale = Some(scale);
         self.gpu_ctx = Some(gpu_ctx);
@@ -378,6 +409,9 @@ impl winit::application::ApplicationHandler for App {
         _window_id: winit::window::WindowId,
         event: winit::event::WindowEvent,
     ) {
+        if let (Some(window), Some(debug_renderer)) = (&self.window, &mut self.debug_renderer) {
+            let _ = debug_renderer.handle_event(window, &event);
+        }
         match event {
             winit::event::WindowEvent::CloseRequested => {
                 event_loop.exit();
@@ -417,9 +451,28 @@ impl winit::application::ApplicationHandler for App {
             winit::event::WindowEvent::RedrawRequested => {
                 let gpu_ctx = self.gpu_ctx.as_mut().unwrap();
                 let gpu_resources = self.gpu_resources.as_mut().unwrap();
+                let window = self.window.as_ref().unwrap();
                 if let Some(renderer) = &mut self.renderer {
                     if let Some(frame) = renderer.frame_manager().pop() {
-                        renderer.render(gpu_ctx, gpu_resources, frame);
+                        if let Some(mut frame_ctx) = renderer.render(gpu_ctx, gpu_resources, frame)
+                        {
+                            if let AppScreen::InGame(client_state) = &self.screen {
+                                if client_state.debug.mode != crate::core::event::DebugMode::Off {
+                                    if let Some(debug_renderer) = self.debug_renderer.as_mut() {
+                                        debug_renderer.begin_frame(window);
+                                        crate::ui::debug_ui::run_debug(
+                                            debug_renderer,
+                                            client_state.debug.mode,
+                                            &self.debug_data,
+                                            &self.resource,
+                                        );
+                                        debug_renderer.flush_into(window, &mut frame_ctx, gpu_ctx);
+                                    }
+                                }
+                            }
+
+                            frame_ctx.present(gpu_ctx);
+                        }
                     } else {
                         tracing::trace!("Aucune frame prête lors du RedrawRequested");
                     }
@@ -450,11 +503,20 @@ impl winit::application::ApplicationHandler for App {
         self.last_frame = now;
         let dt = frame_delta.as_secs_f32();
 
+        let screen_size = gpu_ctx.size;
         let mut frame = prism::Frame::new();
         frame.camera_pos = self.cam.pos();
         frame.cam_shake_offset = self.cam.shake.offset();
-
-        let screen_size = gpu_ctx.size;
+        let cam_matrix = build_camera_matrix(
+            self.cam.pos(),
+            self.cam.shake.offset(),
+            screen_size.width as f32,
+            screen_size.height as f32,
+        );
+        self.resource.insert(cam_matrix);
+        self.debug_data.insert(cam_matrix);
+        self.debug_data.insert(screen_size);
+        self.debug_data.insert(self.cam);
 
         if let Some(ref mut c) = self.client {
             c.update(frame_delta);
@@ -477,7 +539,7 @@ impl winit::application::ApplicationHandler for App {
                 let action = crate::app::states::main_menu::handle_input(
                     &self.input_state,
                     &mut self.client,
-                    self.client_id,
+                    self.client_id.0,
                 );
 
                 match action {
@@ -518,6 +580,10 @@ impl winit::application::ApplicationHandler for App {
                 let ui_ok = self.ui_ctx.as_mut();
                 let gpu_resources_ok = self.gpu_resources.as_mut();
 
+                if self.input_state.is_just_pressed(winit::keyboard::KeyCode::KeyP) {
+                    client_state.debug.cycle();
+                }
+
                 // Activation des RenderPass post process
                 {
                     let hit_flash = self
@@ -533,6 +599,8 @@ impl winit::application::ApplicationHandler for App {
                             gpu_resources,
                             ids: &self.id_register,
                         };
+                        let local_id = client_state.local_id;
+                        self.resource.insert(local_id);
 
                         // Mise à jour logique
                         self.in_game_scene.update(
@@ -560,6 +628,26 @@ impl winit::application::ApplicationHandler for App {
                             );
                         }
 
+                        if client_state.debug.mode != DebugMode::Off {
+                            self.debug_data
+                                .insert(client_state.debug.attack_box.clone());
+                            self.debug_data.insert(client_state.debug.collider.clone());
+
+                            // Maj flow field seulement en mod debug
+                            {
+                                let grid = self.resource.read_resource::<utils::map::grid::Grid>();
+                                let new_target = self.resource.read_resource::<utils::math::Vec2>();
+                                let flow_field = self
+                                    .debug_data
+                                    .update_data::<utils::map::flow_field::FlowField>();
+                                if let Some(flow_field) = flow_field {
+                                    if flow_field.needs_update(&grid, *new_target) {
+                                        flow_field.compute(&grid, *new_target);
+                                    }
+                                }
+                            }
+                        }
+
                         {
                             let hit_flash = self
                                 .resource
@@ -576,6 +664,7 @@ impl winit::application::ApplicationHandler for App {
                             client = self.client.is_some(),
                             ui_ctx = self.ui_ctx.is_some(),
                             gpu_resources = self.gpu_resources.is_some(),
+                            debug_renderer = self.debug_renderer.is_some(),
                             "Impossible de rendre InGame : une ressource requise est None"
                         );
                     }

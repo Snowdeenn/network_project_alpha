@@ -110,7 +110,7 @@ pub enum DebugMode {
     Interactive,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct DebugRectState {
     pub x: f32,
     pub y: f32,
@@ -120,7 +120,7 @@ pub struct DebugRectState {
     pub lifetime: f32,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct DebugCollider {
     pub x: f32,
     pub y: f32,
@@ -132,6 +132,9 @@ pub struct DebugState {
     pub hit_pos_anim: [f32; 2],
     pub mode: DebugMode,
     pub cleared: bool,
+    pub show_cost_field: bool,
+    pub show_flow_field: bool,
+    pub vector_length: f32,
 }
 
 impl DebugState {
@@ -175,12 +178,19 @@ impl DebugState {
 // Client State
 // ====================================================
 
+#[derive(Debug, Default, Clone, Copy)]
+pub struct LocalId {
+    pub entity_id: u64,
+    pub client_id: u64,
+}
+
 #[derive(Debug)]
 pub struct ClientState {
     pub phase: GamePhase,
     pub shop_ui: ShopUiState,
     pub debug: DebugState,
     pub ui: UiState,
+    pub local_id: LocalId,
 }
 
 impl ClientState {
@@ -190,6 +200,7 @@ impl ClientState {
             shop_ui: ShopUiState::default(),
             debug: DebugState::default(),
             ui: UiState::default(),
+            local_id: LocalId::default(),
         }
     }
 
@@ -245,6 +256,11 @@ impl ClientState {
             }
             GameEventKind::GameOver => {},
             GameEventKind::PlayerHit => (), // On gère ça sur le niveau au dessus
+            GameEventKind::PlayerSpawn { client_id, entity_id } => {
+                println!("player spawn reçu client_id: {client_id}, entity_id: {entity_id}");
+                self.local_id.entity_id = entity_id;
+                self.local_id.client_id = client_id;
+            }
         }
     }
 

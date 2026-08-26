@@ -5,7 +5,7 @@ use crate::{map::grid::Grid, math::Vec2};
 pub struct FlowField {
     cost_field: Vec<u32>,
     direction_field: Vec<crate::math::Vec2>,
-    target: (u32, u32), // Ou Vec2 a voir
+    pub target: (u32, u32),
 }
 
 impl FlowField {
@@ -15,6 +15,15 @@ impl FlowField {
             direction_field: vec![Vec2::zero(); (width * height) as usize],
             target: (u32::MAX, u32::MAX), // Force needs_update à renvoyer true le premier coup
         }
+    }
+
+    // Helper pour le debug
+    pub fn cost_field(&self) -> &[u32] {
+        &self.cost_field
+    }
+
+    pub fn direction_field(&self) -> &[Vec2] {
+        &self.direction_field
     }
 
     pub fn compute(&mut self, grid: &Grid, target: Vec2) {

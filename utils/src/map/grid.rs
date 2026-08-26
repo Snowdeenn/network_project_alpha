@@ -24,6 +24,10 @@ impl Grid {
         self.height
     }
 
+    pub fn cell_size(&self) -> f32 {
+        self.cell_size
+    }
+
     pub fn get<'a>(&'a self, x: u32, y: u32) -> Option<&'a Cell> {
         let idx = self.cell_index(x, y);
         if idx < self.cells.len() {

@@ -15,6 +15,7 @@ use utils::protocol::{EntityKind, StateSnapshot};
 //   let offset = shake.offset();    // appliqué à cam.target
 // =========================================================================
 
+#[derive(Clone, Copy)]
 pub struct CameraShake {
     trauma: f32,
     /// Vitesse de décroissance du trauma par seconde
@@ -83,6 +84,7 @@ fn pseudo_noise(t: f32) -> f32 {
     (t.sin() * 43758.545).fract() * 2.0 - 1.0
 }
 
+#[derive(Clone, Copy)]
 pub struct Camera {
     pos: utils::math::Vec2,
     view: utils::math::Mat4,

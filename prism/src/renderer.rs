@@ -75,7 +75,7 @@ impl Renderer {
         ctx: &mut crate::GpuContext,
         gpu_resources: &mut crate::GpuResources,
         mut frame: crate::Frame,
-    ) {
+    ) -> Option<crate::FrameContext> {
         let surface_texture = match ctx.current_texture() {
             wgpu::CurrentSurfaceTexture::Success(t) => t,
             wgpu::CurrentSurfaceTexture::Suboptimal(t) => {
@@ -85,21 +85,21 @@ impl Renderer {
             }
             wgpu::CurrentSurfaceTexture::Occluded => {
                 tracing::trace!("Fenêtre occultée ou minimisée, rendu ignoré");
-                return;
+                return None;
             }
             wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
                 tracing::warn!("Surface GPU obsolète ou perdue, redimensionnement...");
                 let size = ctx.size;
                 ctx.resize(size.width, size.height);
-                return;
+                return None;
             }
             wgpu::CurrentSurfaceTexture::Timeout => {
                 tracing::warn!("Timeout lors de la récupération de la frame (frame sautée)");
-                return;
+                return None;
             }
             wgpu::CurrentSurfaceTexture::Validation => {
                 tracing::error!("Erreur de validation lors de la récupération de la texture");
-                return;
+                return None;
             }
         };
 
@@ -179,8 +179,12 @@ impl Renderer {
         }
         self.hud.execute(&mut encoder, &surface_view, gpu_resources);
 
-        ctx.submit(encoder);
-        ctx.present(surface_texture);
+        Some(crate::FrameContext {
+            encoder,
+            surface_view,
+            surface_texture,
+            size: (screen_w, screen_h),
+        })
     }
 
     fn create_intermediate(ctx: &crate::GpuContext) -> (wgpu::Texture, wgpu::TextureView) {
@@ -324,7 +328,7 @@ impl Renderer {
     pub fn disable_post_process_pass(&mut self, id: crate::PostProcessPassId) {
         self.post_process_passes[*id].enabled = false;
     }
-    
+
     pub fn create_pipeline(
         &mut self,
         ctx: &crate::GpuContext,

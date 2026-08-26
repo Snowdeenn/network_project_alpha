@@ -10,7 +10,7 @@ mod resource;
 pub use context::GpuContext;
 pub use draw::{batch::DrawCommandBuffer, commands::DrawCommand, text::TextRenderer};
 pub use errors::{GpuContextError, TextRendererError};
-pub use frame::{frame::Frame, manager::FrameManager};
+pub use frame::{frame::Frame, manager::FrameManager, frame::FrameContext};
 pub use geometry::{
     mesh::{RawMesh, Vertex},
     shape::{Shape, UvRect, NinePatchMargins},

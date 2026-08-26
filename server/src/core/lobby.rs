@@ -1,17 +1,17 @@
-use crate::core::queue::Queue;
-use crate::core::config::SharedLives;
-use crate::net::server::GameNetServer;
 use crate::app::next_id;
+use crate::core::config::SharedLives;
 use crate::core::player_registry::PlayerRegistry;
+use crate::core::queue::Queue;
 use crate::core::session::{LobbyPhase, SessionState};
 use crate::core::simulation::components::Position;
 use crate::core::simulation::systems::spawn::spawn_player;
 use crate::core::simulation::wave::{WaveManager, WaveState};
+use crate::net::server::GameNetServer;
 use legion::Resources;
 use legion::World;
+use std::time::Duration;
 use utils::config::{ClassRegistery, GameConfig};
 use utils::protocol::{GameEvent, GameEventKind, LobbyMessage, SessionErrorKind};
-use std::time::Duration;
 
 pub fn handle_lobby_message(
     client_id: u64,
@@ -102,6 +102,14 @@ fn start_game(session: &mut SessionState, world: &mut World, resources: &mut Res
             entity,
             player_game_id,
         );
+        if let Some(mut event_queue) = resources.get_mut::<Queue<GameEvent>>() {
+            event_queue.data.push(GameEvent {
+                kind: GameEventKind::PlayerSpawn {
+                    client_id: slot.client_id,
+                    entity_id: player_game_id,
+                },
+            });
+        }
     }
 
     session.phase = LobbyPhase::InGame;

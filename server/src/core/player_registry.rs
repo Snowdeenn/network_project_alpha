@@ -1,8 +1,8 @@
 // src/player_registry.rs
 use legion::Entity;
+use std::collections::HashMap;
 use utils::arena::{Arena, Id};
 use utils::ids::PlayerTag;
-use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct PlayerEntry {
@@ -68,6 +68,12 @@ impl PlayerRegistry {
             .get(&client_id)
             .and_then(|id| self.arena.get(*id))
             .and_then(|entry| entry.entity)
+    }
+
+    pub fn get_entry(&self, client_id: u64) -> Option<&PlayerEntry> {
+        self.client_to_id
+            .get(&client_id)
+            .and_then(|id| self.arena.get(*id))
     }
 
     pub fn entity_to_client(&self, entity_id: u64) -> Option<u64> {

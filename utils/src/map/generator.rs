@@ -18,7 +18,7 @@ impl Generator {
             width,
             height,
             scale: 1.0,
-            wall_threshold: 0.15,
+            wall_threshold: 0.1,
         }
     }
 

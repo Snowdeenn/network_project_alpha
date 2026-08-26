@@ -8,7 +8,7 @@ use crate::app::input::{self, Input, ShopInputAction};
 use crate::app::resources::Resources;
 use crate::core::client::GameNetClient;
 use crate::core::config;
-use crate::core::event::{ClientState, handle_shop_ui_event};
+use crate::core::event::{ClientState, LocalId, handle_shop_ui_event};
 use crate::graphic_data::animation::AnimEntityManager;
 use crate::graphic_data::post_process_effect_type;
 use crate::rendering::ScreenScale;
@@ -104,10 +104,6 @@ impl InGameScene {
         cam: &mut Camera,
         dt: f32,
     ) {
-        if input_state.is_pressed(winit::keyboard::KeyCode::F2) {
-            client_state.debug.cycle();
-        }
-
         self.process_snapshots(client, gui, resources);
         self.process_game_event(client, client_state, gui, resources, cam);
         self.handle_ui(client_state, gui, input_state);
@@ -198,6 +194,12 @@ impl InGameScene {
                     .as_ref()
                     .and_then(|p| p.entities.iter().find(|e| e.entity_id == entity.entity_id));
 
+                let player_entity_id = resources.read_resource::<LocalId>().entity_id;
+                
+                if entity.entity_id == player_entity_id {
+                    resources.insert(utils::math::Vec2::new(entity.position[0], entity.position[1]));
+                }
+
                 let t = (self.snapshots.last_snap_time.elapsed().as_secs_f32()
                     / Ticks::TICK_DURATION.as_secs_f32())
                 .clamp(0.0, 1.0);
@@ -230,7 +232,7 @@ impl InGameScene {
                                 lifetime,
                                 lt_max: lifetime,
                                 scale: 0.1,
-                                growth: 6.5,
+                                growth: 3.5,
                                 color: utils::colors::Color::LIGHTGRAY,
                             });
                         }
@@ -280,7 +282,7 @@ impl InGameScene {
                         color: utils::colors::Color::DARKGOLDENROD,
                     })
                 }
-                cam.shake.add_trauma(0.4);
+                cam.shake.add_trauma(0.5);
             }
             GameEventKind::SpawnRect {
                 x,

@@ -82,3 +82,17 @@ impl Frame {
         &self.hud
     }
 }
+
+pub struct FrameContext {
+    pub encoder: wgpu::CommandEncoder,
+    pub surface_view: wgpu::TextureView,
+    pub surface_texture: wgpu::SurfaceTexture,
+    pub size: (u32, u32),
+}
+
+impl FrameContext {
+    pub fn present(self, gpu_ctx: &crate::GpuContext) {
+        gpu_ctx.submit(self.encoder);
+        gpu_ctx.present(self.surface_texture);
+    }
+}

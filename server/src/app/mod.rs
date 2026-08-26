@@ -72,7 +72,6 @@ impl ServerApp {
             resources.insert(PlayerShops::new());
             resources.insert(PlayerRegistry::with_capacity(16));
             resources.insert(BufferManager::with_capacity(24));
-            resources.insert(SpatialGrid::new(128.0, 1920.0, 1080.0));
         }
 
         // --- wave config ---
@@ -180,14 +179,23 @@ impl ServerApp {
             let grid = {
                 let game_config = resources.get::<GameConfig>().unwrap();
                 let cell_size = 64.0;
-                let grid_w = (game_config.arena_w as f32 / cell_size).ceil() as u32; // ex: 1920 / 64 = 30 cases
-                let grid_h = (game_config.arena_h as f32 / cell_size).ceil() as u32; // ex: 1080 / 64 = 17 cases
+                let grid_w = (game_config.arena_w as f32 / cell_size).ceil() as u32;
+                let grid_h = (game_config.arena_h as f32 / cell_size).ceil() as u32;
 
                 let generator = utils::map::generator::Generator::new(42, grid_w, grid_h);
                 generator.generate()
                 // utils::map::grid::Grid::new(grid_w, grid_h, 64.0)
             };
             resources.insert(grid);
+        }
+
+        // --- Spatial Grid ---
+        {
+            let spatial_grid = {
+                let game_config = resources.get::<GameConfig>().unwrap();
+                SpatialGrid::new(128.0, game_config.arena_w, game_config.arena_h)
+            };
+            resources.insert(spatial_grid);
         }
 
         // --- FlowFieldManager ---
@@ -297,6 +305,20 @@ impl ServerApp {
                                                 },
                                             },
                                         );
+                                    }
+                                    if let Some(register) = self.resources.get::<PlayerRegistry>() {
+                                        if let Some(entry) = register.get_entry(client_id) {
+                                            println!("envoie player spawn");
+                                            self.net.send_event(
+                                                client_id,
+                                                &GameEvent {
+                                                    kind: GameEventKind::PlayerSpawn {
+                                                        client_id,
+                                                        entity_id: entry.entity_id.unwrap(),
+                                                    },
+                                                },
+                                            );
+                                        }
                                     }
                                 } else {
                                     self.net.broadcast_lobby(&LobbyMessage::LobbyUpdate {

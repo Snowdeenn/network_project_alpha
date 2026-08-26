@@ -78,6 +78,10 @@ pub enum GameEventKind {
         entity_id: u64,
         boss_type: BossKind,
     },
+    PlayerSpawn {
+        client_id: u64,
+        entity_id: u64,
+    },
     PlayerHit,
     PlayerDied {
         entity_id: u64,

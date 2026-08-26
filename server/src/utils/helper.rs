@@ -2,9 +2,9 @@ use legion::EntityStore;
 use legion::systems::Resources;
 use legion::{Entity, world::SubWorld};
 
-use crate::core::queue::Queue;
-use crate::core::simulation::components::{Collider, Geometry, Position, Velocity};
-use crate::core::simulation::event::{CoinEvent, DamageEvent, EnemyDied};
+use crate::utils::Queue;
+use crate::simulation::resources::components::{Collider, Geometry, Position, Velocity};
+use crate::replication::event::{CoinEvent, DamageEvent, EnemyDied};
 use utils::protocol::GameEvent;
 
 #[derive(Debug)]

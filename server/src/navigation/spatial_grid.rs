@@ -1,4 +1,4 @@
-use crate::core::simulation::components::*;
+use crate::simulation::resources::components::*;
 
 pub struct SpatialGrid {
     cells: Vec<usize>,

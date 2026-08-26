@@ -10,23 +10,23 @@ use utils::buffer::BufferManager;
 use utils::config::{ClassConfig, ClassRegistery, GameConfig, PlayerClass};
 use utils::protocol::*;
 
-use crate::core::config::*;
-use crate::core::flow_field_manager::FlowFieldManager;
-use crate::core::lobby;
-use crate::core::player_registry::PlayerRegistry;
-use crate::core::pool::{GamePools, PoolManager};
-use crate::core::queue::Queue;
-use crate::core::session::*;
-use crate::core::simulation::spatial_grid::SpatialGrid;
-use crate::core::simulation::systems::flow_field::update_flow_fields_system;
-use crate::core::simulation::systems::{
+use crate::config::*;
+use crate::navigation::FlowFieldManager;
+use crate::session::lobby;
+use crate::session::PlayerRegistry;
+use crate::utils::{GamePools, PoolManager, Queue};
+use crate::session::session::*;
+use crate::navigation::SpatialGrid;
+use crate::simulation::systems::flow_field::update_flow_fields_system;
+use crate::simulation::systems::{
     attack::*, coin::*, debug::*, health::*, ia::*, physics::*, state::dash_system, wave::*,
 };
-use crate::core::simulation::{
-    components::*, eco::*, event::*, helper::clear_resource_queues, shop::PlayerShops, wave::*,
+use crate::simulation::resources::{
+    components::*, shop::*, wave::*,
 };
+use crate::replication::event::*;
 use crate::net::server::GameNetServer;
-use crate::net::snapshot::{build_entities, build_player_info, build_wave_info};
+use crate::replication::snapshot::{build_entities, build_player_info, build_wave_info};
 
 const TICK_DURATION: Duration = Duration::from_millis(50);
 
@@ -86,7 +86,7 @@ impl ServerApp {
                 enemies_remaining: wave_configs[0].enemy_count,
                 enemies_to_spawn: wave_configs[0].enemy_count,
                 spawn_timer: Duration::from_millis(wave_configs[0].spawn_interval_ms),
-                wave_state: crate::core::simulation::wave::WaveState::Waiting,
+                wave_state: crate::simulation::resources::wave::WaveState::Waiting,
             });
             resources.insert(WaveConfigs(wave_configs));
         }
@@ -494,7 +494,7 @@ impl ServerApp {
             }
 
             self.net.flush();
-            clear_resource_queues(&mut self.resources);
+            crate::utils::clear_resource_queues(&mut self.resources);
 
             self.tick_id += 1;
             {

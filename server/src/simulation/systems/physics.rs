@@ -1,6 +1,6 @@
-use crate::core::simulation::components::*;
-use crate::core::simulation::helper::{Resolution, aabb_overlap, apply_resolution};
-use crate::core::simulation::spatial_grid::SpatialGrid;
+use crate::simulation::resources::components::*;
+use crate::utils::{Resolution,aabb_overlap};
+use crate::navigation::SpatialGrid;
 use legion::world::SubWorld;
 use legion::*;
 use utils::buffer::BufferManager;
@@ -138,7 +138,7 @@ pub fn collide(
         println!("Résolutions détectées : {}", to_resolve.len());
     }
     for res in &to_resolve {
-        apply_resolution(world, res);
+        crate::utils::apply_resolution(world, res);
     }
 
     to_resolve.clear();

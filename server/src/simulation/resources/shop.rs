@@ -2,6 +2,12 @@ use rand::prelude::IndexedRandom;
 use utils::protocol::ShopItem;
 use std::collections::HashMap;
 
+#[derive(Debug)]
+pub struct ItemPool {
+    pub items: Vec<Option<ShopItem>>,
+}
+
+
 pub struct PlayerShops {
     pub inventories: HashMap<u64, Vec<Option<ShopItem>>>,
 }

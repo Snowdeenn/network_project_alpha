@@ -1,7 +1,7 @@
-use crate::core::simulation::components::Coin;
-use crate::core::player_registry::PlayerRegistry;
-use crate::core::simulation::components::{Active, EntityId, Health, IA, Player, Position, Projectile};
-use crate::core::simulation::wave::{WaveManager, WaveState as SimWaveState};
+use crate::simulation::resources::components::Coin;
+use crate::session::player_registry::PlayerRegistry;
+use crate::simulation::resources::components::{Active, EntityId, Health, IA, Player, Position, Projectile};
+use crate::simulation::resources::wave::{WaveManager, WaveState as SimWaveState};
 use legion::*;
 use utils::protocol::{EntityKind, EntityState, PlayerInfo, WaveInfo, WaveState};
 

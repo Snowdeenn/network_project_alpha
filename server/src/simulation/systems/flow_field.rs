@@ -1,11 +1,11 @@
-use crate::core::simulation::components::*;
+use crate::simulation::resources::components::*;
 use legion::{Entity, Query, system};
 use utils::{
     map::{flow_field::FlowField, grid::Grid},
     math::Vec2,
 };
 
-use crate::core::flow_field_manager::FlowFieldManager;
+use crate::navigation::FlowFieldManager;
 
 #[system]
 #[read_component(Position)]

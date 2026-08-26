@@ -69,7 +69,9 @@ pub(crate) fn render_world(
                 if let Some(tex_id) = anim.current_texture_id(data) {
                     frame.push_world(prism::DrawCommand::Texture {
                         id: tex_id,
-                        pos: [x, y],
+                        // - 32.0 Parce que les coordonéé sont ceux du centre du collider 
+                        // donc on soustrait la moitié de la taille du collider
+                        pos: [x - 32.0, y - 32.0],
                         size: [64.0, 64.0], // à adapter selon la texture
                         rotation: 0.0,
                         uv: None,

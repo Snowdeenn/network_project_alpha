@@ -1,4 +1,4 @@
-use crate::core::simulation::components::*;
+use crate::simulation::resources::components::*;
 use legion::*;
 use std::time::Duration;
 

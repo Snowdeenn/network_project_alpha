@@ -1,10 +1,10 @@
-use crate::core::pool::GamePools;
-use crate::core::pool::PoolManager;
-use crate::core::queue::Queue;
-use crate::core::simulation::components::*;
-use crate::core::simulation::event::*;
-use crate::core::simulation::wave::*;
-use crate::core::simulation::systems::spawn;
+use crate::utils::GamePools;
+use crate::utils::PoolManager;
+use crate::utils::Queue;
+use crate::simulation::resources::components::*;
+use crate::replication::event::*;
+use crate::simulation::resources::wave::*;
+use crate::simulation::systems::spawn;
 use legion::systems::CommandBuffer;
 use legion::world::SubWorld;
 use legion::*;

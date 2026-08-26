@@ -4,8 +4,8 @@ use utils::{
     ids::{CoinTag, EnemyTag},
 };
 
-use crate::core::simulation::{
-    components::Active,
+use crate::simulation::{
+    resources::components::Active,
     systems::spawn::{spawn_coin_blank, spawn_enemy_blank},
 };
 

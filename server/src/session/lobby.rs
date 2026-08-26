@@ -1,11 +1,11 @@
 use crate::app::next_id;
-use crate::core::config::SharedLives;
-use crate::core::player_registry::PlayerRegistry;
-use crate::core::queue::Queue;
-use crate::core::session::{LobbyPhase, SessionState};
-use crate::core::simulation::components::Position;
-use crate::core::simulation::systems::spawn::spawn_player;
-use crate::core::simulation::wave::{WaveManager, WaveState};
+use crate::config::SharedLives;
+use crate::session::PlayerRegistry;
+use crate::utils::Queue;
+use crate::session::{LobbyPhase, SessionState};
+use crate::simulation::resources::components::Position;
+use crate::simulation::systems::spawn::spawn_player;
+use crate::simulation::resources::wave::{WaveManager, WaveState};
 use crate::net::server::GameNetServer;
 use legion::Resources;
 use legion::World;

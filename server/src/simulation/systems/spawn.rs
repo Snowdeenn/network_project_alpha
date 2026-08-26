@@ -1,12 +1,12 @@
 use crate::app::next_id;
-use crate::core::simulation::components::*;
+use crate::simulation::resources::components::*;
 use legion::world::{EntryMut, World};
 use legion::*; 
 use utils::config::ClassRegistery;
 use std::time::Duration;
 use std::f64::consts::PI;
 
-use crate::core::simulation::wave::EnemyStatsConfig;
+use crate::simulation::resources::wave::EnemyStatsConfig;
 
 pub fn spawn_player(
     world: &mut World,

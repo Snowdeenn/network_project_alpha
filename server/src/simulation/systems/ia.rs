@@ -1,7 +1,7 @@
-use crate::core::flow_field_manager::FlowFieldManager;
-use crate::core::queue::Queue;
-use crate::core::simulation::components::*;
-use crate::core::simulation::event::DamageEvent;
+use crate::navigation::FlowFieldManager;
+use crate::utils::Queue;
+use crate::simulation::resources::components::*;
+use crate::replication::event::DamageEvent;
 use arrayvec::ArrayVec;
 use legion::world::SubWorld;
 use legion::*;

@@ -17,3 +17,5 @@ arrayvec = "0.7.7"
 itertools = "0.15"
 weave = { git = "https://github.com/Snowdeenn/weave.git" }
 num_cpus = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }

@@ -54,6 +54,7 @@ pub struct Health {
 #[derive(Debug, PartialEq)]
 pub struct Active(pub bool);
 
+
 pub struct CoinValue(pub u32);
 
 #[derive(Debug, Default, Clone, Copy)]

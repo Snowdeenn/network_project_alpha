@@ -1,6 +1,8 @@
-use crate::simulation::resources::components::Coin;
 use crate::session::player_registry::PlayerRegistry;
-use crate::simulation::resources::components::{Active, EntityId, Health, IA, Player, Position, Projectile};
+use crate::simulation::resources::components::Coin;
+use crate::simulation::resources::components::{
+    Active, EntityId, Health, IA, Player, Position, Projectile,
+};
 use crate::simulation::resources::wave::{WaveManager, WaveState as SimWaveState};
 use legion::*;
 use utils::protocol::{EntityKind, EntityState, PlayerInfo, WaveInfo, WaveState};
@@ -118,4 +120,30 @@ pub fn build_player_info(
         max_health: 100.0,
         gold,
     })
+}
+
+pub fn send_snapshots_to(
+    active_clients: Vec<u64>,
+    net: &mut crate::net::GameNetServer,
+    resources: &Resources,
+    world: &mut World,
+    tick_id: u64,
+) {
+    for client_id in active_clients {
+        let mut buff_manager = resources.get_mut::<utils::buffer::BufferManager>().unwrap();
+        let (id, entities) = buff_manager
+            .acquire::<Vec<EntityState>>()
+            .expect("Buffer manager a échoué à donner un buffer");
+        build_entities(world, entities);
+
+        let snapshot = utils::protocol::StateSnapshot {
+            tick_id: tick_id,
+            entities: std::mem::take(entities),
+            wave_info: build_wave_info(resources),
+            player_info: build_player_info(client_id, world, resources),
+        };
+
+        net.send_snapshot(client_id, &snapshot);
+        buff_manager.release(id);
+    }
 }

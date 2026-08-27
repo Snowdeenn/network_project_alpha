@@ -69,7 +69,7 @@ pub(crate) fn render_world(
                 if let Some(tex_id) = anim.current_texture_id(data) {
                     frame.push_world(prism::DrawCommand::Texture {
                         id: tex_id,
-                        // - 32.0 Parce que les coordonéé sont ceux du centre du collider 
+                        // - 32.0 Parce que les coordonéé sont ceux du centre du collider
                         // donc on soustrait la moitié de la taille du collider
                         pos: [x - 32.0, y - 32.0],
                         size: [64.0, 64.0], // à adapter selon la texture
@@ -148,6 +148,26 @@ fn draw_fallback(
                     rotation: 0.0,
                     color: [0.0, 1.0, 0.0, 1.0],
                     uv: None,
+                },
+                blend: prism::BlendMode::Alpha,
+                layer: 1,
+            });
+        }
+        utils::protocol::EntityKind::Coin => {
+            frame.push_world(prism::DrawCommand::Shape {
+                shape: prism::Shape::Ring {
+                    center: [x, y],
+                    inner_r: 0.0,
+                    outer_r: 10.0,
+                    start_angle: 0.0,
+                    end_angle: 360.0,
+                    resolution: 10,
+                    color: [
+                        utils::colors::Color::YELLOW.r as f32 / 255.0,
+                        utils::colors::Color::YELLOW.g as f32 / 255.0,
+                        utils::colors::Color::YELLOW.b as f32 / 255.0,
+                        utils::colors::Color::YELLOW.a as f32 / 255.0,
+                    ],
                 },
                 blend: prism::BlendMode::Alpha,
                 layer: 1,

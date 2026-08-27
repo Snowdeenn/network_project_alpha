@@ -34,6 +34,11 @@ impl ScreenScale {
     pub fn font(&self, ratio: f32) -> i32 {
         (ratio * self.h) as i32
     }
+
+    pub fn resize(&mut self, w: f32, h: f32) {
+        self.w = w;
+        self.h = h;
+    }
 }
 
 pub(crate) fn render_world(

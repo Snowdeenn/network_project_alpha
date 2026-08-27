@@ -8,7 +8,7 @@ use crate::app::input::{self, Input, ShopInputAction};
 use crate::app::resources::Resources;
 use crate::core::client::GameNetClient;
 use crate::core::config;
-use crate::core::event::{handle_shop_ui_event};
+use crate::core::event::handle_shop_ui_event;
 use crate::graphic_data::animation::AnimEntityManager;
 use crate::graphic_data::post_process_effect_type;
 use crate::rendering::ScreenScale;
@@ -128,12 +128,7 @@ impl InGameScene {
         self.update_camera(cam);
     }
 
-    pub fn render(
-        &mut self,
-        frame: &mut prism::Frame,
-        resources: &mut Resources,
-        dt: f32,
-    ) {
+    pub fn render(&mut self, frame: &mut prism::Frame, resources: &mut Resources, dt: f32) {
         let t = (self.snapshots.last_snap_time.elapsed().as_secs_f32()
             / Ticks::TICK_DURATION.as_secs_f32())
         .clamp(0.0, 1.0);
@@ -194,9 +189,12 @@ impl InGameScene {
                     .and_then(|p| p.entities.iter().find(|e| e.entity_id == entity.entity_id));
 
                 let player_entity_id = resources.read_resource::<crate::core::LocalId>().entity_id;
-                
+
                 if entity.entity_id == player_entity_id {
-                    resources.insert(utils::math::Vec2::new(entity.position[0], entity.position[1]));
+                    resources.insert(utils::math::Vec2::new(
+                        entity.position[0],
+                        entity.position[1],
+                    ));
                 }
 
                 let t = (self.snapshots.last_snap_time.elapsed().as_secs_f32()
@@ -253,10 +251,11 @@ impl InGameScene {
             handle_shop_ui_event(&event, gui.ui_ctx, &gui.ids);
 
             if matches!(event.kind, GameEventKind::PlayerHit) {
-                let mut hit_flash = resources.write_resource::<post_process_effect_type::HitFlashEffect>();
+                let mut hit_flash =
+                    resources.write_resource::<post_process_effect_type::HitFlashEffect>();
                 hit_flash.timer = hit_flash.total_duration;
             }
-            
+
             crate::core::event::handle_event(event, resources);
         }
     }
@@ -306,12 +305,7 @@ impl InGameScene {
     }
 
     /// Traitement des entrées utilisateur globales et dépouillement des événements réseau
-    fn handle_ui(
-        &mut self,
-        gui: &mut GuiContext,
-        input_state: &Input,
-        resources: &mut Resources
-    ) {
+    fn handle_ui(&mut self, gui: &mut GuiContext, input_state: &Input, resources: &mut Resources) {
         let mouse_pos = input_state.mouse_position();
         let pressed = input_state.is_mouse_pressed(winit::event::MouseButton::Left);
         let released = input_state.is_mousew_released(winit::event::MouseButton::Left);
@@ -351,19 +345,24 @@ impl InGameScene {
         }
 
         if resources.read_resource::<crate::core::game_phase::GamePhase>().can_show_shop()
-            && input_state.is_mouse_pressed(winit::event::MouseButton::Left)
+    && input_state.is_mouse_pressed(winit::event::MouseButton::Left)
         {
-            let mouse_pos = input_state.mouse_position();
+            let (mouse_x, mouse_y) = (
+                input_state.mouse_position().0 as i32,
+                input_state.mouse_position().1 as i32,
+            );
+
             let card_y = scale.y(config::SHOP_CARD_Y);
             let card_w = scale.w(config::SHOP_CARD_W);
             let card_h = scale.h(config::SHOP_CARD_H);
 
             let clicked = config::SHOP_SLOTS_X.iter().enumerate().find(|&(_, &x)| {
                 let card_x = scale.x(x);
-                mouse_pos.1 as i32 >= card_x
-                    && mouse_pos.0 as i32 <= card_x + card_w
-                    && mouse_pos.1 as i32 >= card_y
-                    && mouse_pos.1 as i32 <= card_y + card_h
+
+                mouse_x >= card_x
+                    && mouse_x <= card_x + card_w
+                    && mouse_y >= card_y
+                    && mouse_y <= card_y + card_h
             });
 
             if let Some((slot, _)) = clicked {

@@ -431,6 +431,9 @@ impl winit::application::ApplicationHandler for App {
                 if let Some(ui_ctx) = &mut self.ui_ctx {
                     ui_ctx.resize(s.width as f32, s.height as f32);
                 }
+                if let Some(scale) = &mut self.scale {
+                    scale.resize(s.width as f32, s.height as f32);
+                }
             }
             winit::event::WindowEvent::KeyboardInput { event, .. } => {
                 if let winit::keyboard::PhysicalKey::Code(key) = event.physical_key {

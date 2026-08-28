@@ -5,6 +5,7 @@ pub mod hud {
     pub const HP_FILL: &str = "hud/hp_fill_id";
     pub const HP_TEXT: &str = "hud/hp_text_id";
     pub const GOLD_LABEL: &str = "hud/gold_label_id";
+    pub const RESPAWN_LABEL: &str = "hud/respawn_label";
 }
 pub mod material {
     pub const HP_MATERIAL: &str = "material/hp_material_id";

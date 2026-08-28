@@ -1,3 +1,4 @@
+use crate::app::resources::Resources;
 use crate::app::states::in_game::{GuiContext, HudBuffers};
 use crate::core::config::*;
 use std::fmt::Write;
@@ -77,6 +78,25 @@ pub fn init_hud(
         color: utils::colors::Color::GOLD,
     };
     register.insert(crate::key::hud::GOLD_LABEL, gold_label_id);
+
+    let respawn_label_id = ui_ctx.add_node(
+        root,
+        nodus::LayoutProps::new(
+            nodus::Anchor::BottomLeft,
+            nodus::UiVec2::new(nodus::UiUnit::Pixels(540.0), nodus::UiUnit::Pixels(30.0)),
+            nodus::UiVec2::pixels(50.0, 25.0),
+        ),
+        nodus::VisualProps {
+            kind: nodus::VisualKind::Text {
+                content: "".to_string(),
+                font_size: 40.0,
+            },
+            color: utils::colors::Color::RED,
+            visible: false,
+            opacity: 1.0,
+        },
+    );
+    register.insert(crate::key::hud::RESPAWN_LABEL, respawn_label_id);
 }
 
 #[derive(Clone, Copy)]
@@ -288,7 +308,12 @@ pub fn init_shop(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regis
     register.insert(crate::key::shop::CLOSE, close_id);
 }
 
-pub fn update(gui: &mut GuiContext, snap: &StateSnapshot, bufs: &mut HudBuffers) {
+pub fn update(
+    gui: &mut GuiContext,
+    snap: &StateSnapshot,
+    bufs: &mut HudBuffers,
+    resources: &Resources,
+) {
     if let Some(info) = &snap.player_info {
         let ratio = info.health / info.max_health;
 
@@ -381,6 +406,30 @@ pub fn update(gui: &mut GuiContext, snap: &StateSnapshot, bufs: &mut HudBuffers)
             target: wave_label_id,
             content: bufs.wave.to_string(),
         });
+    }
+
+    // Maj du respawn timer
+    {
+        let game_phase = resources.read_resource::<crate::core::game_phase::GamePhase>();
+        if matches!(*game_phase, crate::core::game_phase::GamePhase::Dead) {
+            let respawn_label = gui
+                .ids
+                .get::<nodus::NodeId>(crate::key::hud::RESPAWN_LABEL)
+                .unwrap();
+            let respawn_timer = resources
+                .read_resource::<crate::core::ui_state::UiState>()
+                .respawn_timer;
+            if let Some(timer) = respawn_timer {
+                gui.ui_ctx.send_event(nodus::UIEvent::SetVisible {
+                    target: respawn_label,
+                    visible: true,
+                });
+                gui.ui_ctx.send_event(nodus::UIEvent::SetText {
+                    target: respawn_label,
+                    content: format!("Respawn disponible dans {} seconde", timer.round()),
+                });
+            }
+        }
     }
 }
 

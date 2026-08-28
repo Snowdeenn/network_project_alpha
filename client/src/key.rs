@@ -6,6 +6,10 @@ pub mod hud {
     pub const HP_TEXT: &str = "hud/hp_text_id";
     pub const GOLD_LABEL: &str = "hud/gold_label_id";
     pub const RESPAWN_LABEL: &str = "hud/respawn_label";
+    pub const RESPAWN_SHARED_LIVES_BUTTON: &str = "hud/respawn_shared_lives_button";
+    pub const RESPAWN_SHARED_LIVES_BUTTON_LABEL: &str = "hud/respawn_shared_lives_button_label";
+    pub const RESPAWN_GOLD_BUTTON: &str = "hud/respawn_gold_button";
+    pub const RESPAWN_GOLD_BUTTON_LABEL: &str = "hud/respawn_gold_button_label";
 }
 pub mod material {
     pub const HP_MATERIAL: &str = "material/hp_material_id";

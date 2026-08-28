@@ -128,27 +128,7 @@ impl InGameScene {
         self.update_camera(cam);
 
         // Envoi de la demande de respawn au server
-        {
-            let mut game_phase = resources.write_resource::<crate::core::game_phase::GamePhase>();
-            if let Some(respawn_timer) = resources
-                .read_resource::<crate::core::ui_state::UiState>()
-                .respawn_timer
-            {
-                if matches!(*game_phase, crate::core::game_phase::GamePhase::Dead)
-                    && respawn_timer.round() == 0.0
-                {
-                    let client_id = resources.read_resource::<crate::app::ClientId>();
-                    // TODO: Handle le UseGold
-                    client.send_event(&GameEvent {
-                        kind: GameEventKind::RequestRespawn {
-                            client_id: client_id.0,
-                            option: utils::protocol::RespawnOption::UseSharedLife,
-                        },
-                    });
-                    *game_phase = crate::core::game_phase::GamePhase::Respawning;
-                }
-            }
-        }
+        Self::send_respawn_request(client, gui, resources);
     }
 
     pub fn render(&mut self, frame: &mut prism::Frame, resources: &mut Resources, dt: f32) {
@@ -325,8 +305,11 @@ impl InGameScene {
         let mouse_pos = input_state.mouse_position();
         let pressed = input_state.is_mouse_pressed(winit::event::MouseButton::Left);
         let released = input_state.is_mousew_released(winit::event::MouseButton::Left);
-        gui.ui_ctx
-            .process_input(Vec2::new(mouse_pos.0, mouse_pos.1), pressed, released);
+        let output_event =
+            gui.ui_ctx
+                .process_input(Vec2::new(mouse_pos.0, mouse_pos.1), pressed, released);
+
+        resources.insert(output_event);
 
         let mut debug = resources.write_resource::<crate::core::debug_state::DebugState>();
         debug.cleared = false;
@@ -424,6 +407,55 @@ impl InGameScene {
                 / Ticks::TICK_DURATION.as_secs_f32())
             .clamp(0.0, 1.0);
             camera::update(cam, self.snapshots.prev_snapshot.as_ref(), curr, t);
+        }
+    }
+
+    fn send_respawn_request(
+        client: &mut GameNetClient,
+        gui: &mut GuiContext,
+        resources: &mut Resources,
+    ) {
+        let mut game_phase = resources.write_resource::<crate::core::game_phase::GamePhase>();
+        let ui_state = resources.write_resource::<crate::core::ui_state::UiState>();
+        if let Some(respawn_timer) = ui_state.respawn_timer {
+            if matches!(*game_phase, crate::core::game_phase::GamePhase::Dead)
+                && respawn_timer.round() == 0.0
+            {
+                let client_id = resources.read_resource::<crate::app::ClientId>();
+                let ui_output_event = resources.read_resource::<Vec<nodus::UIOutputEvent>>();
+                let shared_lives_button = gui
+                    .ids
+                    .get::<nodus::NodeId>(crate::key::hud::RESPAWN_SHARED_LIVES_BUTTON)
+                    .unwrap();
+                let gold_button = gui
+                    .ids
+                    .get::<nodus::NodeId>(crate::key::hud::RESPAWN_GOLD_BUTTON)
+                    .unwrap();
+
+                for event in ui_output_event.iter() {
+                    match event {
+                        nodus::UIOutputEvent::Clicked { id } if *id == shared_lives_button => {
+                            client.send_event(&GameEvent {
+                                kind: GameEventKind::RequestRespawn {
+                                    client_id: client_id.0,
+                                    option: utils::protocol::RespawnOption::UseSharedLife,
+                                },
+                            });
+                            *game_phase = crate::core::game_phase::GamePhase::Respawning;
+                        }
+                        nodus::UIOutputEvent::Clicked { id } if *id == gold_button => {
+                            client.send_event(&GameEvent {
+                                kind: GameEventKind::RequestRespawn {
+                                    client_id: client_id.0,
+                                    option: utils::protocol::RespawnOption::UseGold,
+                                },
+                            });
+                            *game_phase = crate::core::game_phase::GamePhase::Respawning;
+                        }
+                        _ => (),
+                    }
+                }
+            }
         }
     }
 }

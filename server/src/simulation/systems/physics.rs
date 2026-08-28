@@ -134,9 +134,6 @@ pub fn collide(
         candidates.clear();
     }
 
-    if !to_resolve.is_empty() {
-        println!("Résolutions détectées : {}", to_resolve.len());
-    }
     for res in &to_resolve {
         crate::utils::apply_resolution(world, res);
     }

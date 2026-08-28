@@ -21,9 +21,6 @@ impl UiState {
     pub fn update(&mut self, dt: f32) {
         if let Some(ref mut timer) = self.respawn_timer {
             *timer = (*timer - dt).max(0.0);
-            if *timer == 0.0 {
-                self.respawn_timer = None;
-            }
         }
     }
 }

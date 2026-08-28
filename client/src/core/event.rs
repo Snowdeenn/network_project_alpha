@@ -31,8 +31,7 @@ pub fn handle_event(
                 *phase = crate::core::state_logic::game_phase::GamePhase::Dead;
             }
             {
-                let mut ui_state =
-                    app_resource.write_resource::<crate::core::ui_state::UiState>();
+                let mut ui_state = app_resource.write_resource::<crate::core::ui_state::UiState>();
                 ui_state.spectator_mode = Some(crate::core::ui_state::SpectatorMode::Free);
             }
         }
@@ -76,7 +75,7 @@ pub fn handle_event(
             ui.shared_lives.current = remaining;
             ui.shared_lives.max = max;
         }
-        utils::protocol::GameEventKind::RespawnScheduled {  delay_secs, .. } => {
+        utils::protocol::GameEventKind::RespawnScheduled { delay_secs, .. } => {
             let mut ui_state = app_resource.write_resource::<crate::core::ui_state::UiState>();
             ui_state.respawn_timer = Some(delay_secs);
         }
@@ -94,13 +93,18 @@ pub fn handle_event(
         // Event qu'on utilise pour demander au server le respawn du joueur
         utils::protocol::GameEventKind::RequestRespawn { .. } => (),
         // Event qu'on utilise en interne du server pour respawn le joueur
-        utils::protocol::GameEventKind::RespawnError { .. } => {
-            *app_resource.write_resource::<crate::core::game_phase::GamePhase>() = crate::core::game_phase::GamePhase::Dead;
-        },
+        utils::protocol::GameEventKind::RespawnError { reason } => {
+            tracing::warn!("Echec de la demande de respawn: reason => {reason:?}");
+            *app_resource.write_resource::<crate::core::game_phase::GamePhase>() =
+                crate::core::game_phase::GamePhase::Dead;
+        }
         utils::protocol::GameEventKind::RespawnPlayer { .. } => (),
         utils::protocol::GameEventKind::RespawnAccept { .. } => {
-            let mut game_phase = app_resource.write_resource::<crate::core::game_phase::GamePhase>();
-            *game_phase = crate::core::game_phase::GamePhase::Wave;
+            *app_resource.write_resource::<crate::core::game_phase::GamePhase>() =
+                crate::core::game_phase::GamePhase::Wave;
+            app_resource
+                .write_resource::<crate::core::ui_state::UiState>()
+                .respawn_timer = None;
         }
     }
 }

@@ -205,8 +205,8 @@ impl UiContext {
                             color,
                             layer,
                         });
-                    },
-                    VisualKind::None => () // Pour les nodes juste conteneurs
+                    }
+                    VisualKind::None => (), // Pour les nodes juste conteneurs
                 }
             }
         }
@@ -256,7 +256,11 @@ impl UiContext {
                     uniform_data,
                 } => {
                     if let Some(node) = self.arena.get_mut(target) {
-                        node.visual.kind = VisualKind::Material { material_id: id, texture_id, uniform_data };
+                        node.visual.kind = VisualKind::Material {
+                            material_id: id,
+                            texture_id,
+                            uniform_data,
+                        };
                         node.dirty.visual_dirty = true;
                     }
                 }
@@ -307,6 +311,7 @@ impl UiContext {
                 continue;
             };
             let Some(interact) = &mut node.interact else {
+                // Seul les boutons on un interact
                 continue;
             };
 
@@ -360,6 +365,14 @@ impl UiContext {
             node.interact = Some(interact);
         }
     }
+    pub fn get_interact_state(&self, id: NodeId) -> InteractState {
+        self.arena
+            .get(id)
+            .and_then(|node| node.interact.as_ref())
+            .map(|interact| interact.state)
+            .unwrap_or(InteractState::Normal)
+    }
+    
     pub fn resize(&mut self, width: f32, height: f32) {
         self.screen_w = width;
         self.screen_h = height;

@@ -82,20 +82,35 @@ pub fn process_incoming_game_event(
     net: &mut crate::net::GameNetServer,
     resources: &mut legion::Resources,
 ) {
-    let mut buff = resources.get_mut::<utils::buffer::BufferManager>().unwrap();
-    let (event_id, events) = buff
-        .acquire::<Vec<(u64, utils::protocol::GameEvent)>>()
-        .unwrap();
+    let Some(mut buff) = resources.get_mut::<utils::buffer::BufferManager>() else {
+        tracing::error!("Resource BufferManager introuvable dans les resources legion");
+        return;
+    };
+    let Some((event_id, events)) = buff.acquire::<Vec<(u64, utils::protocol::GameEvent)>>() else {
+        tracing::error!(
+            "Error lors de l'acquisition du buffer : Vec<(u64, GameEvent)> depuis le BufferManager"
+        );
+        return;
+    };
     net.drain_game_event_into(events);
     for (_client_id, event) in events {
         match event.kind {
             utils::protocol::GameEventKind::RequestRespawn { client_id, option } => {
-                let mut registry = resources
-                    .get_mut::<crate::session::PlayerRegistry>()
-                    .unwrap();
-                let mut game_event_queue = resources
-                    .get_mut::<crate::utils::Queue<GameEvent>>()
-                    .unwrap();
+                let Some(mut registry) = resources.get_mut::<crate::session::PlayerRegistry>()
+                else {
+                    tracing::error!(
+                        "Resource PlayerRegistry introuvable dans les resources legion"
+                    );
+                    continue;
+                };
+                let Some(mut game_event_queue) =
+                    resources.get_mut::<crate::utils::Queue<GameEvent>>()
+                else {
+                    tracing::error!(
+                        "Resource Queue<GameEvent> introuvable dans le resources legion"
+                    );
+                    continue;
+                };
 
                 match option {
                     utils::protocol::RespawnOption::UseGold => {
@@ -116,8 +131,14 @@ pub fn process_incoming_game_event(
                         }
                     }
                     utils::protocol::RespawnOption::UseSharedLife => {
-                        let mut shared_lives =
-                            resources.get_mut::<crate::config::SharedLives>().unwrap();
+                        let Some(mut shared_lives) =
+                            resources.get_mut::<crate::config::SharedLives>()
+                        else {
+                            tracing::error!(
+                                "Resource SharedLife introuvable dans les resources legion"
+                            );
+                            continue;
+                        };
                         shared_lives.remaining = shared_lives.remaining.saturating_sub(1);
 
                         if shared_lives.remaining != 0 {
@@ -131,7 +152,6 @@ pub fn process_incoming_game_event(
                             game_event_queue.push(GameEvent {
                                 kind: GameEventKind::RespawnPlayer { client_id },
                             });
-                            println!("RespawnPlayer pushé pour client_id: {}", client_id);
                         } else {
                             game_event_queue.push(GameEvent {
                                 kind: GameEventKind::RespawnError {

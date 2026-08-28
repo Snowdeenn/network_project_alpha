@@ -1,6 +1,7 @@
 use crate::app::resources::Resources;
 use crate::app::states::in_game::{GuiContext, HudBuffers};
 use crate::core::config::*;
+use nodus::VisualProps;
 use std::fmt::Write;
 use utils::ids::MaterialId;
 use utils::protocol::StateSnapshot;
@@ -97,6 +98,105 @@ pub fn init_hud(
         },
     );
     register.insert(crate::key::hud::RESPAWN_LABEL, respawn_label_id);
+
+    let respawn_shared_lives_button = ui_ctx.add_node(
+        root,
+        nodus::LayoutProps::new(
+            nodus::Anchor::Center,
+            nodus::UiVec2::new(nodus::UiUnit::Pixels(-300.0), nodus::UiUnit::Pixels(-114.0)),
+            nodus::UiVec2::pixels(200.0, 50.0),
+        ),
+        VisualProps {
+            kind: nodus::VisualKind::Rect,
+            color: utils::colors::Color::BLACK,
+            opacity: 1.0,
+            visible: false,
+        },
+    );
+    ui_ctx.set_interact(
+        respawn_shared_lives_button,
+        nodus::Interact {
+            state: nodus::InteractState::Normal,
+            style: nodus::ButtonStyle {
+                normal: utils::colors::Color::BLACK,
+                hover: utils::colors::Color::GRAY,
+                pressed: utils::colors::Color::LIGHTGRAY,
+            },
+        },
+    );
+    register.insert(
+        crate::key::hud::RESPAWN_SHARED_LIVES_BUTTON,
+        respawn_shared_lives_button,
+    );
+
+    let respawn_shared_life_label = nodus::text_label!(
+        ctx: ui_ctx,
+        parent: respawn_shared_lives_button,
+        anchor: nodus::Anchor::TopLeft,
+        offset: nodus::UiVec2::new(
+            nodus::UiUnit::ParentPercent(0.2),
+            nodus::UiUnit::ParentPercent(0.3)
+        ),
+        size: nodus::UiVec2::new(
+            nodus::UiUnit::ParentPercent(0.25),
+            nodus::UiUnit::ParentPercent(0.3)
+        ),
+        content: "Shared Lives".to_string(),
+        font_size: 15.0,
+        color: utils::colors::Color::WHITE,
+    );
+    register.insert(
+        crate::key::hud::RESPAWN_SHARED_LIVES_BUTTON_LABEL,
+        respawn_shared_life_label,
+    );
+
+    let respawn_gold_button = ui_ctx.add_node(
+        root,
+        nodus::LayoutProps::new(
+            nodus::Anchor::Center,
+            nodus::UiVec2::new(nodus::UiUnit::Pixels(300.0), nodus::UiUnit::Pixels(-114.0)),
+            nodus::UiVec2::pixels(200.0, 50.0),
+        ),
+        nodus::VisualProps {
+            kind: nodus::VisualKind::Rect,
+            color: utils::colors::Color::BLACK,
+            visible: false,
+            opacity: 1.0,
+        },
+    );
+    ui_ctx.set_interact(
+        respawn_gold_button,
+        nodus::Interact {
+            state: nodus::InteractState::Normal,
+            style: nodus::ButtonStyle {
+                normal: utils::colors::Color::BLACK,
+                hover: utils::colors::Color::GRAY,
+                pressed: utils::colors::Color::LIGHTGRAY,
+            },
+        },
+    );
+    register.insert(crate::key::hud::RESPAWN_GOLD_BUTTON, respawn_gold_button);
+
+    let respawn_gold_button_label = nodus::text_label!(
+        ctx: ui_ctx,
+        parent: respawn_gold_button,
+        anchor: nodus::Anchor::TopLeft,
+        offset: nodus::UiVec2::new(
+            nodus::UiUnit::ParentPercent(0.4),
+            nodus::UiUnit::ParentPercent(0.3)
+        ),
+        size: nodus::UiVec2::new(
+            nodus::UiUnit::ParentPercent(0.25),
+            nodus::UiUnit::ParentPercent(0.3)
+        ),
+        content: "Gold".to_string(),
+        font_size: 15.0,
+        color: utils::colors::Color::WHITE,
+    );
+    register.insert(
+        crate::key::hud::RESPAWN_GOLD_BUTTON_LABEL,
+        respawn_gold_button_label,
+    );
 }
 
 #[derive(Clone, Copy)]
@@ -408,28 +508,80 @@ pub fn update(
         });
     }
 
-    // Maj du respawn timer
-    {
-        let game_phase = resources.read_resource::<crate::core::game_phase::GamePhase>();
-        if matches!(*game_phase, crate::core::game_phase::GamePhase::Dead) {
-            let respawn_label = gui
-                .ids
-                .get::<nodus::NodeId>(crate::key::hud::RESPAWN_LABEL)
-                .unwrap();
-            let respawn_timer = resources
-                .read_resource::<crate::core::ui_state::UiState>()
-                .respawn_timer;
-            if let Some(timer) = respawn_timer {
+    
+    update_respawn_menu(gui, resources);
+}
+
+fn update_respawn_menu(gui: &mut GuiContext, resources: &Resources) {
+    let game_phase = resources.read_resource::<crate::core::game_phase::GamePhase>();
+    if matches!(*game_phase, crate::core::game_phase::GamePhase::Dead) {
+        let Some(respawn_label) = gui.ids.get::<nodus::NodeId>(crate::key::hud::RESPAWN_LABEL)
+        else {
+            tracing::error!("Respawn Label introuvable dans l'id register");
+            return;
+        };
+
+        let respawn_timer = resources
+            .read_resource::<crate::core::ui_state::UiState>()
+            .respawn_timer;
+
+        if let Some(timer) = respawn_timer {
+            if timer.round() != 0.0 {
                 gui.ui_ctx.send_event(nodus::UIEvent::SetVisible {
                     target: respawn_label,
                     visible: true,
                 });
                 gui.ui_ctx.send_event(nodus::UIEvent::SetText {
                     target: respawn_label,
-                    content: format!("Respawn disponible dans {} seconde", timer.round()),
+                    content: format!("Respawn disponible dans {} seconde", timer.round() as u32),
+                });
+            } else {
+                gui.ui_ctx.send_event(nodus::UIEvent::SetVisible {
+                    target: respawn_label,
+                    visible: false,
+                });
+                let shared_lives_button = gui
+                    .ids
+                    .get::<nodus::NodeId>(crate::key::hud::RESPAWN_SHARED_LIVES_BUTTON)
+                    .unwrap();
+                gui.ui_ctx.send_event(nodus::UIEvent::SetVisible {
+                    target: shared_lives_button,
+                    visible: true,
+                });
+
+                let gold_button = gui
+                    .ids
+                    .get::<nodus::NodeId>(crate::key::hud::RESPAWN_GOLD_BUTTON)
+                    .unwrap();
+                gui.ui_ctx.send_event(nodus::UIEvent::SetVisible {
+                    target: gold_button,
+                    visible: true,
                 });
             }
         }
+    } else {
+        let Some(shared_lives_button) = gui
+            .ids
+            .get::<nodus::NodeId>(crate::key::hud::RESPAWN_SHARED_LIVES_BUTTON)
+        else {
+            tracing::error!("RESPAWN_SHARED_LIVES_BUTTON introuvable dans l'id register");
+            return;
+        };
+        gui.ui_ctx.send_event(nodus::UIEvent::SetVisible {
+            target: shared_lives_button,
+            visible: false,
+        });
+        let Some(gold_button) = gui
+            .ids
+            .get::<nodus::NodeId>(crate::key::hud::RESPAWN_GOLD_BUTTON)
+        else {
+            tracing::error!("RESPAWN_GOLD_BUTTON introuvable dans l'id register");
+            return;
+        };
+        gui.ui_ctx.send_event(nodus::UIEvent::SetVisible {
+            target: gold_button,
+            visible: false,
+        });
     }
 }
 

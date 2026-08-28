@@ -176,8 +176,14 @@ pub fn respawn_player(
         .collect();
 
     for client_id in to_respawn {
-        let entity = registry.get_entity(client_id).unwrap();
-        let mut entity_entry = world.entry_mut(entity).unwrap();
+        let Some(entity) = registry.get_entity(client_id) else {
+            tracing::error!("Échec de l'acquisition de l'entity pour le client : {client_id}");
+            continue;
+        };
+        let Ok(mut entity_entry) = world.entry_mut(entity) else {
+            tracing::error!("Echec lors de la création de l'entry de l'entity : {entity:?}");
+            continue;
+        };
 
         if let Ok(active) = entity_entry.get_component_mut::<Active>() {
             active.0 = true;

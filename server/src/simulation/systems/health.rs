@@ -43,28 +43,11 @@ pub fn health(
                 let id = entry
                     .get_component::<EntityId>()
                     .expect("[Health System] Joueur sans EntityId");
-
-                shared_lives.remaining = shared_lives.remaining.saturating_sub(1);
-
+                
                 // Toujours envoyer PlayerDied au client concerné
                 game_event_queue.data.push(GameEvent {
                     kind: GameEventKind::PlayerDied { entity_id: id.0 },
                 });
-
-                // Broadcast vies restantes
-                game_event_queue.data.push(GameEvent {
-                    kind: GameEventKind::SharedLivesUpdate {
-                        remaining: shared_lives.remaining,
-                        max: shared_lives.max,
-                    },
-                });
-
-                // Game over si plus de vies
-                if shared_lives.remaining == 0 {
-                    game_event_queue.data.push(GameEvent {
-                        kind: GameEventKind::GameOver,
-                    });
-                }
             }
         }
     }

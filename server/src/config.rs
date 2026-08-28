@@ -32,3 +32,5 @@ impl SharedLives {
         }
     }
 }
+
+pub const RESPAWN_GOLD_AMOUNT: u32 = 20;

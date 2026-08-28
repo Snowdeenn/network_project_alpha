@@ -1,10 +1,13 @@
 use crate::app::next_id;
+use crate::session::PlayerRegistry;
 use crate::simulation::resources::components::*;
+use crate::utils::Queue;
 use legion::world::{EntryMut, World};
-use legion::*; 
-use utils::config::ClassRegistery;
-use std::time::Duration;
+use legion::*;
 use std::f64::consts::PI;
+use std::time::Duration;
+use utils::config::ClassRegistery;
+use utils::protocol::GameEvent;
 
 use crate::simulation::resources::wave::EnemyStatsConfig;
 
@@ -111,8 +114,8 @@ pub fn spawn_coin_blank(world: &mut World) -> Entity {
     e
 }
 
-const MAP_CENTER_X: f64 = 960.0;
-const MAP_CENTER_Y: f64 = 540.0;
+const MAP_CENTER_X: f64 = 4800.0;
+const MAP_CENTER_Y: f64 = 3200.0;
 const SPAWN_RADIUS: f64 = 800.0;
 
 pub fn configure_enemy(
@@ -151,5 +154,50 @@ pub fn configure_enemy(
         attack_stats.projectile_speed = config.projectile_speed;
         attack_stats.box_half_length = config.box_half_length;
         attack_stats.box_half_width = config.box_half_width;
+    }
+}
+
+#[system]
+#[write_component(Active)]
+#[write_component(Position)]
+#[write_component(Health)]
+pub fn respawn_player(
+    world: &mut legion::world::SubWorld,
+    #[resource] game_event_queue: &mut Queue<GameEvent>,
+    #[resource] registry: &PlayerRegistry,
+    #[resource] class_registry: &ClassRegistery,
+) {
+    let to_respawn: Vec<u64> = game_event_queue
+        .iter()
+        .filter_map(|event| match event.kind {
+            utils::protocol::GameEventKind::RespawnPlayer { client_id } => Some(client_id),
+            _ => None,
+        })
+        .collect();
+
+    for client_id in to_respawn {
+        let entity = registry.get_entity(client_id).unwrap();
+        let mut entity_entry = world.entry_mut(entity).unwrap();
+
+        if let Ok(active) = entity_entry.get_component_mut::<Active>() {
+            active.0 = true;
+        }
+        if let Ok(pos) = entity_entry.get_component_mut::<Position>() {
+            pos.x = MAP_CENTER_X;
+            pos.y = MAP_CENTER_Y;
+        }
+        if let Ok(health) = entity_entry.get_component_mut::<Health>() {
+            let class_config = class_registry
+                .config
+                .get(&utils::config::PlayerClass::Warrior)
+                .unwrap();
+            health.hp = class_config.max_hp;
+            health.max_hp = class_config.max_hp;
+            health.state = HealthState::Alive;
+        }
+
+        game_event_queue.push(GameEvent {
+            kind: utils::protocol::GameEventKind::RespawnAccept { client_id },
+        });
     }
 }

@@ -7,6 +7,7 @@ pub enum GamePhase {
         shop_available: bool,
     },
     Dead,
+    Respawning,
     GameOver,
 }
 

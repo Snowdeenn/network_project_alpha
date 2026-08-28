@@ -21,6 +21,7 @@ use crate::simulation::resources::{
     wave::*,
 };
 use crate::simulation::systems::flow_field::update_flow_fields_system;
+use crate::simulation::systems::spawn::respawn_player_system;
 use crate::simulation::systems::{
     attack::*, coin::*, debug::*, health::*, ia::*, physics::*, state::dash_system, wave::*,
 };
@@ -238,6 +239,7 @@ impl ServerApp {
             .add_system(wave_death_reaper_system())
             .add_system(wave_spawner_system())
             .add_system(wave_flow_manager_system())
+            .add_system(respawn_player_system())
             .add_system(send_collider_system())
             .add_system(debug_projectile_positions_system())
             .build();
@@ -286,6 +288,7 @@ impl ServerApp {
             &mut self.session,
             &mut self.world,
         );
+        crate::replication::process_incoming_game_event(&mut self.net, &mut self.resources);
 
         // Traite les inputs reçus du client
         {
@@ -317,6 +320,13 @@ impl ServerApp {
         }
 
         crate::simulation::run_simulation(&mut self.schedule, &mut self.world, &mut self.resources);
+        // Process Game Event
+        {
+            let (mut world, _) = self
+                .world
+                .split::<(&components::Active, &mut components::Velocity)>();
+            crate::replication::process_game_event(&mut self.net, &mut self.resources, &mut world);
+        }
 
         // ---- Maj Snapshot ----
         {
@@ -333,13 +343,6 @@ impl ServerApp {
                 &mut self.world,
                 self.tick_id,
             );
-        }
-        // Process Game Event
-        {
-            let (mut world, _) = self
-                .world
-                .split::<(&components::Active, &mut components::Velocity)>();
-            crate::replication::process_game_event(&mut self.net, &mut self.resources, &mut world);
         }
 
         self.net.flush();

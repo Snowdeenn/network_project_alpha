@@ -72,8 +72,8 @@ pub fn handle_lobby_message(
             // Déjà géré dans ClientConnected pour la connexion initiale
             // Ce message sert si on implémente le flow "entrer un code manuellement"
             broadcast_lobby_update(session, net);
-        }
-
+        },
+        
         _ => {} // Messages serveur → client, ignorés si reçus
     }
 }

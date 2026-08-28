@@ -1,4 +1,6 @@
 use legion::world::Entity;
+use utils::protocol::GameEvent;
+use utils::protocol::GameEventKind;
 #[derive(Debug, Clone, Copy)]
 pub struct DamageEvent {
     pub target: Entity,
@@ -20,7 +22,7 @@ pub fn process_game_event(
 ) {
     use crate::simulation::resources::components;
     use legion::EntityStore;
-    
+
     let mut game_events = resources
         .get_mut::<crate::utils::Queue<utils::protocol::GameEvent>>()
         .expect("GameEventQueue pas dans les ressources");
@@ -34,6 +36,15 @@ pub fn process_game_event(
                 if let Some(client_id) = mapping.entity_to_client(entity_id) {
                     println!("Envoi de la mort au client concerné : {}", client_id);
                     net.send_event(client_id, &event);
+                    net.send_event(
+                        client_id,
+                        &GameEvent {
+                            kind: utils::protocol::GameEventKind::RespawnScheduled {
+                                player_id: client_id, // Voir si on met le entity_id pour les autres joueurs
+                                delay_secs: 10.0,
+                            },
+                        },
+                    );
 
                     if let Some(entity) = resources
                         .get::<crate::session::PlayerRegistry>()
@@ -52,9 +63,88 @@ pub fn process_game_event(
                     }
                 }
             }
+            GameEventKind::RespawnAccept { client_id } => {
+                net.send_event(
+                    client_id,
+                    &GameEvent {
+                        kind: GameEventKind::RespawnAccept { client_id },
+                    },
+                );
+            }
             _ => {
                 net.broadcast_event(&event);
             }
         }
     }
+}
+
+pub fn process_incoming_game_event(
+    net: &mut crate::net::GameNetServer,
+    resources: &mut legion::Resources,
+) {
+    let mut buff = resources.get_mut::<utils::buffer::BufferManager>().unwrap();
+    let (event_id, events) = buff
+        .acquire::<Vec<(u64, utils::protocol::GameEvent)>>()
+        .unwrap();
+    net.drain_game_event_into(events);
+    for (_client_id, event) in events {
+        match event.kind {
+            utils::protocol::GameEventKind::RequestRespawn { client_id, option } => {
+                let mut registry = resources
+                    .get_mut::<crate::session::PlayerRegistry>()
+                    .unwrap();
+                let mut game_event_queue = resources
+                    .get_mut::<crate::utils::Queue<GameEvent>>()
+                    .unwrap();
+
+                match option {
+                    utils::protocol::RespawnOption::UseGold => {
+                        let player_gold_amount = registry.get_gold(client_id);
+
+                        if player_gold_amount >= crate::config::RESPAWN_GOLD_AMOUNT {
+                            registry.sub_gold(client_id, crate::config::RESPAWN_GOLD_AMOUNT);
+
+                            game_event_queue.push(GameEvent {
+                                kind: GameEventKind::RespawnPlayer { client_id },
+                            });
+                        } else {
+                            game_event_queue.push(GameEvent {
+                                kind: GameEventKind::RespawnError {
+                                    reason: utils::protocol::RespawnErrorKind::NotEnoughtGold,
+                                },
+                            });
+                        }
+                    }
+                    utils::protocol::RespawnOption::UseSharedLife => {
+                        let mut shared_lives =
+                            resources.get_mut::<crate::config::SharedLives>().unwrap();
+                        shared_lives.remaining = shared_lives.remaining.saturating_sub(1);
+
+                        if shared_lives.remaining != 0 {
+                            // Broadcast vies restantes
+                            game_event_queue.push(GameEvent {
+                                kind: GameEventKind::SharedLivesUpdate {
+                                    remaining: shared_lives.remaining,
+                                    max: shared_lives.max,
+                                },
+                            });
+                            game_event_queue.push(GameEvent {
+                                kind: GameEventKind::RespawnPlayer { client_id },
+                            });
+                            println!("RespawnPlayer pushé pour client_id: {}", client_id);
+                        } else {
+                            game_event_queue.push(GameEvent {
+                                kind: GameEventKind::RespawnError {
+                                    reason:
+                                        utils::protocol::RespawnErrorKind::NotEnoughtSharedLives,
+                                },
+                            });
+                        }
+                    }
+                }
+            }
+            _ => {} // Message Server -> Client
+        }
+    }
+    buff.release(event_id);
 }

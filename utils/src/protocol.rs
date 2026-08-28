@@ -113,7 +113,36 @@ pub enum GameEventKind {
         remaining: u32,
         max: u32,
     },
+    RespawnScheduled {
+        player_id: u64,
+        delay_secs: f32,
+    },
+    RequestRespawn {
+        client_id: u64,
+        option: RespawnOption,
+    },
+    RespawnPlayer {
+        client_id: u64,
+    },
+    RespawnError {
+        reason: RespawnErrorKind,
+    },
+    RespawnAccept {
+        client_id: u64,
+    },
     GameOver,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Encode, Decode)]
+pub enum RespawnOption {
+    UseSharedLife,
+    UseGold,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Encode, Decode)]
+pub enum RespawnErrorKind {
+    NotEnoughtGold,
+    NotEnoughtSharedLives,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Encode, Decode)]
@@ -176,7 +205,6 @@ pub struct ClassSelected {
 
 #[derive(Debug, Serialize, Deserialize, Encode, Decode)]
 pub enum LobbyMessage {
-    // Client → Serveur (déjà dans protocol.rs)
     RequestJoinSession {
         code: String,
     },
@@ -186,7 +214,6 @@ pub enum LobbyMessage {
     ToggleReady,
     LeaveSession,
 
-    // Serveur → Client (à ajouter)
     SessionJoined {
         code: String,
         slot_index: u8,
@@ -200,15 +227,6 @@ pub enum LobbyMessage {
     },
     SessionError {
         reason: SessionErrorKind,
-    },
-
-    // In-game (à ajouter)
-    SharedLivesUpdate {
-        remaining: u32,
-    },
-    RespawnScheduled {
-        player_id: u64,
-        delay_secs: f32,
     },
 }
 

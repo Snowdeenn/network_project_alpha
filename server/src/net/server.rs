@@ -50,6 +50,16 @@ impl GameNetServer {
         events
     }
 
+    pub fn drain_game_event_into(&mut self, buf: &mut Vec<(u64, GameEvent)>) {
+        for client_id in self.server.clients_id().into_iter() {
+            while let Some(byte) = self.server.receive_message(client_id, CHANNEL_EVENT) {
+                if let Ok((event, _)) = bincode::decode_from_slice(&byte, bincode::config::standard()) {
+                    buf.push((client_id, event));
+                }
+            }
+        }
+    }
+
     pub fn drain_inputs_into(&mut self, buf: &mut Vec<(u64, InputPacket)>) {
     for client_id in self.server.clients_id().into_iter() {
         while let Some(bytes) = self.server.receive_message(client_id, CHANNEL_INPUT) {

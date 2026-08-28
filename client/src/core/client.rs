@@ -68,6 +68,14 @@ impl GameNetClient {
             .send_message(CHANNEL_SHOP, bytes::Bytes::copy_from_slice(&self.send_buf));
     }
 
+    pub fn send_event(&mut self, event: &GameEvent) {
+        self.send_buf.clear();
+        bincode::encode_into_std_write(event, &mut self.send_buf, bincode::config::standard())
+            .unwrap();
+        self.client
+            .send_message(CHANNEL_EVENT, bytes::Bytes::copy_from_slice(&self.send_buf));
+    }
+
     pub fn send_lobby_message(&mut self, msg: &LobbyMessage) {
         self.send_buf.clear();
         bincode::encode_into_std_write(msg, &mut self.send_buf, bincode::config::standard())

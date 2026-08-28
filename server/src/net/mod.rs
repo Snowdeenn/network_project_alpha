@@ -87,7 +87,6 @@ fn handle_reconnection(
         }
         if let Some(register) = resources.get::<crate::session::PlayerRegistry>() {
             if let Some(entry) = register.get_entry(client_id) {
-                println!("envoie player spawn");
                 net.send_event(
                     client_id,
                     &utils::protocol::GameEvent {

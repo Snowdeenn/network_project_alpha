@@ -126,6 +126,29 @@ impl InGameScene {
 
         // Caméra & UI
         self.update_camera(cam);
+
+        // Envoi de la demande de respawn au server
+        {
+            let mut game_phase = resources.write_resource::<crate::core::game_phase::GamePhase>();
+            if let Some(respawn_timer) = resources
+                .read_resource::<crate::core::ui_state::UiState>()
+                .respawn_timer
+            {
+                if matches!(*game_phase, crate::core::game_phase::GamePhase::Dead)
+                    && respawn_timer.round() == 0.0
+                {
+                    let client_id = resources.read_resource::<crate::app::ClientId>();
+                    // TODO: Handle le UseGold
+                    client.send_event(&GameEvent {
+                        kind: GameEventKind::RequestRespawn {
+                            client_id: client_id.0,
+                            option: utils::protocol::RespawnOption::UseSharedLife,
+                        },
+                    });
+                    *game_phase = crate::core::game_phase::GamePhase::Respawning;
+                }
+            }
+        }
     }
 
     pub fn render(&mut self, frame: &mut prism::Frame, resources: &mut Resources, dt: f32) {
@@ -135,16 +158,8 @@ impl InGameScene {
 
         let phase = resources.read_resource::<crate::core::game_phase::GamePhase>();
         match *phase {
-            crate::core::game_phase::GamePhase::Dead => {
-                frame.push_world(prism::DrawCommand::Text {
-                    content: "YOU'RE DEAD".to_string(),
-                    pos: [400.0, 300.0],
-                    size: 64.0,
-                    color: [1.0, 0.0, 0.0, 1.0],
-                    layer: 0,
-                });
-            }
-            _ => {
+            crate::core::game_phase::GamePhase::Wave
+            | crate::core::game_phase::GamePhase::BetweenWave { .. } => {
                 if let Some(curr) = &self.snapshots.last_snapshot {
                     crate::rendering::render_world(
                         frame,
@@ -159,6 +174,7 @@ impl InGameScene {
                     vfx.push_draw_commands(frame);
                 }
             }
+            _ => (), // On va gérer le game Over autre part
         }
         crate::rendering::render_hud(frame, resources);
     }
@@ -178,7 +194,7 @@ impl InGameScene {
 
         if let Some(snap) = &self.snapshots.last_snapshot {
             // MAJ hud
-            hud::update(gui, snap, &mut self.hud_buffers);
+            hud::update(gui, snap, &mut self.hud_buffers, resources);
 
             // Particules de déplacement des joueurs
             for entity in &snap.entities {
@@ -344,8 +360,10 @@ impl InGameScene {
             ShopInputAction::Open | ShopInputAction::None => {}
         }
 
-        if resources.read_resource::<crate::core::game_phase::GamePhase>().can_show_shop()
-    && input_state.is_mouse_pressed(winit::event::MouseButton::Left)
+        if resources
+            .read_resource::<crate::core::game_phase::GamePhase>()
+            .can_show_shop()
+            && input_state.is_mouse_pressed(winit::event::MouseButton::Left)
         {
             let (mouse_x, mouse_y) = (
                 input_state.mouse_position().0 as i32,

@@ -26,13 +26,14 @@ pub fn handle_event(
         utils::protocol::GameEventKind::BossSpawn { .. } => {}
         utils::protocol::GameEventKind::PlayerDied { .. } => {
             {
+                tracing::info!("mort reçu");
                 let mut phase = app_resource.write_resource::<crate::core::game_phase::GamePhase>();
                 *phase = crate::core::state_logic::game_phase::GamePhase::Dead;
             }
             {
-                let mut spectator_mode =
-                    app_resource.write_resource::<Option<crate::core::ui_state::SpectatorMode>>();
-                *spectator_mode = Some(crate::core::ui_state::SpectatorMode::Free);
+                let mut ui_state =
+                    app_resource.write_resource::<crate::core::ui_state::UiState>();
+                ui_state.spectator_mode = Some(crate::core::ui_state::SpectatorMode::Free);
             }
         }
         utils::protocol::GameEventKind::ItemBought { slot } => {
@@ -75,6 +76,10 @@ pub fn handle_event(
             ui.shared_lives.current = remaining;
             ui.shared_lives.max = max;
         }
+        utils::protocol::GameEventKind::RespawnScheduled {  delay_secs, .. } => {
+            let mut ui_state = app_resource.write_resource::<crate::core::ui_state::UiState>();
+            ui_state.respawn_timer = Some(delay_secs);
+        }
         utils::protocol::GameEventKind::GameOver => {}
         utils::protocol::GameEventKind::PlayerHit => (), // On gère ça sur le niveau au dessus
         utils::protocol::GameEventKind::PlayerSpawn {
@@ -85,6 +90,17 @@ pub fn handle_event(
             let mut local_id = app_resource.write_resource::<crate::core::LocalId>();
             local_id.entity_id = entity_id;
             local_id.client_id = client_id;
+        }
+        // Event qu'on utilise pour demander au server le respawn du joueur
+        utils::protocol::GameEventKind::RequestRespawn { .. } => (),
+        // Event qu'on utilise en interne du server pour respawn le joueur
+        utils::protocol::GameEventKind::RespawnError { .. } => {
+            *app_resource.write_resource::<crate::core::game_phase::GamePhase>() = crate::core::game_phase::GamePhase::Dead;
+        },
+        utils::protocol::GameEventKind::RespawnPlayer { .. } => (),
+        utils::protocol::GameEventKind::RespawnAccept { .. } => {
+            let mut game_phase = app_resource.write_resource::<crate::core::game_phase::GamePhase>();
+            *game_phase = crate::core::game_phase::GamePhase::Wave;
         }
     }
 }

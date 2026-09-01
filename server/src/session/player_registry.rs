@@ -1,8 +1,11 @@
 // src/player_registry.rs
 use legion::Entity;
+use utils::protocol::SpellSlot;
 use std::collections::HashMap;
 use utils::arena::{Arena, Id};
 use utils::ids::PlayerTag;
+
+use crate::simulation::resources::spells::{SpellId};
 
 #[derive(Debug, Clone)]
 pub struct PlayerEntry {
@@ -10,6 +13,8 @@ pub struct PlayerEntry {
     pub entity: Option<Entity>,
     pub entity_id: Option<u64>,
     pub gold: u32,
+    pub spells: [Option<SpellId>; 4],
+    // Ajouter une hash map pour tracker le cooldown des sorts du joueur ?
 }
 
 pub struct PlayerRegistry {
@@ -33,6 +38,7 @@ impl PlayerRegistry {
             entity: None,
             entity_id: None,
             gold: 0,
+            spells: [None; 4], // TODO: Changer la valeur hardcoder par une constante
         };
         let id = self.arena.insert(entry);
         self.client_to_id.insert(client_id, id);
@@ -109,6 +115,33 @@ impl PlayerRegistry {
 
     pub fn iter_clients(&self) -> impl Iterator<Item = u64> + '_ {
         self.client_to_id.keys().copied()
+    }
+
+    pub fn add_spell(&mut self, client_id: u64, spell_id: SpellId, spell_slot: SpellSlot) {
+        let Some(id) = self.client_to_id.get(&client_id) else {
+            tracing::error!("Client {client_id} introuvable dand le registre");
+            return;
+        };
+        if let Some(entry) = self.arena.get_mut(*id) {
+            entry.spells[spell_slot as usize] = Some(spell_id);
+        }
+    }
+
+    pub fn remove_spell(&mut self, client_id: u64, spell_slot: SpellSlot) {
+        let Some(id) = self.client_to_id.get(&client_id) else {
+            tracing::error!("Client {client_id} introuvable dand le registre");
+            return;
+        };
+        if let Some(entry) = self.arena.get_mut(*id) {
+            entry.spells[spell_slot as usize] = None;
+        }
+    }
+
+    pub fn get_spells(&self, client_id: u64) -> Option<[Option<SpellId>; 4]> {
+        self.client_to_id
+            .get(&client_id)
+            .and_then(|id| self.arena.get(*id))
+            .map(|entry| entry.spells)
     }
 }
 

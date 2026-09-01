@@ -10,7 +10,7 @@ pub struct InputPacket {
     pub move_dir: [f32; 2],
     pub aim_dir: [f32; 2],
     pub tick_id: u64,
-    pub spell: Option<u8>,
+    pub spell: Option<SpellSlot>,
     pub dash: bool,
     pub attack: bool,
 }
@@ -131,6 +131,15 @@ pub enum GameEventKind {
         client_id: u64,
     },
     GameOver,
+    // SpellCast {
+    //     client_id: u64,
+    //     spell: SpellSlot,
+    //     pos: [f32; 2],
+    //     dir: [f32; 2],
+    // },
+    SpellCastError {
+        reason: SpellCastErrorKind,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Encode, Decode)]
@@ -249,4 +258,21 @@ pub enum SessionErrorKind {
 pub enum LobbyPhaseInfo {
     Waiting,
     Starting { countdown_secs: u8 },
+}
+
+#[derive(Debug, Serialize, Deserialize, Encode, Decode, Clone, Copy)]
+#[repr(u8)]
+pub enum SpellSlot {
+    First,
+    Second,
+    Third,
+    Fourth,
+}
+
+#[derive(Debug, Serialize, Deserialize, Encode, Decode, Clone, Copy)]
+pub enum SpellCastErrorKind {
+    NotEnoughtGold,
+    SpellNotOwned,
+    CooldownNotRefresh,
+    NoMoreCharges,
 }

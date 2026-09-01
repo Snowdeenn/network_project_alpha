@@ -2,10 +2,13 @@ use legion::Entity;
 use utils::arena::Id;
 use std::time::Duration;
 
+use crate::simulation::resources::spells::{AoeSpellShape, SpellCost, SpellEffectKind, SpellTargetingConfig};
+
 pub struct Player;
 pub struct IA;
 pub struct Coin;
 pub struct Projectile;
+#[derive(Debug)]
 pub struct EntityId(pub u64);
 pub struct RangedBrain;
 pub struct MeleeBrain;
@@ -61,7 +64,7 @@ pub struct CoinValue(pub u32);
 pub struct InputState {
     pub move_dir: [f32; 2],
     pub aim_dir: [f32; 2],
-    pub spell: Option<u8>,
+    pub spell: Option<utils::protocol::SpellSlot>,
     pub attack: bool,
     pub dash: bool,
 }
@@ -127,3 +130,43 @@ pub struct MovementStats {
 pub struct LifeTime(pub Duration);
 
 pub struct PoolId<Tag>(pub Id<Tag>);
+
+pub struct SpellCasted {
+    pub aim_dir: [f32; 2],
+    pub cost: SpellCost,
+    pub targeting: SpellTargetingConfig,
+    pub effects: Vec<SpellEffectKind>,
+}
+
+pub struct SpellEffects {
+    pub effects: Vec<SpellEffectKind>,
+    pub aoe: Option<AoeSpellShape>,
+}
+
+pub struct SpellProjectile {
+    pub effects: Vec<SpellEffectKind>,
+    pub aoe: Option<AoeSpellShape>,
+    pub range_remaining: f32,
+    pub caster_entity_id: u64,
+}
+
+pub struct PendingAoe {
+    pub origin: [f32; 2],
+    pub aim_dir: [f32; 2],
+    pub aoe: Option<AoeSpellShape>,
+    pub effects: Vec<SpellEffectKind>,
+}
+
+pub struct PendingEffect {
+    pub effects: Vec<SpellEffectKind>,
+}
+
+pub struct SpellCooldowns {
+    pub slots: [f32; 4],
+}
+
+pub struct SpellCooldownStart {
+    pub slot: utils::protocol::SpellSlot,
+    pub duration: f32,
+}
+

@@ -99,6 +99,9 @@ pub fn spawn_enemy_blank(world: &mut World) -> Entity {
         accel: 0.0,
         max_speed: 0.0,
     });
+    entry.add_component(SpellCooldowns {
+        slots: [f32::default(); 4],
+    });
     e
 }
 

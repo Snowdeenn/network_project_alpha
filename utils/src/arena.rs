@@ -17,6 +17,7 @@ use std::marker::PhantomData;
 ///
 /// Un `Id` combine un index de tableau avec un compteur de génération. Il est léger,
 /// implémente `Copy`, et peut être fortement typé grâce au paramètre de genre `Tag`.
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct Id<Tag> {
     /// Index de l'emplacement (*slot*) dans le vecteur interne de l'arène.
     pub index: usize,
@@ -64,6 +65,7 @@ impl<T> Clone for Id<T> {
         *self
     }
 }
+
 
 /// Emplacement interne (*slot*) dans l'arène contenant la valeur et sa génération actuelle.
 struct Slot<Data> {

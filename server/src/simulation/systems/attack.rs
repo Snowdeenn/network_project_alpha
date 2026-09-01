@@ -1,17 +1,17 @@
 use crate::app::next_id;
-use crate::utils::Queue;
-use crate::simulation::resources::components::*;
-use crate::replication::event::*;
-use crate::utils::obb_vs_aabb;
 use crate::navigation::SpatialGrid;
+use crate::replication::event::*;
+use crate::simulation::resources::components::*;
+use crate::utils::Queue;
+use crate::utils::obb_vs_aabb;
 use legion::systems::CommandBuffer;
 use legion::world::SubWorld;
 use legion::*;
-use utils::buffer::BufferManager;
-use utils::protocol::{GameEvent, GameEventKind};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::time::Duration;
+use utils::buffer::BufferManager;
+use utils::protocol::{GameEvent, GameEventKind};
 
 #[system]
 #[read_component(Player)]
@@ -168,7 +168,7 @@ pub fn create_attack_box(
             Active(true),
         ));
 
-        // Rendu Debug via ton événement réseau existant !
+        // Rendu Debug
         game_event_queue.data.push(GameEvent {
             kind: GameEventKind::SpawnRect {
                 x: center_x as f32,
@@ -300,7 +300,6 @@ pub fn check_collide_attackbox(
 
             if obb_vs_aabb(attackbox_pos, attackbox_geom, victim_pos, victim_col) {
                 let mut should_damage = false;
-
                 if attacker_is_player {
                     should_damage = true;
                 } else {
@@ -349,18 +348,34 @@ pub fn check_collide_attackbox(
 
                     // Si c'est un projectile monocible, on arrête dès le premier impact
                     if is_projectile {
+                        let spell_effects = world.entry_ref(*attackbox_entt).ok().and_then(|e| {
+                            e.get_component::<SpellEffects>()
+                                .ok()
+                                .map(|se| (se.effects.clone(), se.aoe))
+                        });
+                        if let Some((effects, aoe)) = spell_effects {
+                            // Redirige vers la pipeline sort
+                            command.push((
+                                PendingAoe {
+                                    origin: [attackbox_pos.x as f32, attackbox_pos.y as f32],
+                                    aim_dir: attackbox_geom.dir,
+                                    aoe: aoe,
+                                    effects: effects,
+                                },
+                                Active(true),
+                            ));
+                            command.remove(*attackbox_entt);
+                        }
                         break;
                     }
                 }
             }
-        }
 
-        if !is_projectile || hit {
-            command.remove(*attackbox_entt);
+            if !is_projectile || hit {
+                command.remove(*attackbox_entt);
+            }
         }
     }
-
-    // 5. Nettoyage
     buff_manager.release(players_id);
     buff_manager.release(attackboxes_id);
     buff_manager.release(victims_id);
@@ -392,8 +407,8 @@ pub fn knockback(
     }
 }
 
-const ARENA_W: f64 = 1920.0;
-const ARENA_H: f64 = 1080.0;
+const ARENA_W: f64 = 9600.0;
+const ARENA_H: f64 = 6400.0;
 #[system(for_each)]
 #[filter(component::<Projectile>())]
 pub fn projectile_life_time(

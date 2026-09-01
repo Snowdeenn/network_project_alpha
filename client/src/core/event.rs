@@ -106,6 +106,10 @@ pub fn handle_event(
                 .write_resource::<crate::core::ui_state::UiState>()
                 .respawn_timer = None;
         }
+        // utils::protocol::GameEventKind::SpellCast { .. } => (), // Event qu'on utilise pour avertir le serveur qu'on utilise un spell
+        utils::protocol::GameEventKind::SpellCastError { reason } => {
+            tracing::error!("Impossible d'utiliser le spell : reason => {reason:?}")
+        }
     }
 }
 

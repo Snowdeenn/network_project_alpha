@@ -1,4 +1,4 @@
-use crate::config::SharedLives;
+
 use crate::utils::Queue;
 use crate::simulation::resources::components::*;
 use crate::replication::event::*;
@@ -17,7 +17,6 @@ pub fn health(
     world: &mut SubWorld,
     #[resource] enemy_die_queue: &mut Queue<EnemyDied>,
     #[resource] game_event_queue: &mut Queue<GameEvent>,
-    #[resource] shared_lives: &mut SharedLives,
     #[resource] buff_manager: &mut BufferManager,
 ) {
     let (deads_id, dead) = buff_manager

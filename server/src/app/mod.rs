@@ -7,7 +7,6 @@ use utils::buffer::BufferManager;
 use utils::config::{ClassConfig, ClassRegistery, GameConfig, PlayerClass};
 use utils::protocol::*;
 
-use crate::config::*;
 use crate::navigation::FlowFieldManager;
 use crate::navigation::SpatialGrid;
 use crate::net::server::GameNetServer;
@@ -22,10 +21,12 @@ use crate::simulation::resources::{
 };
 use crate::simulation::systems::flow_field::update_flow_fields_system;
 use crate::simulation::systems::spawn::respawn_player_system;
+use crate::simulation::systems::spells::{apply_aoe_system, listen_spell_cast_system, spell_cast_resolver_system, start_spell_cooldown_system, update_spell_cooldowns_system};
 use crate::simulation::systems::{
     attack::*, coin::*, debug::*, health::*, ia::*, physics::*, state::dash_system, wave::*,
 };
 use crate::utils::{GamePools, PoolManager, Queue};
+use crate::{config::*, simulation};
 
 const TICK_DURATION: Duration = Duration::from_millis(50);
 
@@ -212,7 +213,15 @@ impl ServerApp {
             resources.insert(thread_pool);
         }
 
+        // --- SpellResgister ---
+        {
+            let spell_register =
+                simulation::resources::spells::SpellRegister::init("assets/config/spell.json")?;
+            resources.insert(spell_register);
+        }
+
         let schedule = Schedule::builder()
+            .add_system(update_spell_cooldowns_system())
             .add_system(ia_targeting_system())
             .add_system(update_flow_fields_system())
             .add_system(friction_system())
@@ -225,12 +234,16 @@ impl ServerApp {
             .add_system(collide_system())
             .add_system(collide_arena_system())
             .add_system(projectile_life_time_system())
+            .add_system(listen_spell_cast_system())
+            .add_system(spell_cast_resolver_system())
             .add_system(read_player_attack_intent_system())
             .add_system(ia_attack_system())
             .add_system(create_attack_box_system())
             .add_system(check_collide_attackbox_system())
             .add_system(kamikaze_suicide_system())
             .add_system(apply_damage_system())
+            .add_system(apply_aoe_system())
+            .add_system(start_spell_cooldown_system())
             .add_system(health_system())
             .add_system(coin_push_to_queue_system())
             .add_system(coin_spawn_system())

@@ -103,12 +103,26 @@ pub fn read_input(input_state: &Input, tick_id: u64, screen_w: i32, screen_h: i3
     let dash = input_state.is_just_pressed(winit::keyboard::KeyCode::Space);
     let attack = input_state.is_mouse_pressed(winit::event::MouseButton::Left);
 
+    let mut spell: Option<utils::protocol::SpellSlot> = None;
+    if input_state.is_just_pressed(winit::keyboard::KeyCode::KeyE) {
+        spell = Some(utils::protocol::SpellSlot::First)
+    }
+    if input_state.is_just_pressed(winit::keyboard::KeyCode::KeyQ) {
+        spell = Some(utils::protocol::SpellSlot::Second)
+    }
+    if input_state.is_just_pressed(winit::keyboard::KeyCode::KeyV) {
+        spell = Some(utils::protocol::SpellSlot::Third)
+    }
+    if input_state.is_just_pressed(winit::keyboard::KeyCode::KeyC) {
+        spell = Some(utils::protocol::SpellSlot::Fourth)
+    }
+
     InputPacket {
         tick_id,
         move_dir,
         dash,
         attack,
-        spell: None,
+        spell,
         aim_dir,
     }
 }

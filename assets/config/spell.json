@@ -1,0 +1,40 @@
+[
+  {
+    "id": "fireball",
+    "name": "Boule de feu",
+    "description": "Invoque une sphère enflammée qui explose à l'impact.",
+    "costs": {
+      "cooldown": 3.0,
+      "gold": 2,
+      "charges": 1
+    },
+    "targeting": {
+      "kind": "Directional",
+      "range": 300.0,
+      "projectile_radius": 8.0,
+      "speed": 400.0,
+      "aoe": {
+        "shape": "Circle",
+        "radius": 50.0
+      }
+    },
+    "effects": [
+      {
+        "kind": "Damage",
+        "amount": 40.0,
+        "element": "Fire"
+      },
+      {
+        "kind": "Knockback",
+        "force": 150.0
+      },
+      {
+        "kind": "ApplyStatus",
+        "status": "Burn",
+        "duration": 4.0,
+        "tick_interval": 1.0,
+        "damage_per_tick": 5.0
+      }
+    ]
+  }
+]

@@ -1,12 +1,12 @@
 #[derive(Debug, Default)]
 pub struct ShopUiState {
-    pub inventory: Option<Vec<Option<utils::protocol::ShopItem>>>,
+    pub inventory: Option<Vec<Option<utils::spell_types::Spell>>>,
     pub error_timer: Vec<f32>,
     pub sold_timer: Vec<f32>,
 }
 
 impl ShopUiState {
-    pub fn open(&mut self, inventory: Vec<Option<utils::protocol::ShopItem>>) {
+    pub fn open(&mut self, inventory: Vec<Option<utils::spell_types::Spell>>) {
         self.error_timer = vec![0.0; inventory.len()];
         self.sold_timer = vec![0.0; inventory.len()];
         self.inventory = Some(inventory);

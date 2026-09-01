@@ -110,6 +110,14 @@ pub fn handle_event(
         utils::protocol::GameEventKind::SpellCastError { reason } => {
             tracing::error!("Impossible d'utiliser le spell : reason => {reason:?}")
         }
+        utils::protocol::GameEventKind::SpellAcquired { slot, config } => {
+            let mut spell_slots = app_resource.write_resource::<crate::graphic_data::ClientSpellSlots>();
+            if (slot as usize) < spell_slots.slots.len() {
+                spell_slots.slots[slot as usize] = Some(config);
+            } else {
+                tracing::warn!("Impossible d'ajouter le sort au slot {slot:?} car il est hors limites");
+            }
+        }
     }
 }
 
@@ -147,13 +155,9 @@ pub fn handle_shop_ui_event(
                         return;
                     }
                 };
-                if let Some(item) = item_opt {
-                    let border_color = match item.effect_type {
-                        utils::protocol::EffectType::Health => utils::colors::Color::DARKGREEN,
-                        utils::protocol::EffectType::Damage => utils::colors::Color::MAROON,
-                        utils::protocol::EffectType::Speed => utils::colors::Color::DARKBLUE,
-                        utils::protocol::EffectType::Gold => utils::colors::Color::GOLD,
-                    };
+                // TODO: afficher le bg en fonction de l'élément du sort
+                if item_opt.is_some() {
+                    let border_color = utils::colors::Color::GREEN;
                     ui_ctx.send_event(nodus::UIEvent::SetColor {
                         target: card.root,
                         color: border_color,
@@ -171,7 +175,7 @@ pub fn handle_shop_ui_event(
                         });
                         ui_ctx.send_event(nodus::UIEvent::SetText {
                             target: card.price,
-                            content: format!("PRIX: {} OR", item.price),
+                            content: format!("PRIX: {} OR", item.costs.gold),
                         });
                         ui_ctx.send_event(nodus::UIEvent::SetVisible {
                             target: card.sold_overlay,

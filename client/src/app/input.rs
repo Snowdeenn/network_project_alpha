@@ -1,8 +1,8 @@
 use crate::app::resources::Resources;
 use crate::core::client::GameNetClient;
+use std::collections::HashSet;
 use utils::protocol::InputPacket;
 use utils::protocol::{ShopAction, ShopActionKind};
-use std::collections::HashSet;
 use winit::{event::MouseButton, keyboard::KeyCode};
 
 #[derive(Debug, Clone, Default)]
@@ -103,26 +103,37 @@ pub fn read_input(input_state: &Input, tick_id: u64, screen_w: i32, screen_h: i3
     let dash = input_state.is_just_pressed(winit::keyboard::KeyCode::Space);
     let attack = input_state.is_mouse_pressed(winit::event::MouseButton::Left);
 
-    let mut spell: Option<utils::protocol::SpellSlot> = None;
+    let mut active_slot: Option<utils::protocol::SpellSlot> = None;
     if input_state.is_just_pressed(winit::keyboard::KeyCode::KeyE) {
-        spell = Some(utils::protocol::SpellSlot::First)
+        active_slot = Some(utils::protocol::SpellSlot::First)
     }
     if input_state.is_just_pressed(winit::keyboard::KeyCode::KeyQ) {
-        spell = Some(utils::protocol::SpellSlot::Second)
+        active_slot = Some(utils::protocol::SpellSlot::Second)
     }
     if input_state.is_just_pressed(winit::keyboard::KeyCode::KeyV) {
-        spell = Some(utils::protocol::SpellSlot::Third)
+        active_slot = Some(utils::protocol::SpellSlot::Third)
     }
     if input_state.is_just_pressed(winit::keyboard::KeyCode::KeyC) {
-        spell = Some(utils::protocol::SpellSlot::Fourth)
+        active_slot = Some(utils::protocol::SpellSlot::Fourth)
     }
 
+    if input_state.is_mouse_pressed(winit::event::MouseButton::Left) && active_slot.is_some() {
+        return InputPacket {
+            tick_id,
+            move_dir,
+            dash,
+            attack,
+            spell: active_slot,
+            aim_dir,
+        };
+    }
+    
     InputPacket {
         tick_id,
         move_dir,
         dash,
         attack,
-        spell,
+        spell: None,
         aim_dir,
     }
 }

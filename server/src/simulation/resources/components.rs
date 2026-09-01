@@ -2,7 +2,7 @@ use legion::Entity;
 use utils::arena::Id;
 use std::time::Duration;
 
-use crate::simulation::resources::spells::{AoeSpellShape, SpellCost, SpellEffectKind, SpellTargetingConfig};
+use utils::spell_types::{AoeSpellShape, SpellCost, SpellEffectKind, SpellTargetingConfig};
 
 pub struct Player;
 pub struct IA;

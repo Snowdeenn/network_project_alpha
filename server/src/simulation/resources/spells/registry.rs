@@ -1,10 +1,10 @@
 
-use super::*;
-pub struct SpellTag;
+use utils::spell_types::{Spell, SpellId, RawSpell};
+use utils::ids::SpellTag;
 
 pub struct SpellRegister {
-    inner: utils::Arena<types::Spell, SpellTag>,
-    string_to_id: std::collections::HashMap<String, types::SpellId>,
+    inner: utils::Arena<Spell, SpellTag>,
+    string_to_id: std::collections::HashMap<String, SpellId>,
 }
 
 impl SpellRegister {
@@ -16,7 +16,7 @@ impl SpellRegister {
         e
     })?;
 
-        let raw_spells: Vec<types::RawSpell> =
+        let raw_spells: Vec<RawSpell> =
             serde_json::from_slice(&spell_config_file).map_err(|e| {
                 tracing::error!(path = %file_path, error = %e, "Erreur de désérialisation JSON");
                 std::io::Error::new(std::io::ErrorKind::InvalidData, e)

@@ -1,11 +1,11 @@
-use crate::simulation::resources::spells::SpellEffectKind;
+use utils::spell_types::*;
 use crate::{
     replication::DamageEvent,
     session::PlayerRegistry,
     simulation::resources::{
         components::*,
-        spells::{AoeSpellShape, SpellRegister, SpellTargetingKind},
     },
+    simulation::resources::spells::{SpellRegister},
 };
 use legion::{EntityStore, query::IntoQuery, system, systems::CommandBuffer, world::SubWorld};
 use utils::protocol::GameEvent;

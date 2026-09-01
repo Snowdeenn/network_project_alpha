@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use utils::arena::{Arena, Id};
 use utils::ids::PlayerTag;
 
-use crate::simulation::resources::spells::{SpellId};
+use utils::spell_types::{SpellId};
 
 #[derive(Debug, Clone)]
 pub struct PlayerEntry {

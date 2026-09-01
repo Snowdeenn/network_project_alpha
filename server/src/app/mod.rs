@@ -14,6 +14,7 @@ use crate::replication::event::*;
 use crate::session::PlayerRegistry;
 use crate::session::lobby;
 use crate::session::session::*;
+use utils::spell_types::RawSpell;
 use crate::simulation::resources::{
     components::{self, *},
     shop::*,
@@ -109,9 +110,9 @@ impl ServerApp {
 
         // ---- Items Pool ----
         {
-            let items_json = std::fs::read_to_string("assets/config/items.json")?;
-            let items: Vec<Option<ShopItem>> = serde_json::from_str(&items_json)?;
-            resources.insert(ItemPool { items });
+            let items_json = std::fs::read_to_string("assets/config/spell.json")?;
+            let items: Vec<Option<RawSpell>> = serde_json::from_str(&items_json)?;
+            resources.insert(SpellPool { items } );
         }
 
         // --- Class Config ---

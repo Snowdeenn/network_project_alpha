@@ -197,6 +197,19 @@ pub fn init_hud(
         crate::key::hud::RESPAWN_GOLD_BUTTON_LABEL,
         respawn_gold_button_label,
     );
+
+    let shared_lives_label = nodus::text_label!(
+        ctx: ui_ctx,
+        parent: root,
+        anchor: nodus::Anchor::TopRight,
+        offset: nodus::UiVec2::new(nodus::UiUnit::Pixels(-400.0), nodus::UiUnit::Pixels(-50.0)),
+        size: nodus::UiVec2::new(nodus::UiUnit::Pixels(200.0), nodus::UiUnit::Pixels(30.0)),
+        content: "Shared Lives: 0".to_string(),
+        font_size: 24.0,
+        color: utils::colors::Color::WHITE,
+    );
+    register.insert(crate::key::hud::SHARED_LIVES_LABEL, shared_lives_label);
+
 }
 
 #[derive(Clone, Copy)]
@@ -492,23 +505,36 @@ pub fn update(
             target: gold_label_id,
             content: bufs.gold.to_string(),
         });
-        let wave_label_id = match gui.ids.get::<nodus::NodeId>(crate::key::hud::WAVE_LABEL) {
-            Some(id) => id,
-            None => {
-                tracing::warn!(
-                    "L'id {} est absent du register",
-                    crate::key::hud::WAVE_LABEL
-                );
-                return;
-            }
+        'wave_label: {
+            let wave_label_id = match gui.ids.get::<nodus::NodeId>(crate::key::hud::WAVE_LABEL) {
+                Some(id) => id,
+                None => {
+                    tracing::warn!(
+                        "L'id {} est absent du register",
+                        crate::key::hud::WAVE_LABEL
+                    );
+                    break 'wave_label;
+                }
+            };
+            gui.ui_ctx.send_event(nodus::UIEvent::SetText {
+                target: wave_label_id,
+                content: bufs.wave.to_string(),
+            });
+        }
+    }
+
+    'shared_lives: {
+        let ui_state = resources.read_resource::<crate::core::ui_state::UiState>();
+        let Some(shared_lives) = gui.ids.get(crate::key::hud::SHARED_LIVES_LABEL) else {
+            tracing::error!("SHARED_LIVES_LABEL introuvable dans l'id register");
+            break 'shared_lives;
         };
         gui.ui_ctx.send_event(nodus::UIEvent::SetText {
-            target: wave_label_id,
-            content: bufs.wave.to_string(),
+            target: shared_lives,
+            content: format!("Shared Lives {}", ui_state.shared_lives.current),
         });
     }
 
-    
     update_respawn_menu(gui, resources);
 }
 

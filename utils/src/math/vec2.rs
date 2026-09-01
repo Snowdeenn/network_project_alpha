@@ -1,6 +1,6 @@
 use std::ops::{Add, AddAssign, Mul, Sub};
 
-#[derive(Copy, Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Copy, Clone, Debug, Default, serde::Serialize, serde::Deserialize, bincode::Encode, bincode::Decode)]
 pub struct Vec2 {
     pub x: f32,
     pub y: f32,

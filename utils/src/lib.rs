@@ -7,5 +7,6 @@ pub mod protocol;
 pub mod math;
 pub mod colors;
 pub mod map;
+pub mod spell_types;
 
 pub use arena::*;

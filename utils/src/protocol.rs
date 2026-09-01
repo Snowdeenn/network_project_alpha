@@ -3,7 +3,7 @@ use std::time::Duration;
 use bincode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
-use crate::config::PlayerClass;
+use crate::{config::PlayerClass, spell_types::Spell};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Encode, Decode)]
 pub struct InputPacket {
@@ -87,7 +87,7 @@ pub enum GameEventKind {
         entity_id: u64,
     },
     ShopOpened {
-        inventory: Vec<Option<ShopItem>>,
+        inventory: Vec<Option<Spell>>,
     },
     ItemBought {
         slot: usize,
@@ -140,6 +140,17 @@ pub enum GameEventKind {
     SpellCastError {
         reason: SpellCastErrorKind,
     },
+    SpellAcquired {
+        slot: SpellSlot,
+        config: SpellClientConfig,
+    },
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Encode, Decode)]
+pub struct SpellClientConfig {
+    pub targeting_kind: crate::spell_types::SpellTargetingKind,
+    pub range: f32,
+    pub aoe: Option<crate::spell_types::AoeSpellShape>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Encode, Decode)]
@@ -267,6 +278,18 @@ pub enum SpellSlot {
     Second,
     Third,
     Fourth,
+}
+
+impl From<usize> for SpellSlot {
+    fn from(index: usize) -> Self {
+        match index {
+            0 => SpellSlot::First,
+            1 => SpellSlot::Second,
+            2 => SpellSlot::Third,
+            3 => SpellSlot::Fourth,
+            _ => panic!("Invalid spell slot index"),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Encode, Decode, Clone, Copy)]

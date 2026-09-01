@@ -1,8 +1,8 @@
 use std::ops::Deref;
 
-use utils::Id;
+use crate::Id;
 
-use crate::simulation::resources::spells::SpellTag;
+use crate::ids::SpellTag;
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq, Hash)]
 pub struct SpellId(Id<SpellTag>);
@@ -23,14 +23,14 @@ impl From<Id<SpellTag>> for SpellId {
     }
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, bincode::Encode, bincode::Decode)]
 pub struct SpellCost {
     pub cooldown: f32,
     pub gold: u32,
     pub charges: u32,
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, bincode::Encode, bincode::Decode)]
 pub struct SpellTargetingConfig {
     pub kind: SpellTargetingKind,
     pub range: f32,
@@ -39,30 +39,30 @@ pub struct SpellTargetingConfig {
     pub aoe: Option<AoeSpellShape>,
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, bincode::Encode, bincode::Decode)]
 #[serde(tag = "shape")]
 pub enum AoeSpellShape {
     Circle {
-        #[serde(default = "utils::math::Vec2::zero")]
-        offset: utils::math::Vec2,
+        #[serde(default = "crate::math::Vec2::zero")]
+        offset: crate::math::Vec2,
         radius: f32,
     },
     Box {
-        #[serde(default = "utils::math::Vec2::zero")]
-        offset: utils::math::Vec2,
-        size: utils::math::Vec2,
+        #[serde(default = "crate::math::Vec2::zero")]
+        offset: crate::math::Vec2,
+        size: crate::math::Vec2,
         rotation: f32,
     },
     Cone {
-        #[serde(default = "utils::math::Vec2::zero")]
-        offset: utils::math::Vec2,
-        direction: utils::math::Vec2,
+        #[serde(default = "crate::math::Vec2::zero")]
+        offset: crate::math::Vec2,
+        direction: crate::math::Vec2,
         angle: f32,
         range: f32,
     },
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, bincode::Encode, bincode::Decode)]
 pub enum SpellTargetingKind {
     Directional,
     OnSelf,
@@ -70,7 +70,7 @@ pub enum SpellTargetingKind {
     //...
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, bincode::Encode, bincode::Decode)]
 #[serde(tag = "kind")]
 pub enum SpellEffectKind {
     Damage {
@@ -92,7 +92,7 @@ pub enum SpellEffectKind {
     
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, bincode::Encode, bincode::Decode)]
 pub enum AppliedStatus {
     Burn,
     Blind,
@@ -100,7 +100,7 @@ pub enum AppliedStatus {
     // ...
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, bincode::Encode, bincode::Decode)]
 pub enum Element {
     Fire,
     Water,
@@ -109,7 +109,7 @@ pub enum Element {
     // ...
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
 pub struct RawSpell {
     pub id: String,
     pub name: String,
@@ -119,6 +119,7 @@ pub struct RawSpell {
     pub effects: Vec<SpellEffectKind>,
 }
 
+#[derive(Clone, serde::Serialize, serde::Deserialize, Debug, bincode::Encode, bincode::Decode)]
 pub struct Spell {
     pub name: String,
     pub description: String,

@@ -23,6 +23,7 @@ pub struct CoinTag;
 pub struct PlayerTag;
 pub struct CooldownTag;
 pub struct BufferTag;
+pub struct SpellTag;
 
 pub type EnemyId = Id<EnemyTag>;
 pub type CoinId = Id<CoinTag>;

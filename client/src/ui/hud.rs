@@ -198,18 +198,102 @@ pub fn init_hud(
         respawn_gold_button_label,
     );
 
-    let shared_lives_label = nodus::text_label!(
-        ctx: ui_ctx,
-        parent: root,
-        anchor: nodus::Anchor::TopRight,
-        offset: nodus::UiVec2::new(nodus::UiUnit::Pixels(-400.0), nodus::UiUnit::Pixels(-50.0)),
-        size: nodus::UiVec2::new(nodus::UiUnit::Pixels(200.0), nodus::UiUnit::Pixels(30.0)),
-        content: "Shared Lives: 0".to_string(),
-        font_size: 24.0,
-        color: utils::colors::Color::WHITE,
-    );
+    let shared_lives_label = {
+        let layout = nodus::LayoutProps::new(
+            nodus::Anchor::TopRight,
+            nodus::UiVec2::new(
+                nodus::UiUnit::ScreenWidth(0.0),
+                nodus::UiUnit::ScreenHeight(0.0),
+            ),
+            nodus::UiVec2::pixels(200.0, 30.0),
+        );
+        let visual = VisualProps {
+            kind: nodus::VisualKind::Text {
+                content: "Shared_live".to_string(),
+                font_size: 20.0,
+            },
+            color: utils::colors::Color::WHITE,
+            visible: true,
+            opacity: 1.0,
+        };
+        nodus::text_label!(ctx: ui_ctx, parent: root, layout: layout, visual: visual)
+    };
     register.insert(crate::key::hud::SHARED_LIVES_LABEL, shared_lives_label);
 
+    let slot_w_unit = nodus::UiUnit::ScreenWidth(50.0 / 1920.0);
+    let slot_h_unit = nodus::UiUnit::ScreenHeight(50.0 / 1080.0); 
+    let count = 4.0;
+    let gap_unit = (1.0 - slot_w_unit * count) / (count + 1.0); // (1.0 - 0.60) / 5 = 0.08
+
+    for i in 0..4 {
+        let slot_x_unit = gap_unit + (slot_w_unit + gap_unit) * (i as f32);
+
+        let spell_slot_root = ui_ctx.add_node(
+            root,
+            nodus::LayoutProps::new(
+                nodus::Anchor::BottomLeft,
+                nodus::UiVec2::new(
+                    slot_x_unit,
+                    nodus::UiUnit::ScreenHeight(0.2),
+                ),
+                nodus::UiVec2::new(slot_w_unit, slot_h_unit),
+            ),
+            nodus::VisualProps {
+                kind: nodus::VisualKind::Rect,
+                color: utils::colors::Color::GOLD,
+                visible: true,
+                opacity: 1.0,
+            },
+        );
+        let spell_slot_icon = ui_ctx.add_node(
+            spell_slot_root,
+            nodus::LayoutProps::new(
+                nodus::Anchor::TopLeft,
+                nodus::UiVec2::pixels(2.0, 2.0),
+                nodus::UiVec2::new(
+                    nodus::UiUnit::ParentPercent(0.9),
+                    nodus::UiUnit::ParentPercent(0.9),
+                ),
+            ),
+            nodus::VisualProps {
+                kind: nodus::VisualKind::Rect,
+                color: utils::colors::Color::BLACK,
+                visible: true,
+                opacity: 1.0,
+            },
+        );
+        let spell_slot_cooldown_overlay = ui_ctx.add_node(
+            spell_slot_root,
+            nodus::LayoutProps::new(
+                nodus::Anchor::TopLeft,
+                nodus::UiVec2::pixels(0.0, 0.0),
+                nodus::UiVec2::new(
+                    nodus::UiUnit::ParentPercent(0.9),
+                    nodus::UiUnit::ParentPercent(0.9),
+                ),
+            ),
+            nodus::VisualProps {
+                kind: nodus::VisualKind::Rect,
+                color: utils::colors::Color::GRAY,
+                visible: false,
+                opacity: 0.5,
+            },
+        );
+
+        let spell_slot = SpellSlot {
+            root: spell_slot_root,
+            icon: spell_slot_icon,
+            cooldown_overlay: spell_slot_cooldown_overlay,
+        };
+        register.insert(crate::key::hud::SPELL_SLOT_KEYS[i], spell_slot);
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct SpellSlot {
+    pub root: nodus::NodeId,
+    pub icon: nodus::NodeId,
+    pub cooldown_overlay: nodus::NodeId,
 }
 
 #[derive(Clone, Copy)]
@@ -532,6 +616,10 @@ pub fn update(
         gui.ui_ctx.send_event(nodus::UIEvent::SetText {
             target: shared_lives,
             content: format!("Shared Lives {}", ui_state.shared_lives.current),
+        });
+        gui.ui_ctx.send_event(nodus::UIEvent::SetVisible {
+            target: shared_lives,
+            visible: true,
         });
     }
 

@@ -11,6 +11,7 @@ pub mod hud {
     pub const RESPAWN_GOLD_BUTTON: &str = "hud/respawn_gold_button";
     pub const RESPAWN_GOLD_BUTTON_LABEL: &str = "hud/respawn_gold_button_label";
     pub const SHARED_LIVES_LABEL: &str = "hud/shared_lives_label";
+    pub const SPELL_SLOT_KEYS: [&str; 4] = ["hud/spell_slot_0", "hud/spell_slot_1", "hud/spell_slot_2", "hud/spell_slot_3"];
 }
 pub mod material {
     pub const HP_MATERIAL: &str = "material/hp_material_id";

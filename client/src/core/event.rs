@@ -1,3 +1,5 @@
+pub struct SpellUseEvent(pub Option<utils::protocol::SpellSlot>);
+
 pub fn handle_event(
     event: utils::protocol::GameEvent,
     app_resource: &mut crate::app::resources::Resources,
@@ -112,11 +114,18 @@ pub fn handle_event(
         }
         utils::protocol::GameEventKind::SpellAcquired { slot, config } => {
             let mut spell_slots = app_resource.write_resource::<crate::graphic_data::ClientSpellSlots>();
+            tracing::info!("Spell Acquired {slot:?}");
             if (slot as usize) < spell_slots.slots.len() {
                 spell_slots.slots[slot as usize] = Some(config);
             } else {
                 tracing::warn!("Impossible d'ajouter le sort au slot {slot:?} car il est hors limites");
             }
+        },
+        utils::protocol::GameEventKind::SpellCooldownsUpdate { cooldowns } => {
+            app_resource.write_resource::<crate::graphic_data::ClientSpellSlots>().cooldowns = cooldowns;
+        },
+        utils::protocol::GameEventKind::SpellUsed { slot } => {
+            app_resource.write_resource::<SpellUseEvent>().0 = Some(slot);
         }
     }
 }

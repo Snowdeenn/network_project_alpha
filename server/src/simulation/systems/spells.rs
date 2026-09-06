@@ -1,19 +1,16 @@
-use utils::spell_types::*;
 use crate::{
-    replication::DamageEvent,
-    session::PlayerRegistry,
-    simulation::resources::{
-        components::*,
-    },
-    simulation::resources::spells::{SpellRegister},
+    replication::DamageEvent, session::PlayerRegistry, simulation::resources::components::*,
+    simulation::resources::spells::SpellRegister,
 };
 use legion::{EntityStore, query::IntoQuery, system, systems::CommandBuffer, world::SubWorld};
 use utils::protocol::GameEvent;
+use utils::spell_types::*;
 
 #[system]
 #[read_component(InputState)]
 #[read_component(EntityId)]
 #[write_component(SpellCasted)]
+#[write_component(SpellCooldowns)]
 pub fn listen_spell_cast(
     world: &mut SubWorld,
     command: &mut CommandBuffer,
@@ -58,15 +55,19 @@ pub fn listen_spell_cast(
             continue;
         }
         let entity_entry = world.entry_ref(*entity).unwrap();
-        let cooldowns = entity_entry.get_component::<SpellCooldowns>().unwrap();
-        if cooldowns.slots[spell_slot as usize] > 0.0 {
-            game_event_queue.push(GameEvent {
-                kind: utils::protocol::GameEventKind::SpellCastError {
-                    reason: utils::protocol::SpellCastErrorKind::CooldownNotRefresh,
-                },
-            });
-            continue;
-        }
+
+        if let Ok(cooldowns) = entity_entry.get_component::<SpellCooldowns>() {
+            if cooldowns.slots[spell_slot as usize] > 0.0 {
+                game_event_queue.push(GameEvent {
+                    kind: utils::protocol::GameEventKind::SpellCastError {
+                        reason: utils::protocol::SpellCastErrorKind::CooldownNotRefresh,
+                    },
+                });
+                continue;
+            }
+        } else {
+            tracing::warn!("Le component SpellCooldowns est introuvable sur {entity:?}");
+        };
 
         player_registry.sub_gold(client_id, spell.costs.gold);
 
@@ -402,11 +403,18 @@ pub fn apply_effects(
 pub fn update_spell_cooldowns(
     cooldowns: &mut SpellCooldowns,
     #[resource] dt: &std::time::Duration,
+    #[resource] game_event_queue: &mut crate::utils::Queue<GameEvent>,
 ) {
     let dt = dt.as_secs_f32();
     for slot in cooldowns.slots.iter_mut() {
         *slot = (*slot - dt).max(0.0);
+        // TODO: envoyer les cooldowns au client pour le l'overlay du spell slot
     }
+    game_event_queue.push(GameEvent {
+        kind: utils::protocol::GameEventKind::SpellCooldownsUpdate {
+            cooldowns: cooldowns.slots,
+        },
+    });
 }
 
 #[system(for_each)]
@@ -414,7 +422,7 @@ pub fn start_spell_cooldown(
     entity: &legion::Entity,
     cooldown_start: &SpellCooldownStart,
     cooldowns: &mut SpellCooldowns,
-    command: &mut CommandBuffer
+    command: &mut CommandBuffer,
 ) {
     let slot_index = cooldown_start.slot as usize;
     if slot_index < cooldowns.slots.len() {

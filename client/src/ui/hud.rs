@@ -220,23 +220,29 @@ pub fn init_hud(
     };
     register.insert(crate::key::hud::SHARED_LIVES_LABEL, shared_lives_label);
 
-    let slot_w_unit = nodus::UiUnit::ScreenWidth(50.0 / 1920.0);
-    let slot_h_unit = nodus::UiUnit::ScreenHeight(50.0 / 1080.0); 
-    let count = 4.0;
-    let gap_unit = (1.0 - slot_w_unit * count) / (count + 1.0); // (1.0 - 0.60) / 5 = 0.08
+    let screen_w = ui_ctx.size().0;
+    let screen_h = ui_ctx.size().1;
 
-    for i in 0..4 {
-        let slot_x_unit = gap_unit + (slot_w_unit + gap_unit) * (i as f32);
+    let slot_w = screen_w * 0.05; // 5% de la largeur écran
+    let gap = screen_w * 0.01; // 1% de la largeur écran
+    let count = 4;
+    let total_width = (slot_w * count as f32) + (gap * (count - 1) as f32);
+    let start_x = (screen_w - total_width) / 2.0;
 
+    for i in 0..count {
+        let slot_x_px = start_x + (i as f32) * (slot_w + gap);
         let spell_slot_root = ui_ctx.add_node(
             root,
             nodus::LayoutProps::new(
                 nodus::Anchor::BottomLeft,
                 nodus::UiVec2::new(
-                    slot_x_unit,
-                    nodus::UiUnit::ScreenHeight(0.2),
+                    nodus::UiUnit::ScreenWidth(slot_x_px / screen_w),
+                    nodus::UiUnit::ScreenHeight(10.0 / screen_h),
                 ),
-                nodus::UiVec2::new(slot_w_unit, slot_h_unit),
+                nodus::UiVec2::new(
+                    nodus::UiUnit::ScreenWidth(slot_w / screen_w),
+                    nodus::UiUnit::ScreenHeight(slot_w / screen_h),
+                ),
             ),
             nodus::VisualProps {
                 kind: nodus::VisualKind::Rect,
@@ -623,6 +629,33 @@ pub fn update(
         });
     }
 
+    {
+        let cooldowns = resources
+            .read_resource::<crate::graphic_data::ClientSpellSlots>()
+            .cooldowns;
+        for i in 0..cooldowns.len() {
+            let Some(slot) = gui
+                .ids
+                .get::<SpellSlot>(crate::key::hud::SPELL_SLOT_KEYS[i])
+            else {
+                tracing::error!(
+                    "{} introuvable dans l'id register",
+                    crate::key::hud::SPELL_SLOT_KEYS[i]
+                );
+                continue;
+            };
+            // C'est pas le bon endroit pour mettre visible le cooldowns enfin je crois
+            
+            let overlay_height = nodus::UiUnit::ScreenWidth(0.9) / cooldowns[i];
+            gui.ui_ctx.send_event(nodus::UIEvent::SetSize {
+                target: slot.cooldown_overlay,
+                size: nodus::UiVec2::new(
+                    nodus::UiUnit::ScreenWidth(0.9),
+                    overlay_height,
+                ),
+            });
+        }
+    }
     update_respawn_menu(gui, resources);
 }
 

@@ -372,7 +372,7 @@ impl UiContext {
             .map(|interact| interact.state)
             .unwrap_or(InteractState::Normal)
     }
-    
+
     pub fn resize(&mut self, width: f32, height: f32) {
         self.screen_w = width;
         self.screen_h = height;
@@ -384,7 +384,12 @@ impl UiContext {
 
         self.resolve_layout();
     }
+
+    pub fn size(&self) -> (f32, f32) {
+        (self.screen_w, self.screen_h)
+    }
 }
+
 
 #[cfg(test)]
 mod test {

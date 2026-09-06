@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{time::Duration};
 
 use bincode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
@@ -144,6 +144,12 @@ pub enum GameEventKind {
         slot: SpellSlot,
         config: SpellClientConfig,
     },
+    SpellCooldownsUpdate {
+        cooldowns: [f32; 4],
+    },
+    SpellUsed {
+        slot: SpellSlot,
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Encode, Decode)]

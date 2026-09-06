@@ -11,8 +11,9 @@ use crate::app::states::in_game::InGameScene;
 use crate::app::states::main_menu::MenuAction;
 use crate::core;
 use crate::core::client::GameNetClient;
+use crate::core::event::SpellUseEvent;
 use crate::graphic_data::asset_manager::AssetManager;
-use crate::graphic_data::post_process_effect_type;
+use crate::graphic_data::{ClientSpellSlots, post_process_effect_type};
 use crate::graphic_data::tile_map::TileMap;
 use crate::rendering::ScreenScale;
 use crate::rendering::camera::Camera;
@@ -78,6 +79,10 @@ impl App {
         resource.insert(core::shop_state::ShopUiState::default());
         let client_id = ClientId(rand::random::<u64>());
         resource.insert(client_id);
+
+        let client_spell_slot = ClientSpellSlots { slots: [None; 4], cooldowns: [0.0; 4] };
+        resource.insert(client_spell_slot);
+        resource.insert(SpellUseEvent(None));
 
         let last_frame = std::time::Instant::now();
         let id_register = utils::ids::Register::new();

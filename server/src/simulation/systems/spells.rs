@@ -1,5 +1,7 @@
 use crate::{
-    replication::DamageEvent, session::PlayerRegistry, simulation::resources::components::*,
+    replication::{DamageEvent, TargetedGameEvent},
+    session::{PlayerRegistry, SpellUseError},
+    simulation::resources::components::*,
     simulation::resources::spells::SpellRegister,
 };
 use legion::{EntityStore, query::IntoQuery, system, systems::CommandBuffer, world::SubWorld};
@@ -7,143 +9,158 @@ use utils::protocol::GameEvent;
 use utils::spell_types::*;
 
 #[system]
-#[read_component(InputState)]
+#[write_component(InputState)]
 #[read_component(EntityId)]
-#[write_component(SpellCasted)]
-#[write_component(SpellCooldowns)]
+#[write_component(PendingSpellCast)]
 pub fn listen_spell_cast(
     world: &mut SubWorld,
     command: &mut CommandBuffer,
-    query: &mut legion::Query<(legion::Entity, &EntityId, &InputState)>,
+    query: &mut legion::Query<(legion::Entity, &EntityId, &mut InputState)>,
     #[resource] player_registry: &mut PlayerRegistry,
     #[resource] spell_registry: &SpellRegister,
-    #[resource] game_event_queue: &mut crate::utils::Queue<GameEvent>,
+    #[resource] targeted_events: &mut crate::utils::Queue<TargetedGameEvent>,
 ) {
-    for (entity, entity_id, input_state) in query.iter(world) {
+    for (entity, entity_id, input_state) in query.iter_mut(world) {
         let Some(client_id) = player_registry.entity_to_client(entity_id.0) else {
             tracing::warn!("L'entity n'est pas un joueur: EntityId => {entity_id:?}");
             continue;
         };
-        let Some(player_spells) = player_registry.get_spells(client_id) else {
-            tracing::error!("Echec lors de l'acquisition des spells du joueur : {client_id}");
-            continue;
-        };
-        let Some(spell_slot) = input_state.spell else {
+        // A spell input is an edge-triggered request. Consuming it prevents a lost
+        // follow-up UDP packet from casting the same spell on every server tick.
+        let Some(spell_slot) = input_state.spell.take() else {
             continue;
         };
 
-        let Some(used_spell_id) = player_spells[spell_slot as usize] else {
-            game_event_queue.push(GameEvent {
-                kind: utils::protocol::GameEventKind::SpellCastError {
-                    reason: utils::protocol::SpellCastErrorKind::SpellNotOwned,
-                },
-            });
+        let Some(requested_spell_id) = player_registry.spell_at(client_id, spell_slot) else {
+            push_cast_error(targeted_events, client_id, SpellUseError::SpellNotOwned);
             continue;
         };
-        let Some(spell) = spell_registry.get_spell(used_spell_id) else {
-            tracing::error!("Le spell {used_spell_id:?} n'est pas dans le registre");
+        let Some(spell) = spell_registry.get_spell(requested_spell_id) else {
+            tracing::error!("Le spell {requested_spell_id:?} n'est pas dans le registre");
             continue;
         };
-        let player_gold = player_registry.get_gold(client_id);
-
-        if player_gold < spell.costs.gold {
-            game_event_queue.push(GameEvent {
-                kind: utils::protocol::GameEventKind::SpellCastError {
-                    reason: utils::protocol::SpellCastErrorKind::NotEnoughtGold,
-                },
-            });
-            continue;
-        }
-        let entity_entry = world.entry_ref(*entity).unwrap();
-
-        if let Ok(cooldowns) = entity_entry.get_component::<SpellCooldowns>() {
-            if cooldowns.slots[spell_slot as usize] > 0.0 {
-                game_event_queue.push(GameEvent {
-                    kind: utils::protocol::GameEventKind::SpellCastError {
-                        reason: utils::protocol::SpellCastErrorKind::CooldownNotRefresh,
-                    },
-                });
-                continue;
-            }
-        } else {
-            tracing::warn!("Le component SpellCooldowns est introuvable sur {entity:?}");
-        };
-
-        player_registry.sub_gold(client_id, spell.costs.gold);
+        let cast_cost = spell.cast_cost;
+        let used_spell_id =
+            match player_registry.try_begin_spell_cast(client_id, spell_slot, cast_cost) {
+                Ok(spell_id) => spell_id,
+                Err(error) => {
+                    push_cast_error(targeted_events, client_id, error);
+                    continue;
+                }
+            };
 
         command.add_component(
             *entity,
-            SpellCasted {
+            PendingSpellCast {
                 aim_dir: input_state.aim_dir,
-                cost: spell.costs,
-                targeting: spell.targeting,
-                effects: spell.effects.clone(),
-            },
-        );
-        command.add_component(
-            *entity,
-            SpellCooldownStart {
+                spell_id: used_spell_id,
                 slot: spell_slot,
-                duration: spell.costs.cooldown,
             },
         );
+        targeted_events.push(TargetedGameEvent {
+            client_id,
+            event: GameEvent {
+                kind: utils::protocol::GameEventKind::SpellUsed { slot: spell_slot },
+            },
+        });
+        if let Some(cooldowns) = player_registry.cooldowns(client_id) {
+            targeted_events.push(TargetedGameEvent {
+                client_id,
+                event: GameEvent {
+                    kind: utils::protocol::GameEventKind::SpellCooldownsUpdate { cooldowns },
+                },
+            });
+        }
     }
 }
 
+fn push_cast_error(
+    events: &mut crate::utils::Queue<TargetedGameEvent>,
+    client_id: u64,
+    error: SpellUseError,
+) {
+    let reason = match error {
+        SpellUseError::PlayerNotFound | SpellUseError::SpellNotOwned => {
+            utils::protocol::SpellCastErrorKind::SpellNotOwned
+        }
+        SpellUseError::CooldownActive => utils::protocol::SpellCastErrorKind::CooldownNotRefresh,
+        SpellUseError::NotEnoughGold => utils::protocol::SpellCastErrorKind::NotEnoughtGold,
+        SpellUseError::NoMoreCharges => utils::protocol::SpellCastErrorKind::NoMoreCharges,
+    };
+    events.push(TargetedGameEvent {
+        client_id,
+        event: GameEvent {
+            kind: utils::protocol::GameEventKind::SpellCastError { reason },
+        },
+    });
+}
+
 #[system(for_each)]
-#[filter(legion::component::<SpellCasted>())]
+#[filter(legion::component::<PendingSpellCast>())]
 pub fn spell_cast_resolver(
-    spell_casted: &SpellCasted,
+    pending_cast: &PendingSpellCast,
     caster_entity: &legion::Entity,
     caster_pos: &Position,
     command: &mut CommandBuffer,
+    #[resource] spell_registry: &SpellRegister,
 ) {
-    match spell_casted.targeting.kind {
+    let Some(spell) = spell_registry.get_spell(pending_cast.spell_id) else {
+        tracing::error!(
+            "Sort {:?} absent du registre pendant sa résolution",
+            pending_cast.spell_id
+        );
+        command.remove_component::<PendingSpellCast>(*caster_entity);
+        return;
+    };
+
+    match spell.targeting.kind {
         SpellTargetingKind::Directional => {
-            let dir = spell_casted.aim_dir;
-            let half_size = spell_casted.targeting.projectile_radius;
-            command.push((
+            let dir = pending_cast.aim_dir;
+            let half_size = spell.targeting.projectile_radius;
+            let speed = spell.targeting.speed.max(f32::EPSILON);
+            let lifetime = (spell.targeting.range / speed).max(0.0);
+            let projectile = command.push((
                 EntityId(crate::app::next_id()),
                 Position {
                     x: caster_pos.x,
                     y: caster_pos.y,
                 },
                 Velocity {
-                    dx: dir[0] as f64 * spell_casted.targeting.speed as f64,
-                    dy: dir[1] as f64 * spell_casted.targeting.speed as f64,
+                    dx: dir[0] as f64 * speed as f64,
+                    dy: dir[1] as f64 * speed as f64,
                 },
                 Geometry {
                     half_length: half_size,
                     half_width: half_size,
                     dir,
                 },
-                SpellEffects {
-                    effects: spell_casted.effects.clone(),
-                    aoe: spell_casted.targeting.aoe,
-                },
                 Projectile,
-                TeamFilter { is_player: true },
-                Owner(*caster_entity),
+                Active(true),
+                LifeTime(std::time::Duration::from_secs_f32(lifetime)),
             ));
-            command.add_component(*caster_entity, Active(true));
             command.add_component(
-                *caster_entity,
-                LifeTime(std::time::Duration::from_secs_f32(
-                    spell_casted.targeting.range / spell_casted.targeting.speed,
-                )),
+                projectile,
+                SpellEffects {
+                    effects: spell.effects.clone(),
+                    aoe: spell.targeting.aoe,
+                },
             );
+            command.add_component(projectile, TeamFilter { is_player: true });
+            command.add_component(projectile, Owner(*caster_entity));
         }
         SpellTargetingKind::SingleTarget => {
-            let dir = spell_casted.aim_dir;
-            let center_x = caster_pos.x as f32 + dir[0] * spell_casted.targeting.range;
-            let center_y = caster_pos.y as f32 + dir[1] * spell_casted.targeting.range;
+            let dir = pending_cast.aim_dir;
+            let center_x = caster_pos.x as f32 + dir[0] * spell.targeting.range;
+            let center_y = caster_pos.y as f32 + dir[1] * spell.targeting.range;
             // Applique l'AOE immédiatement à la position visée
             command.push((
                 PendingAoe {
                     origin: [center_x, center_y],
                     aim_dir: dir,
-                    aoe: spell_casted.targeting.aoe,
-                    effects: spell_casted.effects.clone(),
+                    aoe: spell.targeting.aoe,
+                    effects: spell.effects.clone(),
+                    owner: *caster_entity,
+                    caster_is_player: true,
                 },
                 Active(true),
             ));
@@ -153,11 +170,12 @@ pub fn spell_cast_resolver(
             command.add_component(
                 *caster_entity,
                 PendingEffect {
-                    effects: spell_casted.effects.clone(),
+                    effects: spell.effects.clone(),
                 },
             );
         }
     }
+    command.remove_component::<PendingSpellCast>(*caster_entity);
 }
 
 #[system]
@@ -222,6 +240,11 @@ pub fn apply_aoe(
                     .iter()
                     .filter_map(|&idx| {
                         let (entity, _, pos) = &victims[idx];
+                        if *entity == pending.owner
+                            || same_team(world, *entity, pending.caster_is_player)
+                        {
+                            return None;
+                        }
                         let dx = pos.x - cx as f64;
                         let dy = pos.y - cy as f64;
                         if dx * dx + dy * dy <= r * r {
@@ -271,6 +294,11 @@ pub fn apply_aoe(
                     .iter()
                     .filter_map(|&idx| {
                         let (entity, col, pos) = &victims[idx];
+                        if *entity == pending.owner
+                            || same_team(world, *entity, pending.caster_is_player)
+                        {
+                            return None;
+                        }
                         if crate::utils::obb_vs_aabb(&aoe_pos, &aoe_geom, pos, col) {
                             Some(*entity)
                         } else {
@@ -310,6 +338,11 @@ pub fn apply_aoe(
                     .iter()
                     .filter_map(|&idx| {
                         let (entity, _, pos) = &victims[idx];
+                        if *entity == pending.owner
+                            || same_team(world, *entity, pending.caster_is_player)
+                        {
+                            return None;
+                        }
                         let dx = pos.x - cx as f64;
                         let dy = pos.y - cy as f64;
                         let dist_sq = dx * dx + dy * dy;
@@ -360,6 +393,14 @@ pub fn apply_aoe(
     buff_manager.release(candidates_id);
 }
 
+fn same_team(world: &SubWorld, target: legion::Entity, caster_is_player: bool) -> bool {
+    let target_is_player = world
+        .entry_ref(target)
+        .map(|entry| entry.get_component::<Player>().is_ok())
+        .unwrap_or(false);
+    target_is_player == caster_is_player
+}
+
 pub fn apply_effects(
     effects: &[SpellEffectKind],
     target: legion::Entity,
@@ -399,35 +440,19 @@ pub fn apply_effects(
     }
 }
 
-#[system(for_each)]
+#[system]
 pub fn update_spell_cooldowns(
-    cooldowns: &mut SpellCooldowns,
+    #[resource] player_registry: &mut PlayerRegistry,
     #[resource] dt: &std::time::Duration,
-    #[resource] game_event_queue: &mut crate::utils::Queue<GameEvent>,
+    #[resource] targeted_events: &mut crate::utils::Queue<TargetedGameEvent>,
 ) {
-    let dt = dt.as_secs_f32();
-    for slot in cooldowns.slots.iter_mut() {
-        *slot = (*slot - dt).max(0.0);
-        // TODO: envoyer les cooldowns au client pour le l'overlay du spell slot
-    }
-    game_event_queue.push(GameEvent {
-        kind: utils::protocol::GameEventKind::SpellCooldownsUpdate {
-            cooldowns: cooldowns.slots,
-        },
-    });
-}
-
-#[system(for_each)]
-pub fn start_spell_cooldown(
-    entity: &legion::Entity,
-    cooldown_start: &SpellCooldownStart,
-    cooldowns: &mut SpellCooldowns,
-    command: &mut CommandBuffer,
-) {
-    let slot_index = cooldown_start.slot as usize;
-    if slot_index < cooldowns.slots.len() {
-        cooldowns.slots[slot_index] = cooldown_start.duration;
-        command.remove_component::<SpellCooldownStart>(*entity);
+    for (client_id, cooldowns) in player_registry.update_spell_cooldowns(dt.as_secs_f32()) {
+        targeted_events.push(TargetedGameEvent {
+            client_id,
+            event: GameEvent {
+                kind: utils::protocol::GameEventKind::SpellCooldownsUpdate { cooldowns },
+            },
+        });
     }
 }
 
@@ -449,4 +474,55 @@ pub fn apply_effect(
         damage_queue,
     );
     command.remove_component::<PendingEffect>(*entity);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use legion::{EntityStore, IntoQuery, Resources, Schedule, World};
+
+    #[test]
+    fn pending_cast_is_consumed_and_creates_one_complete_projectile() {
+        let config_path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../assets/config/spell.json");
+        let registry = SpellRegister::init(config_path.to_str().unwrap()).unwrap();
+        let spell_id = *registry.resolve_string("fireball").unwrap();
+        let mut world = World::default();
+        let caster = world.push((
+            Position { x: 10.0, y: 20.0 },
+            PendingSpellCast {
+                aim_dir: [1.0, 0.0],
+                spell_id,
+                slot: utils::protocol::SpellSlot::First,
+            },
+        ));
+        let mut resources = Resources::default();
+        resources.insert(registry);
+        let mut schedule = Schedule::builder()
+            .add_system(spell_cast_resolver_system())
+            .build();
+
+        schedule.execute(&mut world, &mut resources);
+        schedule.execute(&mut world, &mut resources);
+
+        assert!(
+            world
+                .entry_ref(caster)
+                .unwrap()
+                .get_component::<PendingSpellCast>()
+                .is_err()
+        );
+        assert!(
+            world
+                .entry_ref(caster)
+                .unwrap()
+                .get_component::<LifeTime>()
+                .is_err()
+        );
+
+        let mut query = <(&Projectile, &LifeTime, &Active, &SpellEffects, &Owner)>::query();
+        let projectiles: Vec<_> = query.iter(&world).collect();
+        assert_eq!(projectiles.len(), 1);
+        assert_eq!((projectiles[0].4).0, caster);
+    }
 }

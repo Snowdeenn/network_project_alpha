@@ -14,7 +14,6 @@ use crate::replication::event::*;
 use crate::session::PlayerRegistry;
 use crate::session::lobby;
 use crate::session::session::*;
-use utils::spell_types::RawSpell;
 use crate::simulation::resources::{
     components::{self, *},
     shop::*,
@@ -22,7 +21,10 @@ use crate::simulation::resources::{
 };
 use crate::simulation::systems::flow_field::update_flow_fields_system;
 use crate::simulation::systems::spawn::respawn_player_system;
-use crate::simulation::systems::spells::{apply_aoe_system, listen_spell_cast_system, spell_cast_resolver_system, start_spell_cooldown_system, update_spell_cooldowns_system};
+use crate::simulation::systems::spells::{
+    apply_aoe_system, apply_effect_system, listen_spell_cast_system, spell_cast_resolver_system,
+    update_spell_cooldowns_system,
+};
 use crate::simulation::systems::{
     attack::*, coin::*, debug::*, health::*, ia::*, physics::*, state::dash_system, wave::*,
 };
@@ -69,6 +71,7 @@ impl ServerApp {
             resources.insert(Queue::<CoinEvent> { data: vec![] });
             resources.insert(Queue::<(Entity, Entity)> { data: vec![] });
             resources.insert(Queue::<GameEvent> { data: vec![] });
+            resources.insert(Queue::<TargetedGameEvent> { data: vec![] });
             resources.insert(GameState::Playing);
             resources.insert(PlayerShops::new());
             resources.insert(PlayerRegistry::with_capacity(16));
@@ -106,13 +109,6 @@ impl ServerApp {
         {
             let pool_manager = PoolManager::new(GamePools::init(&mut world));
             resources.insert(pool_manager);
-        }
-
-        // ---- Items Pool ----
-        {
-            let items_json = std::fs::read_to_string("assets/config/spell.json")?;
-            let items: Vec<Option<RawSpell>> = serde_json::from_str(&items_json)?;
-            resources.insert(SpellPool { items } );
         }
 
         // --- Class Config ---
@@ -218,7 +214,9 @@ impl ServerApp {
         {
             let spell_register =
                 simulation::resources::spells::SpellRegister::init("assets/config/spell.json")?;
+            let items = spell_register.all_ids();
             resources.insert(spell_register);
+            resources.insert(SpellPool { items });
         }
 
         let schedule = Schedule::builder()
@@ -244,7 +242,7 @@ impl ServerApp {
             .add_system(kamikaze_suicide_system())
             .add_system(apply_damage_system())
             .add_system(apply_aoe_system())
-            .add_system(start_spell_cooldown_system())
+            .add_system(apply_effect_system())
             .add_system(health_system())
             .add_system(coin_push_to_queue_system())
             .add_system(coin_spawn_system())

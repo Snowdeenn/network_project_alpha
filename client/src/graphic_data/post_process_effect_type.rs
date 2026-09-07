@@ -16,4 +16,3 @@ pub fn update_hit_flash(hit_flash: &mut HitFlashEffect, dt: f32) {
 pub struct HitFlashUniform {
     pub intensity: f32,
 }
-

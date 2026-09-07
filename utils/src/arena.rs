@@ -66,7 +66,6 @@ impl<T> Clone for Id<T> {
     }
 }
 
-
 /// Emplacement interne (*slot*) dans l'arène contenant la valeur et sa génération actuelle.
 struct Slot<Data> {
     generation: u32,

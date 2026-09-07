@@ -8,9 +8,7 @@ use crate::{
     errors::PassError,
     geometry::{mesh::RawMesh, shape::Shape, tesselator::Tesselator},
     pass::{Pass, VfxInput},
-    resource::{
-        pipeline::{BlendMode, PipelineKey, PipelineManager, VertexFormat},
-    },
+    resource::pipeline::{BlendMode, PipelineKey, PipelineManager, VertexFormat},
 };
 
 pub struct VfxPass {
@@ -228,12 +226,15 @@ impl Pass for VfxPass {
 
         self.index_count = self.mesh.indices().len() as u32;
 
-        if let Err(err) = gpu_resources.write_buffer(ctx, self.vertex_buffer, self.mesh.vertices_bytes())
+        if let Err(err) =
+            gpu_resources.write_buffer(ctx, self.vertex_buffer, self.mesh.vertices_bytes())
         {
             tracing::error!("Échec d'écriture dans le Vertex Buffer de VfxPass : {err}");
         }
 
-        if let Err(err) = gpu_resources.write_buffer(ctx, self.index_buffer, self.mesh.indices_bytes()) {
+        if let Err(err) =
+            gpu_resources.write_buffer(ctx, self.index_buffer, self.mesh.indices_bytes())
+        {
             tracing::error!("Échec d'écriture dans l'Index Buffer de VfxPass : {err}");
         }
     }

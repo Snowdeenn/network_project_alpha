@@ -18,7 +18,8 @@ impl AssetManager {
         gpu_resources: &mut prism::GpuResources,
         config_path: &str,
     ) -> Result<(), AnimationError> {
-        self.anims.load_from_config(ctx, gpu_resources, config_path)?;
+        self.anims
+            .load_from_config(ctx, gpu_resources, config_path)?;
         Ok(())
     }
 
@@ -29,5 +30,4 @@ impl AssetManager {
     pub fn anims_mut(&mut self) -> &mut AnimationManager {
         &mut self.anims
     }
-
 }

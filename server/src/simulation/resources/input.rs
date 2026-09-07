@@ -1,7 +1,11 @@
 use crate::simulation::resources::components;
 use legion::EntityStore;
 
-pub fn process_input(net: &mut crate::net::GameNetServer, resources: &mut legion::Resources, world: &mut legion::world::SubWorld) {
+pub fn process_input(
+    net: &mut crate::net::GameNetServer,
+    resources: &mut legion::Resources,
+    world: &mut legion::world::SubWorld,
+) {
     let mut buff_manager = resources
         .get_mut::<utils::buffer::BufferManager>()
         .expect("[Ressource] devrait retourner le BufferManager");

@@ -69,5 +69,3 @@ pub const SHARED_LIVES_Y: f32 = 60.0 / 1080.0;
 pub const SHARED_LIVES_FONT: f32 = 30.0 / 1080.0;
 
 // --- Spell Slot ---
-
-

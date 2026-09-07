@@ -20,6 +20,8 @@ pub struct DebugRectState {
 pub struct DebugCollider {
     pub x: f32,
     pub y: f32,
+    pub width: f32,
+    pub height: f32,
 }
 #[derive(Debug, Default)]
 pub struct DebugState {
@@ -42,9 +44,13 @@ impl DebugState {
         });
     }
 
-    pub fn add_collider(&mut self, x: f32, y: f32) {
-        self.collider.push(DebugCollider { x, y });
-        self.collider.push(DebugCollider { x, y });
+    pub fn add_collider(&mut self, x: f32, y: f32, width: f32, height: f32) {
+        self.collider.push(DebugCollider {
+            x,
+            y,
+            width,
+            height,
+        });
     }
 
     pub fn set_hit_anim(&mut self, pos: [f32; 2]) {

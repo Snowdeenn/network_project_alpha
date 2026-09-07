@@ -27,7 +27,8 @@ impl Resources {
     ///
     /// Si une ressource du même type `T` existait déjà, elle sera écrasée.
     pub fn insert<T: 'static>(&mut self, resource: T) {
-        self.map.insert(TypeId::of::<T>(), RefCell::new(Box::new(resource)));
+        self.map
+            .insert(TypeId::of::<T>(), RefCell::new(Box::new(resource)));
     }
 
     /// Fournit un accès en lecture seule à une ressource de type `T`.

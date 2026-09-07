@@ -5,11 +5,7 @@ use utils::{
 
 use crate::{
     app::input::Input,
-    core::{
-        client::GameNetClient,
-        screen::AppScreen,
-        lobby::LobbyScreenState,
-    },
+    core::{client::GameNetClient, lobby::LobbyScreenState, screen::AppScreen},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -306,15 +302,12 @@ pub fn update(ui_ctx: &mut nodus::UiContext, ids: &utils::ids::Register, state: 
 
     // Classe locale
     let class_label = match ids.get::<nodus::NodeId>(crate::key::lobby::CLASS) {
-            Some(id) => id,
-            None => {
-                tracing::warn!(
-                    "L'id {} est absent du register",
-                    crate::key::lobby::CLASS
-                );
-                return;
-            }
-        };
+        Some(id) => id,
+        None => {
+            tracing::warn!("L'id {} est absent du register", crate::key::lobby::CLASS);
+            return;
+        }
+    };
     match state.my_class {
         None => {
             ui_ctx.send_event(nodus::UIEvent::SetText {

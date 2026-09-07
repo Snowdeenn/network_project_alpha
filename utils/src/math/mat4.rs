@@ -129,30 +129,68 @@ impl Mat4 {
 
         mat_perspective
     }
-    
-    pub fn orthographic_wgpu(left: f32, right: f32, bot: f32, top: f32, near: f32, far: f32) -> Mat4 {
+
+    pub fn orthographic_wgpu(
+        left: f32,
+        right: f32,
+        bot: f32,
+        top: f32,
+        near: f32,
+        far: f32,
+    ) -> Mat4 {
         let rml = right - left;
         let tmb = top - bot;
         let fmn = far - near;
 
         Mat4::from_cols(&[
-            2.0 / rml,             0.0,                0.0,         0.0,
-            0.0,                   2.0 / tmb,          0.0,         0.0,
-            0.0,                   0.0,               -1.0 / fmn,   0.0,
-            -(right + left) / rml, -(top + bot) / tmb, -near / fmn,  1.0,
+            2.0 / rml,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            2.0 / tmb,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            -1.0 / fmn,
+            0.0,
+            -(right + left) / rml,
+            -(top + bot) / tmb,
+            -near / fmn,
+            1.0,
         ])
     }
 
-    pub fn orthographic_opengl(left: f32, right: f32, bot: f32, top: f32, near: f32, far: f32) -> Mat4 {
+    pub fn orthographic_opengl(
+        left: f32,
+        right: f32,
+        bot: f32,
+        top: f32,
+        near: f32,
+        far: f32,
+    ) -> Mat4 {
         let rml = right - left;
         let tmb = top - bot;
         let fmn = far - near;
 
         Mat4::from_cols(&[
-            2.0 / rml,             0.0,                0.0,                  0.0,
-            0.0,                   2.0 / tmb,          0.0,                  0.0,
-            0.0,                   0.0,               -2.0 / fmn,            0.0,
-            -(right + left) / rml, -(top + bot) / tmb, -(far + near) / fmn,  1.0,
+            2.0 / rml,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            2.0 / tmb,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            -2.0 / fmn,
+            0.0,
+            -(right + left) / rml,
+            -(top + bot) / tmb,
+            -(far + near) / fmn,
+            1.0,
         ])
     }
 

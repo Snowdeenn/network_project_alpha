@@ -169,4 +169,3 @@ impl Color {
         Self { a, ..self }
     }
 }
-

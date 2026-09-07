@@ -127,7 +127,7 @@ pub fn read_input(input_state: &Input, tick_id: u64, screen_w: i32, screen_h: i3
             aim_dir,
         };
     }
-    
+
     InputPacket {
         tick_id,
         move_dir,

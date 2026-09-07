@@ -4,7 +4,7 @@ use utils::math::Vec2;
 
 use crate::NodeId;
 use crate::input::Interact;
-use utils::ids::{TextureId};
+use utils::ids::TextureId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Anchor {

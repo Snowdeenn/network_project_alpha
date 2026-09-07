@@ -220,7 +220,7 @@ impl Pass for WorldPass {
         let _span = tracing::trace_span!("WorldPass::prepare").entered();
         self.mesh.clear();
         self.batches.clear();
-       
+
         ctx.queue.write_buffer(
             &self.camera_buffer,
             0,

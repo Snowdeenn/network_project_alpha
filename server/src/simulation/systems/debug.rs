@@ -3,12 +3,21 @@ use legion::*;
 use utils::protocol::{GameEvent, GameEventKind};
 
 #[system(for_each)]
-#[filter(component::<Player>())]
-pub fn send_collider(pos: &Position, #[resource] game_event_queue: &mut crate::utils::Queue<GameEvent>) {
+pub fn send_collider(
+    pos: &Position,
+    collider: &Collider,
+    active: &Active,
+    #[resource] game_event_queue: &mut crate::utils::Queue<GameEvent>,
+) {
+    if !active.0 {
+        return;
+    }
     game_event_queue.data.push(GameEvent {
         kind: GameEventKind::DebugCollider {
             x: pos.x as f32,
             y: pos.y as f32,
+            width: collider.w as f32,
+            height: collider.h as f32,
         },
     });
 }

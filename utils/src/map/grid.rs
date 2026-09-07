@@ -68,10 +68,8 @@ impl Grid {
     }
 
     pub fn world_to_grid(&self, pos: crate::math::Vec2) -> (u32, u32) {
-        let x = (pos.x / self.cell_size)
-            .max(0.0) as u32;
-        let y = (pos.y / self.cell_size)
-            .max(0.0) as u32;
+        let x = (pos.x / self.cell_size).max(0.0) as u32;
+        let y = (pos.y / self.cell_size).max(0.0) as u32;
 
         let gx = x.min(self.width.saturating_sub(1));
         let gy = y.min(self.height.saturating_sub(1));

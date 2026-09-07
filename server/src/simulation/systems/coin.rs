@@ -1,11 +1,11 @@
+use crate::navigation::SpatialGrid;
+use crate::replication::event::*;
 use crate::session::PlayerRegistry;
+use crate::simulation::resources::components::*;
 use crate::utils::GamePools;
 use crate::utils::PoolManager;
 use crate::utils::Queue;
-use crate::simulation::resources::components::*;
-use crate::replication::event::*;
 use crate::utils::aabb_overlap;
-use crate::navigation::SpatialGrid;
 use legion::systems::CommandBuffer;
 use legion::world::SubWorld;
 use legion::*;

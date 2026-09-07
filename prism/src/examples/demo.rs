@@ -15,7 +15,7 @@
 //
 // Lancer avec :  cargo run -p prism --example demo
 
-use prism::{Pass};
+use prism::Pass;
 use std::sync::Arc; // Ou use prism::passes::RenderPass; selon ton nom de trait
 
 use winit::{
@@ -86,20 +86,8 @@ impl Demo {
         let mut pipelines = prism::PipelineManager::new(surface_format);
 
         // ── Passes ───────────────────────────────────────────────────────────
-        let world = prism::WorldPass::new(
-            &ctx,
-            &mut resources,
-            &mut pipelines,
-            vert_id,
-            frag_id,
-        )?;
-        let vfx = prism::VfxPass::new(
-            &ctx,
-            &mut resources,
-            &mut pipelines,
-            vert_id,
-            frag_id,
-        )?;
+        let world = prism::WorldPass::new(&ctx, &mut resources, &mut pipelines, vert_id, frag_id)?;
+        let vfx = prism::VfxPass::new(&ctx, &mut resources, &mut pipelines, vert_id, frag_id)?;
         let hud = prism::HudPass::new(
             &ctx,
             &mut resources,
@@ -260,21 +248,41 @@ impl Demo {
         };
         self.world
             .prepare(&self.ctx, &mut self.resources, &mut world_input);
-        self.world.execute(&mut encoder, &surface_texture.texture.create_view(&wgpu::TextureViewDescriptor::default()), &self.resources);
+        self.world.execute(
+            &mut encoder,
+            &surface_texture
+                .texture
+                .create_view(&wgpu::TextureViewDescriptor::default()),
+            &self.resources,
+        );
 
         let mut vfx_input = prism::VfxInput {
             commands: &vfx_cmds,
             camera: Mat4::identity(),
         };
-        self.vfx.prepare(&self.ctx, &mut self.resources, &mut vfx_input);
-        self.vfx.execute(&mut encoder, &surface_texture.texture.create_view(&wgpu::TextureViewDescriptor::default()), &self.resources);
+        self.vfx
+            .prepare(&self.ctx, &mut self.resources, &mut vfx_input);
+        self.vfx.execute(
+            &mut encoder,
+            &surface_texture
+                .texture
+                .create_view(&wgpu::TextureViewDescriptor::default()),
+            &self.resources,
+        );
 
         let mut hud_input = prism::HudInput {
             commands: &mut hud_cmds,
-            camera: Mat4::identity()
+            camera: Mat4::identity(),
         };
-        self.hud.prepare(&self.ctx, &mut self.resources, &mut hud_input);
-        self.hud.execute(&mut encoder, &surface_texture.texture.create_view(&wgpu::TextureViewDescriptor::default()), &self.resources);
+        self.hud
+            .prepare(&self.ctx, &mut self.resources, &mut hud_input);
+        self.hud.execute(
+            &mut encoder,
+            &surface_texture
+                .texture
+                .create_view(&wgpu::TextureViewDescriptor::default()),
+            &self.resources,
+        );
 
         self.ctx.submit(encoder);
         self.ctx.present(surface_texture);

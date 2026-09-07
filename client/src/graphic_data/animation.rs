@@ -1,9 +1,9 @@
 // src/graphic_data/animation.rs
 
 use crate::graphic_data::animation_manager::{AnimData, AnimationManager};
+use std::collections::HashMap;
 use utils::arena::Arena;
 use utils::ids::{AnimEntityId, AnimEntityTag, AnimId, TextureId};
-use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct AnimEntity {

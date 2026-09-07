@@ -1,17 +1,17 @@
+use crate::replication::event::*;
+use crate::simulation::resources::components::*;
+use crate::simulation::resources::wave::*;
+use crate::simulation::systems::spawn;
 use crate::utils::GamePools;
 use crate::utils::PoolManager;
 use crate::utils::Queue;
-use crate::simulation::resources::components::*;
-use crate::replication::event::*;
-use crate::simulation::resources::wave::*;
-use crate::simulation::systems::spawn;
 use legion::systems::CommandBuffer;
 use legion::world::SubWorld;
 use legion::*;
-use utils::ids::EnemyTag;
-use utils::protocol::{GameEvent, GameEventKind};
 use std::str::FromStr;
 use std::time::Duration;
+use utils::ids::EnemyTag;
+use utils::protocol::{GameEvent, GameEventKind};
 
 #[system]
 #[write_component(Active)]

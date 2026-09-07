@@ -6,6 +6,6 @@ pub mod health;
 pub mod ia;
 pub mod physics;
 pub mod spawn;
-pub mod wave;
-pub mod state;
 pub mod spells;
+pub mod state;
+pub mod wave;

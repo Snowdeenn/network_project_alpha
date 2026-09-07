@@ -5,7 +5,8 @@
 //! les réallocations fréquentes sur le tas.
 
 use std::{
-    any::{self}, collections::{HashMap, HashSet},
+    any::{self},
+    collections::{HashMap, HashSet},
 };
 
 use crate::{

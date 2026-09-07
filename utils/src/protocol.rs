@@ -110,6 +110,8 @@ pub enum GameEventKind {
     DebugCollider {
         x: f32,
         y: f32,
+        width: f32,
+        height: f32,
     },
     SharedLivesUpdate {
         remaining: u32,

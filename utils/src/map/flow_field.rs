@@ -28,7 +28,7 @@ impl FlowField {
 
     pub fn compute(&mut self, grid: &Grid, target: Vec2) {
         let (tx, ty) = grid.world_to_grid(target);
-        
+
         // INDISPENSABLE : enregistrer la nouvelle case cible calculée
         self.target = (tx, ty);
 
@@ -132,18 +132,18 @@ mod tests {
         let mut field = FlowField::new(10, 10);
         let grid = create_test_grid(10, 10);
 
-         // Position monde dans la case (2, 2) avec cell_size = 10.0
-         let target_a = Vec2::new(25.0, 25.0);
-         field.compute(&grid, target_a);
+        // Position monde dans la case (2, 2) avec cell_size = 10.0
+        let target_a = Vec2::new(25.0, 25.0);
+        field.compute(&grid, target_a);
 
-         // Petit déplacement dans la MÊME case (2, 2)
-         let target_b = Vec2::new(22.0, 28.0);
-         assert!(!field.needs_update(&grid, target_b));
+        // Petit déplacement dans la MÊME case (2, 2)
+        let target_b = Vec2::new(22.0, 28.0);
+        assert!(!field.needs_update(&grid, target_b));
 
-         // Déplacement dans une AUTRE case (3, 2)
-         let target_c = Vec2::new(35.0, 25.0);
-         assert!(field.needs_update(&grid, target_c));
-     }
+        // Déplacement dans une AUTRE case (3, 2)
+        let target_c = Vec2::new(35.0, 25.0);
+        assert!(field.needs_update(&grid, target_c));
+    }
 
     #[test]
     fn test_cost_field_propagation() {

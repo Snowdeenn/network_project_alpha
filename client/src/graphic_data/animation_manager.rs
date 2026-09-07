@@ -143,7 +143,9 @@ impl AnimationManager {
         config_path: impl AsRef<Path>,
     ) -> Result<(), AnimationError> {
         let path = config_path.as_ref();
-        let _span = tracing::info_span!("AnimationManager::load_from_config", path = %path.display()).entered();
+        let _span =
+            tracing::info_span!("AnimationManager::load_from_config", path = %path.display())
+                .entered();
 
         let json = std::fs::read_to_string(path).map_err(|err| {
             tracing::error!(path = %path.display(), %err, "Impossible de lire le fichier de configuration des animations");

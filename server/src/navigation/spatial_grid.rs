@@ -99,8 +99,11 @@ impl SpatialGrid {
         let max_y = pos.y + collider.h;
 
         // Si l'objet est complètement en dehors de la grille
-        if max_x < 0.0 || pos.x >= (self.cols as f64 * self.cell_size)
-            || max_y < 0.0 || pos.y >= (self.rows as f64 * self.cell_size) {
+        if max_x < 0.0
+            || pos.x >= (self.cols as f64 * self.cell_size)
+            || max_y < 0.0
+            || pos.y >= (self.rows as f64 * self.cell_size)
+        {
             return None;
         }
 
@@ -115,7 +118,6 @@ impl SpatialGrid {
             Some((min_col, max_col, min_row, max_row))
         }
     }
-
 }
 
 #[cfg(test)]
@@ -191,7 +193,10 @@ mod tests {
         assert_eq!(grid.bounds(&pos, &col), Some((0, 0, 0, 0)));
 
         // Entité collée au coin inférieur droit extrême (1910.0, 1070.0)
-        let pos_end = Position { x: 1910.0, y: 1070.0 };
+        let pos_end = Position {
+            x: 1910.0,
+            y: 1070.0,
+        };
         let col_end = Collider { w: 10.0, h: 10.0 };
         assert_eq!(grid.bounds(&pos_end, &col_end), Some((14, 14, 8, 8)));
     }
@@ -203,7 +208,10 @@ mod tests {
     #[test]
     fn test_bounds_completely_negative_coords() {
         let grid = create_test_grid();
-        let pos = Position { x: -100.0, y: -50.0 };
+        let pos = Position {
+            x: -100.0,
+            y: -50.0,
+        };
         let col = Collider { w: 20.0, h: 20.0 };
 
         // Doit être ignoré ou clampé proprement sans crash/panic
@@ -214,7 +222,10 @@ mod tests {
     #[test]
     fn test_bounds_completely_exceeding_arena() {
         let grid = create_test_grid();
-        let pos = Position { x: 3000.0, y: 2000.0 };
+        let pos = Position {
+            x: 3000.0,
+            y: 2000.0,
+        };
         let col = Collider { w: 50.0, h: 50.0 };
 
         let bounds = grid.bounds(&pos, &col);
@@ -241,7 +252,10 @@ mod tests {
     fn test_bounds_partially_outside_positive() {
         let grid = create_test_grid();
         // Entité qui dépasse du bord droit de l'arène (x = 1910.0, w = 50.0 -> jusqu'à 1960.0)
-        let pos = Position { x: 1910.0, y: 100.0 };
+        let pos = Position {
+            x: 1910.0,
+            y: 100.0,
+        };
         let col = Collider { w: 50.0, h: 20.0 };
 
         let bounds = grid.bounds(&pos, &col);
@@ -268,8 +282,14 @@ mod tests {
     #[test]
     fn test_huge_collider_covering_entire_arena() {
         let grid = create_test_grid();
-        let pos = Position { x: -100.0, y: -100.0 };
-        let col = Collider { w: 5000.0, h: 5000.0 };
+        let pos = Position {
+            x: -100.0,
+            y: -100.0,
+        };
+        let col = Collider {
+            w: 5000.0,
+            h: 5000.0,
+        };
 
         let bounds = grid.bounds(&pos, &col);
         assert_eq!(bounds, Some((0, 14, 0, 8)));
@@ -303,7 +323,10 @@ mod tests {
         let pos1 = Position { x: 10.0, y: 10.0 };
         let col1 = Collider { w: 10.0, h: 10.0 };
 
-        let pos_far = Position { x: 1500.0, y: 800.0 };
+        let pos_far = Position {
+            x: 1500.0,
+            y: 800.0,
+        };
         let col_far = Collider { w: 10.0, h: 10.0 };
 
         grid.clear();
@@ -313,7 +336,10 @@ mod tests {
         let mut candidates = Vec::new();
         grid.query(&pos_far, &col_far, &mut candidates);
 
-        assert!(candidates.is_empty(), "La zone éloignée ne doit trouver aucune entité");
+        assert!(
+            candidates.is_empty(),
+            "La zone éloignée ne doit trouver aucune entité"
+        );
     }
 
     #[test]
@@ -343,7 +369,10 @@ mod tests {
     #[test]
     fn test_no_out_of_bounds_panic_on_query_out_of_arena() {
         let mut grid = create_test_grid();
-        let pos_outside = Position { x: -500.0, y: -500.0 };
+        let pos_outside = Position {
+            x: -500.0,
+            y: -500.0,
+        };
         let col = Collider { w: 100.0, h: 100.0 };
 
         grid.clear();
@@ -356,71 +385,86 @@ mod tests {
     }
 
     #[test]
-fn test_two_entities_same_cell_find_each_other() {
-    let mut grid = create_test_grid();
-    let pos_a = Position { x: 50.0, y: 50.0 };
-    let pos_b = Position { x: 70.0, y: 70.0 };
-    let col = Collider { w: 20.0, h: 20.0 };
+    fn test_two_entities_same_cell_find_each_other() {
+        let mut grid = create_test_grid();
+        let pos_a = Position { x: 50.0, y: 50.0 };
+        let pos_b = Position { x: 70.0, y: 70.0 };
+        let col = Collider { w: 20.0, h: 20.0 };
 
-    grid.clear();
-    grid.insert(0, &pos_a, &col);
-    grid.insert(1, &pos_b, &col);
-    grid.build();
+        grid.clear();
+        grid.insert(0, &pos_a, &col);
+        grid.insert(1, &pos_b, &col);
+        grid.build();
 
-    let mut candidates = Vec::new();
-    grid.query(&pos_a, &col, &mut candidates);
-    assert!(candidates.contains(&1), "A doit trouver B dans la même cellule");
+        let mut candidates = Vec::new();
+        grid.query(&pos_a, &col, &mut candidates);
+        assert!(
+            candidates.contains(&1),
+            "A doit trouver B dans la même cellule"
+        );
 
-    candidates.clear();
-    grid.query(&pos_b, &col, &mut candidates);
-    assert!(candidates.contains(&0), "B doit trouver A dans la même cellule");
-}
+        candidates.clear();
+        grid.query(&pos_b, &col, &mut candidates);
+        assert!(
+            candidates.contains(&0),
+            "B doit trouver A dans la même cellule"
+        );
+    }
 
-#[test]
-fn test_entity_straddling_cells_found_from_both_sides() {
-    let mut grid = create_test_grid();
-    // Entité à cheval entre cellule 0 et 1 en X
-    let pos_straddle = Position { x: 120.0, y: 50.0 };
-    let col_straddle = Collider { w: 40.0, h: 20.0 }; // s'étend jusqu'à 160.0 -> cellule 1
+    #[test]
+    fn test_entity_straddling_cells_found_from_both_sides() {
+        let mut grid = create_test_grid();
+        // Entité à cheval entre cellule 0 et 1 en X
+        let pos_straddle = Position { x: 120.0, y: 50.0 };
+        let col_straddle = Collider { w: 40.0, h: 20.0 }; // s'étend jusqu'à 160.0 -> cellule 1
 
-    let pos_left = Position { x: 50.0, y: 50.0 };
-    let pos_right = Position { x: 150.0, y: 50.0 };
-    let col_small = Collider { w: 10.0, h: 10.0 };
+        let pos_left = Position { x: 50.0, y: 50.0 };
+        let pos_right = Position { x: 150.0, y: 50.0 };
+        let col_small = Collider { w: 10.0, h: 10.0 };
 
-    grid.clear();
-    grid.insert(0, &pos_straddle, &col_straddle);
-    grid.build();
+        grid.clear();
+        grid.insert(0, &pos_straddle, &col_straddle);
+        grid.build();
 
-    let mut candidates = Vec::new();
-    grid.query(&pos_left, &col_small, &mut candidates);
-    assert!(candidates.contains(&0), "L'entité à cheval doit être trouvée depuis la cellule gauche");
+        let mut candidates = Vec::new();
+        grid.query(&pos_left, &col_small, &mut candidates);
+        assert!(
+            candidates.contains(&0),
+            "L'entité à cheval doit être trouvée depuis la cellule gauche"
+        );
 
-    candidates.clear();
-    grid.query(&pos_right, &col_small, &mut candidates);
-    assert!(candidates.contains(&0), "L'entité à cheval doit être trouvée depuis la cellule droite");
-}
+        candidates.clear();
+        grid.query(&pos_right, &col_small, &mut candidates);
+        assert!(
+            candidates.contains(&0),
+            "L'entité à cheval doit être trouvée depuis la cellule droite"
+        );
+    }
 
-#[test]
-fn test_multiple_frames_no_ghost_entities() {
-    let mut grid = create_test_grid();
-    let pos_a = Position { x: 50.0, y: 50.0 };
-    let pos_b = Position { x: 200.0, y: 200.0 };
-    let col = Collider { w: 20.0, h: 20.0 };
+    #[test]
+    fn test_multiple_frames_no_ghost_entities() {
+        let mut grid = create_test_grid();
+        let pos_a = Position { x: 50.0, y: 50.0 };
+        let pos_b = Position { x: 200.0, y: 200.0 };
+        let col = Collider { w: 20.0, h: 20.0 };
 
-    // Frame 1 : entité 0
-    grid.clear();
-    grid.insert(0, &pos_a, &col);
-    grid.build();
+        // Frame 1 : entité 0
+        grid.clear();
+        grid.insert(0, &pos_a, &col);
+        grid.build();
 
-    // Frame 2 : entité 1 seulement
-    grid.clear();
-    grid.insert(1, &pos_b, &col);
-    grid.build();
+        // Frame 2 : entité 1 seulement
+        grid.clear();
+        grid.insert(1, &pos_b, &col);
+        grid.build();
 
-    let mut candidates = Vec::new();
-    grid.query(&pos_b, &col, &mut candidates);
+        let mut candidates = Vec::new();
+        grid.query(&pos_b, &col, &mut candidates);
 
-    assert!(candidates.contains(&1), "Entité 1 doit être trouvée");
-    assert!(!candidates.contains(&0), "Entité 0 (frame précédente) ne doit pas apparaître");
-}
+        assert!(candidates.contains(&1), "Entité 1 doit être trouvée");
+        assert!(
+            !candidates.contains(&0),
+            "Entité 0 (frame précédente) ne doit pas apparaître"
+        );
+    }
 }

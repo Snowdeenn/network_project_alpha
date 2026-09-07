@@ -1,13 +1,13 @@
 use crate::navigation::FlowFieldManager;
-use crate::utils::Queue;
-use crate::simulation::resources::components::*;
 use crate::replication::event::DamageEvent;
+use crate::simulation::resources::components::*;
+use crate::utils::Queue;
 use arrayvec::ArrayVec;
 use legion::world::SubWorld;
 use legion::*;
-use utils::map::grid::Grid;
 use std::collections::HashMap;
 use utils::buffer::BufferManager;
+use utils::map::grid::Grid;
 
 #[system]
 #[read_component(Player)]
@@ -101,11 +101,13 @@ pub fn melee_ia_movement(
                 let distance = (dx * dx + dy * dy).sqrt();
 
                 if distance > (stats.range - 5.0) {
-                   let ia_vec = utils::math::Vec2::new(ia_pos.x as f32, ia_pos.y as f32);
-                    
+                    let ia_vec = utils::math::Vec2::new(ia_pos.x as f32, ia_pos.y as f32);
+
                     // On récupère le vecteur de direction qui évite les murs
                     let dir = flow_field_manager.get_direction(grid, target_entity, ia_vec);
-                    let speed = mov_stats.accel.clamp(-mov_stats.max_speed, mov_stats.max_speed);
+                    let speed = mov_stats
+                        .accel
+                        .clamp(-mov_stats.max_speed, mov_stats.max_speed);
 
                     velo.dx = dir.x as f64 * speed;
                     velo.dy = dir.y as f64 * speed;

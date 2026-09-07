@@ -1,7 +1,7 @@
-pub mod world;
-pub mod vfx;
 pub mod hud;
 pub mod post_process;
+pub mod vfx;
+pub mod world;
 
 use crate::GpuResources;
 use crate::context::GpuContext;
@@ -41,7 +41,7 @@ pub struct VfxInput<'a> {
     pub camera: Mat4,
 }
 
-// HudPass  
+// HudPass
 pub struct HudInput<'a> {
     pub commands: &'a mut DrawCommandBuffer,
     pub camera: Mat4,
@@ -55,18 +55,16 @@ pub struct PostProcessInput<'a> {
 
 use crate::resource::pipeline::BindGroupLayoutEntryKey;
 use crate::resource::pipeline::BindingTypeKey;
-pub static CAM_BIND_GROUP: &[&[BindGroupLayoutEntryKey]] = &[
-    &[BindGroupLayoutEntryKey {
-        binding: 0,
-        visibility: wgpu::ShaderStages::VERTEX,
-        ty: BindingTypeKey::UniformBuffer,
-    }],
-];
+pub static CAM_BIND_GROUP: &[&[BindGroupLayoutEntryKey]] = &[&[BindGroupLayoutEntryKey {
+    binding: 0,
+    visibility: wgpu::ShaderStages::VERTEX,
+    ty: BindingTypeKey::UniformBuffer,
+}]];
 pub static TEXTURE_BIND_GROUP: &[&[BindGroupLayoutEntryKey]] = &[
     &[BindGroupLayoutEntryKey {
         binding: 0,
         visibility: wgpu::ShaderStages::VERTEX,
-        ty: BindingTypeKey::UniformBuffer
+        ty: BindingTypeKey::UniformBuffer,
     }],
     &[
         BindGroupLayoutEntryKey {

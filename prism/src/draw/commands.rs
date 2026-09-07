@@ -1,5 +1,5 @@
 use crate::geometry::mesh::RawMesh;
-use crate::geometry::shape::{Shape, NinePatchMargins};
+use crate::geometry::shape::{NinePatchMargins, Shape};
 use crate::resource::pipeline::BlendMode;
 use utils::ids::{MaterialId, TextureId};
 

@@ -1,7 +1,6 @@
-
-use crate::utils::Queue;
-use crate::simulation::resources::components::*;
 use crate::replication::event::*;
+use crate::simulation::resources::components::*;
+use crate::utils::Queue;
 use legion::world::SubWorld;
 use legion::*;
 use utils::buffer::BufferManager;
@@ -42,7 +41,7 @@ pub fn health(
                 let id = entry
                     .get_component::<EntityId>()
                     .expect("[Health System] Joueur sans EntityId");
-                
+
                 // Toujours envoyer PlayerDied au client concerné
                 game_event_queue.data.push(GameEvent {
                     kind: GameEventKind::PlayerDied { entity_id: id.0 },

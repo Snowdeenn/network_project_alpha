@@ -115,7 +115,12 @@ impl GpuResources {
     pub fn get_buffer_mut(&mut self, id: utils::ids::BufferId) -> Option<&mut crate::GpuBuffer> {
         self.get_buffer_mut(id)
     }
-    pub fn write_buffer(&mut self, ctx: &crate::GpuContext, id: utils::ids::BufferId, data: &[u8]) -> Result<(), crate::BufferError> {
+    pub fn write_buffer(
+        &mut self,
+        ctx: &crate::GpuContext,
+        id: utils::ids::BufferId,
+        data: &[u8],
+    ) -> Result<(), crate::BufferError> {
         self.buffer.write_buffer(ctx, id, data)
     }
     pub fn remove_buffer(

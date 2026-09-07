@@ -63,13 +63,18 @@ pub fn handle_event(
                 .write_resource::<crate::core::debug_state::DebugState>()
                 .set_hit_anim(pos);
         }
-        utils::protocol::GameEventKind::DebugCollider { x, y } => {
+        utils::protocol::GameEventKind::DebugCollider {
+            x,
+            y,
+            width,
+            height,
+        } => {
             let mut debug = app_resource.write_resource::<crate::core::debug_state::DebugState>();
             if !debug.cleared {
                 debug.collider.clear();
                 debug.cleared = true;
             }
-            debug.add_collider(x, y);
+            debug.add_collider(x, y, width, height);
         }
         utils::protocol::GameEventKind::SharedLivesUpdate { remaining, max } => {
             let mut ui = app_resource.write_resource::<crate::core::ui_state::UiState>();

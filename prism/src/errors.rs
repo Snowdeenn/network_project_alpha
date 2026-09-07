@@ -100,7 +100,9 @@ pub enum BufferError {
     #[error("Taille de buffer invalide : {size} octets")]
     InvalidSize { size: u64 },
 
-    #[error("Capacité du buffer dépassée pour {id} : écriture de {required} octets dans un buffer de {available} octets")]
+    #[error(
+        "Capacité du buffer dépassée pour {id} : écriture de {required} octets dans un buffer de {available} octets"
+    )]
     Overflow {
         id: BufferId,
         required: u64,

@@ -1,12 +1,12 @@
 use crate::app::next_id;
 use crate::config::SharedLives;
+use crate::net::server::GameNetServer;
 use crate::session::PlayerRegistry;
-use crate::utils::Queue;
 use crate::session::{LobbyPhase, SessionState};
 use crate::simulation::resources::components::Position;
-use crate::simulation::systems::spawn::spawn_player;
 use crate::simulation::resources::wave::{WaveManager, WaveState};
-use crate::net::server::GameNetServer;
+use crate::simulation::systems::spawn::spawn_player;
+use crate::utils::Queue;
 use legion::Resources;
 use legion::World;
 use std::time::Duration;
@@ -72,8 +72,8 @@ pub fn handle_lobby_message(
             // Déjà géré dans ClientConnected pour la connexion initiale
             // Ce message sert si on implémente le flow "entrer un code manuellement"
             broadcast_lobby_update(session, net);
-        },
-        
+        }
+
         _ => {} // Messages serveur → client, ignorés si reçus
     }
 }

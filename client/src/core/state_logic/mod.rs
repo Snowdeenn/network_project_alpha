@@ -31,4 +31,3 @@ pub struct LocalId {
     pub entity_id: u64,
     pub client_id: u64,
 }
-

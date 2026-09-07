@@ -1,10 +1,10 @@
-use crate::simulation::resources::components::*;
-use crate::utils::{Resolution,aabb_overlap};
 use crate::navigation::SpatialGrid;
+use crate::simulation::resources::components::*;
+use crate::utils::{Resolution, aabb_overlap};
 use legion::world::SubWorld;
 use legion::*;
-use utils::buffer::BufferManager;
 use std::time::Duration;
+use utils::buffer::BufferManager;
 
 const FRICTION: f64 = 0.85;
 const ARENA_W: f64 = 9600.0;

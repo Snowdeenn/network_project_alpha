@@ -56,10 +56,22 @@ pub fn lerp_color(from: colors::Color, to: colors::Color, t: f32) -> colors::Col
 }
 
 pub enum TweenProperty {
-    Position { from: Vec2, to: Vec2 },
-    Size { from: Vec2, to: Vec2 },
-    Opacity { from: f32, to: f32 },
-    Color { from: colors::Color, to: colors::Color },
+    Position {
+        from: Vec2,
+        to: Vec2,
+    },
+    Size {
+        from: Vec2,
+        to: Vec2,
+    },
+    Opacity {
+        from: f32,
+        to: f32,
+    },
+    Color {
+        from: colors::Color,
+        to: colors::Color,
+    },
 }
 
 pub struct Tween {

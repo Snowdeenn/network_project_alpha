@@ -1,5 +1,5 @@
-use utils::protocol::StateSnapshot;
 use std::time::Instant;
+use utils::protocol::StateSnapshot;
 
 /// Regroupe l'état réseau nécessaire à l'interpolation d'une frame
 pub struct FrameState<'a> {

@@ -77,7 +77,6 @@ impl Register {
                 tracing::warn!("Erreur clé introuvable pour {}", std::any::type_name::<T>());
                 None
             }
-
         }
     }
 }

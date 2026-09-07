@@ -25,7 +25,8 @@ impl GamePhase {
     pub fn update(&mut self, dt: f32) {
         if let GamePhase::BetweenWave { time_remaining, .. } = self {
             if time_remaining.as_secs_f32() > 0.0 {
-                *time_remaining = time_remaining.saturating_sub(std::time::Duration::from_secs_f32(dt));
+                *time_remaining =
+                    time_remaining.saturating_sub(std::time::Duration::from_secs_f32(dt));
             }
         }
     }

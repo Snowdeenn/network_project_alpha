@@ -1,9 +1,11 @@
-use std::{time::Duration};
+use std::time::Duration;
 
 use bincode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use crate::{config::PlayerClass, spell_types::Spell};
+
+pub const SPELL_SLOT_COUNT: usize = 4;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Encode, Decode)]
 pub struct InputPacket {
@@ -145,11 +147,11 @@ pub enum GameEventKind {
         config: SpellClientConfig,
     },
     SpellCooldownsUpdate {
-        cooldowns: [f32; 4],
+        cooldowns: [f32; SPELL_SLOT_COUNT],
     },
     SpellUsed {
         slot: SpellSlot,
-    }
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Encode, Decode)]
@@ -157,6 +159,7 @@ pub struct SpellClientConfig {
     pub targeting_kind: crate::spell_types::SpellTargetingKind,
     pub range: f32,
     pub aoe: Option<crate::spell_types::AoeSpellShape>,
+    pub cooldown: f32,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Encode, Decode)]
@@ -284,6 +287,12 @@ pub enum SpellSlot {
     Second,
     Third,
     Fourth,
+}
+
+impl SpellSlot {
+    pub const fn index(self) -> usize {
+        self as usize
+    }
 }
 
 impl From<usize> for SpellSlot {

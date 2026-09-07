@@ -1,16 +1,13 @@
 use rand::prelude::IndexedRandom;
 use std::collections::HashMap;
-use utils::{
-    protocol::SpellSlot,
-    spell_types::{RawSpell, Spell},
-};
+use utils::spell_types::{Spell, SpellId};
 
 pub struct SpellPool {
-    pub items: Vec<Option<RawSpell>>,
+    pub items: Vec<SpellId>,
 }
 
 pub struct PlayerShops {
-    pub inventories: HashMap<u64, Vec<Option<(String, Spell)>>>,
+    pub inventories: HashMap<u64, Vec<Option<SpellId>>>,
 }
 
 impl PlayerShops {
@@ -20,32 +17,27 @@ impl PlayerShops {
         }
     }
 
-    pub fn generate(
-        &mut self,
-        player_id: u64,
-        item_pool: &[Option<RawSpell>],
-    ) -> Vec<Option<(String, Spell)>> {
+    pub fn generate(&mut self, player_id: u64, item_pool: &[SpellId]) -> Vec<Option<SpellId>> {
         let count = item_pool.len().min(3);
-        let items: Vec<Option<(String, Spell)>> = item_pool
+        let items: Vec<Option<SpellId>> = item_pool
             .sample(&mut rand::rng(), count)
-            .map(|opt| opt.as_ref().map(|raw| raw.clone().into_spell()))
+            .copied()
+            .map(Some)
             .collect();
         self.inventories.insert(player_id, items.clone());
         items
     }
 
-    pub fn buy(
-        &mut self,
-        player_id: u64,
-        slot: usize,
-        gold_avaible: u32,
-    ) -> Option<(String, Spell)> {
-        let inventory = self.inventories.get_mut(&player_id)?;
-        let (_, item) = inventory.get(slot)?.as_ref()?;
-        if item.costs.gold <= gold_avaible {
-            return inventory.get_mut(slot)?.take();
-        }
-        None
+    pub fn get(&self, player_id: u64, slot: usize) -> Option<SpellId> {
+        self.inventories
+            .get(&player_id)?
+            .get(slot)
+            .copied()
+            .flatten()
+    }
+
+    pub fn remove(&mut self, player_id: u64, slot: usize) -> Option<SpellId> {
+        self.inventories.get_mut(&player_id)?.get_mut(slot)?.take()
     }
 }
 
@@ -76,13 +68,18 @@ fn handle_shop_action(
         utils::protocol::ShopActionKind::Open => {
             tracing::info!("Client {} a ouvert le shop", client);
 
-            let shop_inventory: Vec<Option<Spell>> = {
-                let item_pool = res.get::<SpellPool>().unwrap();
+            let offered_ids = {
+                let item_pool = res.get::<SpellPool>().unwrap().items.clone();
                 let mut player_shops = res.get_mut::<PlayerShops>().unwrap();
-                player_shops
-                    .generate(client, &item_pool.items)
+                player_shops.generate(client, &item_pool)
+            };
+            let shop_inventory: Vec<Option<Spell>> = {
+                let spell_register = res
+                    .get::<crate::simulation::resources::spells::SpellRegister>()
+                    .unwrap();
+                offered_ids
                     .into_iter()
-                    .map(|opt| opt.map(|(_, spell)| spell))
+                    .map(|id| id.and_then(|id| spell_register.get_spell(id).cloned()))
                     .collect()
             };
             server.send_event(
@@ -97,60 +94,99 @@ fn handle_shop_action(
         utils::protocol::ShopActionKind::Buy => {
             tracing::info!("Client {} a acheté un item du shop", client);
 
-            let gold = res
+            // Validate capacity before mutating the shop inventory or the player's gold.
+            let Some(spell_slot) = res
                 .get::<crate::session::PlayerRegistry>()
                 .unwrap()
-                .get_gold(client);
-            let item = {
-                let mut player_shop = res.get_mut::<PlayerShops>().unwrap();
-                player_shop.buy(client, action.slot as usize, gold)
+                .first_free_spell_slot(client)
+            else {
+                // TODO(spell-swap): lorsqu'aucun slot n'est libre, demander au joueur quel sort
+                // remplacer. L'achat devra rester atomique : ne retirer l'or et l'offre du shop
+                // qu'après confirmation du slot de destination, puis notifier le client du nouveau
+                // contenu du loadout.
+                tracing::warn!("Client {} n'a pas de slot de sort libre", client);
+                server.send_event(
+                    client,
+                    &utils::protocol::GameEvent {
+                        kind: utils::protocol::GameEventKind::PurchaseFailed {
+                            slot: action.slot as usize,
+                        },
+                    },
+                );
+                return;
             };
 
-            match item {
-                Some((id, spell)) => {
+            let spell_id = {
+                let player_shop = res.get::<PlayerShops>().unwrap();
+                player_shop.get(client, action.slot as usize)
+            };
+
+            match spell_id {
+                Some(spell_id) => {
                     tracing::info!("Client {} a acheté l'item du slot {}", client, action.slot);
-                    let spell_register = res
+                    let spell = res
                         .get::<crate::simulation::resources::spells::SpellRegister>()
-                        .unwrap();
-                    let spell_id = *spell_register.resolve_string(&id).unwrap();
-
-                    // Soustraire l'or
-                    res.get_mut::<crate::session::PlayerRegistry>()
                         .unwrap()
-                        .sub_gold(client, spell.costs.gold);
+                        .get_spell(spell_id)
+                        .cloned()
+                        .expect("Le pool ne doit contenir que des sorts enregistrés");
 
-                    // Assigner le sort au premier slot libre
-                    let slot_idx = {
-                        let registry = res.get::<crate::session::PlayerRegistry>().unwrap();
-                        let player_entry = registry.get_entry(client).unwrap();
-                        player_entry.spells.iter().position(|s| s.is_none())
-                    };
+                    let gold = res
+                        .get::<crate::session::PlayerRegistry>()
+                        .unwrap()
+                        .get_gold(client);
+                    if gold < spell.purchase_cost.gold {
+                        server.send_event(
+                            client,
+                            &utils::protocol::GameEvent {
+                                kind: utils::protocol::GameEventKind::PurchaseFailed {
+                                    slot: action.slot as usize,
+                                },
+                            },
+                        );
+                        return;
+                    }
 
-                    if let Some(slot_idx) = slot_idx {
-                        let slot = SpellSlot::from(slot_idx);
+                    let equipped = res
+                        .get_mut::<crate::session::PlayerRegistry>()
+                        .unwrap()
+                        .add_spell(client, spell_id, spell_slot, spell.cast_cost.charges);
+
+                    if equipped {
                         res.get_mut::<crate::session::PlayerRegistry>()
                             .unwrap()
-                            .add_spell(client, spell_id, slot);
-
+                            .sub_gold(client, spell.purchase_cost.gold);
+                        res.get_mut::<PlayerShops>()
+                            .unwrap()
+                            .remove(client, action.slot as usize);
                         server.send_event(
                             client,
                             &utils::protocol::GameEvent {
                                 kind: utils::protocol::GameEventKind::SpellAcquired {
-                                    slot,
+                                    slot: spell_slot,
                                     config: utils::protocol::SpellClientConfig {
                                         targeting_kind: spell.targeting.kind,
                                         range: spell.targeting.range,
                                         aoe: spell.targeting.aoe,
+                                        cooldown: spell.cast_cost.cooldown,
                                     },
                                 },
                             },
                         );
                     } else {
-                        // TODO: gérer le cas où le joueur n'a pas de slot libre pour le sort acheté
                         tracing::warn!(
                             "Client {} n'a pas de slot libre pour le sort acheté",
                             client
                         );
+                        server.send_event(
+                            client,
+                            &utils::protocol::GameEvent {
+                                kind: utils::protocol::GameEventKind::PurchaseFailed {
+                                    slot: action.slot as usize,
+                                },
+                            },
+                        );
+                        return;
                     }
                     server.send_event(
                         client,

@@ -630,9 +630,8 @@ pub fn update(
     }
 
     {
-        let cooldowns = resources
-            .read_resource::<crate::graphic_data::ClientSpellSlots>()
-            .cooldowns;
+        let spell_slots = resources.read_resource::<crate::graphic_data::ClientSpellSlots>();
+        let cooldowns = spell_slots.cooldowns;
         for i in 0..cooldowns.len() {
             let Some(slot) = gui
                 .ids
@@ -644,14 +643,29 @@ pub fn update(
                 );
                 continue;
             };
-            // C'est pas le bon endroit pour mettre visible le cooldowns enfin je crois
-            
-            let overlay_height = nodus::UiUnit::ScreenWidth(0.9) / cooldowns[i];
+            let Some(config) = spell_slots.slots[i] else {
+                gui.ui_ctx.send_event(nodus::UIEvent::SetVisible {
+                    target: slot.cooldown_overlay,
+                    visible: false,
+                });
+                continue;
+            };
+            let remaining = cooldowns[i].max(0.0);
+            let visible = remaining > 0.0 && config.cooldown > 0.0;
+            let ratio = if visible {
+                (remaining / config.cooldown).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            gui.ui_ctx.send_event(nodus::UIEvent::SetVisible {
+                target: slot.cooldown_overlay,
+                visible,
+            });
             gui.ui_ctx.send_event(nodus::UIEvent::SetSize {
                 target: slot.cooldown_overlay,
                 size: nodus::UiVec2::new(
-                    nodus::UiUnit::ScreenWidth(0.9),
-                    overlay_height,
+                    nodus::UiUnit::ParentPercent(0.9),
+                    nodus::UiUnit::ParentPercent(0.9 * ratio),
                 ),
             });
         }

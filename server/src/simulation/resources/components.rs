@@ -1,8 +1,8 @@
 use legion::Entity;
-use utils::arena::Id;
 use std::time::Duration;
+use utils::arena::Id;
 
-use utils::spell_types::{AoeSpellShape, SpellCost, SpellEffectKind, SpellTargetingConfig};
+use utils::spell_types::{AoeSpellShape, SpellEffectKind, SpellId};
 
 pub struct Player;
 pub struct IA;
@@ -57,7 +57,6 @@ pub struct Health {
 #[derive(Debug, PartialEq)]
 pub struct Active(pub bool);
 
-
 pub struct CoinValue(pub u32);
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -104,7 +103,7 @@ pub struct AttackStats {
     pub projectile_speed: Option<f64>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[allow(dead_code)]
 pub struct TeamFilter {
     pub is_player: bool,
@@ -131,11 +130,10 @@ pub struct LifeTime(pub Duration);
 
 pub struct PoolId<Tag>(pub Id<Tag>);
 
-pub struct SpellCasted {
+pub struct PendingSpellCast {
     pub aim_dir: [f32; 2],
-    pub cost: SpellCost,
-    pub targeting: SpellTargetingConfig,
-    pub effects: Vec<SpellEffectKind>,
+    pub spell_id: SpellId,
+    pub slot: utils::protocol::SpellSlot,
 }
 
 pub struct SpellEffects {
@@ -143,30 +141,15 @@ pub struct SpellEffects {
     pub aoe: Option<AoeSpellShape>,
 }
 
-pub struct SpellProjectile {
-    pub effects: Vec<SpellEffectKind>,
-    pub aoe: Option<AoeSpellShape>,
-    pub range_remaining: f32,
-    pub caster_entity_id: u64,
-}
-
 pub struct PendingAoe {
     pub origin: [f32; 2],
     pub aim_dir: [f32; 2],
     pub aoe: Option<AoeSpellShape>,
     pub effects: Vec<SpellEffectKind>,
+    pub owner: Entity,
+    pub caster_is_player: bool,
 }
 
 pub struct PendingEffect {
     pub effects: Vec<SpellEffectKind>,
 }
-
-pub struct SpellCooldowns {
-    pub slots: [f32; 4],
-}
-
-pub struct SpellCooldownStart {
-    pub slot: utils::protocol::SpellSlot,
-    pub duration: f32,
-}
-

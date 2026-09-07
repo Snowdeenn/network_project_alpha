@@ -15,6 +15,12 @@ pub struct CoinEvent {
     pub pos: [f32; 2],
 }
 
+#[derive(Debug)]
+pub struct TargetedGameEvent {
+    pub client_id: u64,
+    pub event: GameEvent,
+}
+
 pub fn process_game_event(
     net: &mut crate::net::GameNetServer,
     resources: &mut legion::Resources,
@@ -23,14 +29,27 @@ pub fn process_game_event(
     use crate::simulation::resources::components;
     use legion::EntityStore;
 
-    let mut game_events = resources
-        .get_mut::<crate::utils::Queue<utils::protocol::GameEvent>>()
-        .expect("GameEventQueue pas dans les ressources");
+    let targeted_events = {
+        let mut events = resources
+            .get_mut::<crate::utils::Queue<TargetedGameEvent>>()
+            .expect("TargetedGameEventQueue pas dans les ressources");
+        std::mem::take(&mut events.data)
+    };
+    for targeted in targeted_events {
+        net.send_event(targeted.client_id, &targeted.event);
+    }
+
+    let events = {
+        let mut game_events = resources
+            .get_mut::<crate::utils::Queue<utils::protocol::GameEvent>>()
+            .expect("GameEventQueue pas dans les ressources");
+        std::mem::take(&mut game_events.data)
+    };
     let mapping = resources
         .get::<crate::session::PlayerRegistry>()
         .expect("EntityToClient pas dans les ressources");
 
-    for event in game_events.data.drain(..) {
+    for event in events {
         match event.kind {
             utils::protocol::GameEventKind::PlayerDied { entity_id } => {
                 if let Some(client_id) = mapping.entity_to_client(entity_id) {

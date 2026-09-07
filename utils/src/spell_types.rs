@@ -23,14 +23,26 @@ impl From<Id<SpellTag>> for SpellId {
     }
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, bincode::Encode, bincode::Decode)]
-pub struct SpellCost {
-    pub cooldown: f32,
+#[derive(
+    Debug, Clone, Copy, serde::Serialize, serde::Deserialize, bincode::Encode, bincode::Decode,
+)]
+pub struct PurchaseCost {
     pub gold: u32,
-    pub charges: u32,
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, bincode::Encode, bincode::Decode)]
+#[derive(
+    Debug, Clone, Copy, serde::Serialize, serde::Deserialize, bincode::Encode, bincode::Decode,
+)]
+pub struct CastCost {
+    pub cooldown: f32,
+    pub gold: u32,
+    /// `None` means that the spell has unlimited uses.
+    pub charges: Option<u32>,
+}
+
+#[derive(
+    Debug, Clone, Copy, serde::Serialize, serde::Deserialize, bincode::Encode, bincode::Decode,
+)]
 pub struct SpellTargetingConfig {
     pub kind: SpellTargetingKind,
     pub range: f32,
@@ -39,7 +51,9 @@ pub struct SpellTargetingConfig {
     pub aoe: Option<AoeSpellShape>,
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, bincode::Encode, bincode::Decode)]
+#[derive(
+    Debug, Clone, Copy, serde::Serialize, serde::Deserialize, bincode::Encode, bincode::Decode,
+)]
 #[serde(tag = "shape")]
 pub enum AoeSpellShape {
     Circle {
@@ -62,7 +76,9 @@ pub enum AoeSpellShape {
     },
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, bincode::Encode, bincode::Decode)]
+#[derive(
+    Debug, Clone, Copy, serde::Serialize, serde::Deserialize, bincode::Encode, bincode::Decode,
+)]
 pub enum SpellTargetingKind {
     Directional,
     OnSelf,
@@ -70,7 +86,9 @@ pub enum SpellTargetingKind {
     //...
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, bincode::Encode, bincode::Decode)]
+#[derive(
+    Debug, Clone, Copy, serde::Serialize, serde::Deserialize, bincode::Encode, bincode::Decode,
+)]
 #[serde(tag = "kind")]
 pub enum SpellEffectKind {
     Damage {
@@ -89,10 +107,11 @@ pub enum SpellEffectKind {
     Heal {
         amount: u32,
     },
-    
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, bincode::Encode, bincode::Decode)]
+#[derive(
+    Debug, Clone, Copy, serde::Serialize, serde::Deserialize, bincode::Encode, bincode::Decode,
+)]
 pub enum AppliedStatus {
     Burn,
     Blind,
@@ -100,7 +119,9 @@ pub enum AppliedStatus {
     // ...
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, bincode::Encode, bincode::Decode)]
+#[derive(
+    Debug, Clone, Copy, serde::Serialize, serde::Deserialize, bincode::Encode, bincode::Decode,
+)]
 pub enum Element {
     Fire,
     Water,
@@ -114,7 +135,8 @@ pub struct RawSpell {
     pub id: String,
     pub name: String,
     pub description: String,
-    pub costs: SpellCost,
+    pub purchase_cost: PurchaseCost,
+    pub cast_cost: CastCost,
     pub targeting: SpellTargetingConfig,
     pub effects: Vec<SpellEffectKind>,
 }
@@ -123,7 +145,8 @@ pub struct RawSpell {
 pub struct Spell {
     pub name: String,
     pub description: String,
-    pub costs: SpellCost,
+    pub purchase_cost: PurchaseCost,
+    pub cast_cost: CastCost,
     pub targeting: SpellTargetingConfig,
     pub effects: Vec<SpellEffectKind>,
 }
@@ -135,7 +158,8 @@ impl RawSpell {
             Spell {
                 name: self.name,
                 description: self.description,
-                costs: self.costs,
+                purchase_cost: self.purchase_cost,
+                cast_cost: self.cast_cost,
                 targeting: self.targeting,
                 effects: self.effects,
             },

@@ -369,17 +369,24 @@ pub fn run_debug(
     debug_data: &DebugData,
     resources: &Resources,
 ) {
-    let attack_box = debug_data.read::<Vec<DebugRectState>>().unwrap();
-    let colliders = debug_data.read::<Vec<DebugCollider>>().unwrap();
     if mode == DebugMode::Off {
         return;
     }
 
+    let attack_boxes = debug_data
+        .read::<Vec<DebugRectState>>()
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+    let colliders = debug_data
+        .read::<Vec<DebugCollider>>()
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+    let painter = debug_renderer.ctx.layer_painter(egui::LayerId {
+        order: egui::Order::Background,
+        id: egui::Id::new("debug_overlay"),
+    });
+
     if mode == DebugMode::Interactive {
-        let painter = debug_renderer.ctx.layer_painter(egui::LayerId {
-            order: egui::Order::Background,
-            id: egui::Id::new("debug_overlay"),
-        });
         debug_renderer
             .create_widget("🛠️ Panneau de Contrôle Debug")
             .window()
@@ -391,8 +398,15 @@ pub fn run_debug(
                 w.create_widget("Combat & Collisions")
                     .header(true)
                     .show(|w| {
-                        w.metric("Attack boxes", attack_box.len());
+                        w.metric("Attack boxes", attack_boxes.len());
                         w.metric("Colliders", colliders.len());
+
+                        if w.checkbox("Afficher attackboxes") {
+                            draw_attack_boxes(&painter, attack_boxes, debug_data);
+                        }
+                        if w.checkbox("Afficher colliders") {
+                            draw_colliders(&painter, colliders, debug_data);
+                        }
                     });
 
                 w.create_widget("CostField & DirectionField")
@@ -404,9 +418,107 @@ pub fn run_debug(
                         if w.checkbox("Afficher direction field") {
                             draw_direction_field(&painter, debug_data, resources);
                         }
-                    })
+                    });
             });
     }
+}
+
+fn draw_attack_boxes(
+    painter: &egui::Painter,
+    attack_boxes: &[DebugRectState],
+    debug_data: &DebugData,
+) {
+    let Some((camera, screen_size)) = debug_view(debug_data) else {
+        return;
+    };
+    let pixels_per_point = painter.ctx().pixels_per_point();
+    let fill = egui::Color32::from_rgba_unmultiplied(255, 70, 70, 35);
+    let stroke = egui::Stroke::new(1.5, egui::Color32::from_rgb(255, 70, 70));
+
+    for attack_box in attack_boxes {
+        let length =
+            (attack_box.dir[0] * attack_box.dir[0] + attack_box.dir[1] * attack_box.dir[1]).sqrt();
+        let forward = if length > f32::EPSILON {
+            [attack_box.dir[0] / length, attack_box.dir[1] / length]
+        } else {
+            [1.0, 0.0]
+        };
+        let right = [-forward[1], forward[0]];
+
+        // La position reçue correspond au coin supérieur gauche de l'OBB.
+        // Les autres sommets sont construits sur ses axes locaux afin que la
+        // rotation ne déplace pas artificiellement son point d'origine.
+        let full_length = attack_box.half_length * 2.0;
+        let full_width = attack_box.half_width * 2.0;
+        let corners = [
+            (0.0, 0.0),
+            (full_length, 0.0),
+            (full_length, full_width),
+            (0.0, full_width),
+        ];
+        let points = corners
+            .into_iter()
+            .map(|(along, across)| {
+                world_to_screen(
+                    attack_box.x + forward[0] * along + right[0] * across,
+                    attack_box.y + forward[1] * along + right[1] * across,
+                    camera,
+                    screen_size,
+                    pixels_per_point,
+                )
+            })
+            .collect();
+        painter.add(egui::Shape::convex_polygon(points, fill, stroke));
+    }
+}
+
+fn draw_colliders(painter: &egui::Painter, colliders: &[DebugCollider], debug_data: &DebugData) {
+    let Some((camera, screen_size)) = debug_view(debug_data) else {
+        return;
+    };
+    let pixels_per_point = painter.ctx().pixels_per_point();
+    let stroke = egui::Stroke::new(1.5, egui::Color32::from_rgb(80, 255, 120));
+
+    for collider in colliders {
+        let min = world_to_screen(
+            collider.x,
+            collider.y,
+            camera,
+            screen_size,
+            pixels_per_point,
+        );
+        let max = world_to_screen(
+            collider.x + collider.width,
+            collider.y + collider.height,
+            camera,
+            screen_size,
+            pixels_per_point,
+        );
+        painter.rect_stroke(
+            egui::Rect::from_two_pos(min, max),
+            0.0,
+            stroke,
+            egui::StrokeKind::Inside,
+        );
+    }
+}
+
+fn debug_view(debug_data: &DebugData) -> Option<(&Camera, &winit::dpi::PhysicalSize<u32>)> {
+    Some((debug_data.read::<Camera>()?, debug_data.read()?))
+}
+
+fn world_to_screen(
+    world_x: f32,
+    world_y: f32,
+    camera: &Camera,
+    screen_size: &winit::dpi::PhysicalSize<u32>,
+    pixels_per_point: f32,
+) -> egui::Pos2 {
+    let shake = camera.shake.offset();
+    egui::pos2(
+        ((world_x - camera.pos().x) + screen_size.width as f32 * 0.5 + shake.x) / pixels_per_point,
+        ((world_y - camera.pos().y) + screen_size.height as f32 * 0.5 + shake.y) / pixels_per_point,
+    )
 }
 
 fn draw_cost_field(painter: &egui::Painter, debug_data: &DebugData, resources: &Resources) {

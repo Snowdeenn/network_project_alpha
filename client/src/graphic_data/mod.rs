@@ -6,6 +6,6 @@ pub mod tile_map;
 
 // TODO: move this to a more appropriate place
 pub struct ClientSpellSlots {
-    pub slots: [Option<utils::protocol::SpellClientConfig>; 4],
-    pub cooldowns: [f32; 4],
+    pub slots: [Option<utils::protocol::SpellClientConfig>; utils::protocol::SPELL_SLOT_COUNT],
+    pub cooldowns: [f32; utils::protocol::SPELL_SLOT_COUNT],
 }

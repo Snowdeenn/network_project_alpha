@@ -3,10 +3,13 @@
     "id": "fireball",
     "name": "Boule de feu",
     "description": "Invoque une sphère enflammée qui explose à l'impact.",
-    "costs": {
+    "purchase_cost": {
+      "gold": 2
+    },
+    "cast_cost": {
       "cooldown": 3.0,
-      "gold": 2,
-      "charges": 1
+      "gold": 3,
+      "charges": null
     },
     "targeting": {
       "kind": "Directional",

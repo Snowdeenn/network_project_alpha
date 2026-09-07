@@ -205,7 +205,7 @@ pub fn check_collide_attackbox(
 
     let players_id = buff_manager.acquire_id::<HashSet<Entity>>();
     let attackboxes_id =
-        buff_manager.acquire_id::<Vec<(Entity, Geometry, Owner, Damage, Position)>>();
+        buff_manager.acquire_id::<Vec<(Entity, Geometry, Owner, Option<Damage>, Position)>>();
     let victims_id = buff_manager.acquire_id::<Vec<(Entity, Collider, Position)>>();
     let candidates_id = buff_manager.acquire_id::<Vec<usize>>();
 
@@ -222,12 +222,12 @@ pub fn check_collide_attackbox(
     }
     {
         let attackboxes = buff_manager
-            .get_mut::<Vec<(Entity, Geometry, Owner, Damage, Position)>>(attackboxes_id)
+            .get_mut::<Vec<(Entity, Geometry, Owner, Option<Damage>, Position)>>(attackboxes_id)
             .expect("[Buffer Manager] Vec<Attackbox> introuvable");
         attackboxes.extend(
-            <(Entity, &Geometry, &Owner, &Damage, &Position)>::query()
+            <(Entity, &Geometry, &Owner, Option<&Damage>, &Position)>::query()
                 .iter(world)
-                .map(|(e, g, o, d, p)| (*e, *g, *o, *d, *p)),
+                .map(|(e, g, o, d, p)| (*e, *g, *o, d.copied(), *p)),
         );
     }
     {
@@ -258,7 +258,7 @@ pub fn check_collide_attackbox(
         .get::<HashSet<Entity>>(players_id)
         .expect("[Buffer Manager] HashSet<Entity> introuvable");
     let attackboxes = buff_manager
-        .get::<Vec<(Entity, Geometry, Owner, Damage, Position)>>(attackboxes_id)
+        .get::<Vec<(Entity, Geometry, Owner, Option<Damage>, Position)>>(attackboxes_id)
         .expect("[Buffer Manager] Vec<Attackbox> introuvable");
     let victims = buff_manager
         .get::<Vec<(Entity, Collider, Position)>>(victims_id)
@@ -310,62 +310,74 @@ pub fn check_collide_attackbox(
                 }
 
                 if should_damage {
-                    damage_queue.data.push(DamageEvent {
-                        target: *victim_entt,
-                        amount: damage.0,
-                    });
                     game_event_queue.data.push(GameEvent {
                         kind: GameEventKind::EntityHit {
                             pos: [victim_pos.x as f32, victim_pos.y as f32],
                         },
                     });
 
-                    // Calcul du Knockback
-                    let mut dx = victim_pos.x - attackbox_pos.x;
-                    let mut dy = victim_pos.y - attackbox_pos.y;
-                    let distance = (dx * dx + dy * dy).sqrt();
+                    let spell_effects = world.entry_ref(*attackbox_entt).ok().and_then(|e| {
+                        e.get_component::<SpellEffects>()
+                            .ok()
+                            .map(|se| (se.effects.clone(), se.aoe))
+                    });
 
-                    if distance > 0.0 {
-                        dx /= distance;
-                        dy /= distance;
-                    } else {
-                        dx = 1.0;
-                        dy = 0.0;
-                    }
-
-                    let knockback_force = 600.0f32;
-                    let knockback_duration = 0.12;
-
-                    command.add_component(
-                        *victim_entt,
-                        Knockback {
-                            dx: dx as f32 * knockback_force,
-                            dy: dy as f32 * knockback_force,
-                            duration: knockback_duration,
-                        },
-                    );
-                    hit = true;
-
-                    // Si c'est un projectile monocible, on arrête dès le premier impact
-                    if is_projectile {
-                        let spell_effects = world.entry_ref(*attackbox_entt).ok().and_then(|e| {
-                            e.get_component::<SpellEffects>()
-                                .ok()
-                                .map(|se| (se.effects.clone(), se.aoe))
-                        });
-                        if let Some((effects, aoe)) = spell_effects {
-                            // Redirige vers la pipeline sort
+                    if let Some((effects, aoe)) = spell_effects {
+                        if aoe.is_some() {
                             command.push((
                                 PendingAoe {
                                     origin: [attackbox_pos.x as f32, attackbox_pos.y as f32],
                                     aim_dir: attackbox_geom.dir,
-                                    aoe: aoe,
-                                    effects: effects,
+                                    aoe,
+                                    effects,
+                                    owner: owner.0,
+                                    caster_is_player: attacker_is_player,
                                 },
                                 Active(true),
                             ));
-                            command.remove(*attackbox_entt);
+                        } else {
+                            crate::simulation::systems::spells::apply_effects(
+                                &effects,
+                                *victim_entt,
+                                [attackbox_pos.x as f32, attackbox_pos.y as f32],
+                                [victim_pos.x as f32, victim_pos.y as f32],
+                                command,
+                                damage_queue,
+                            );
                         }
+                    } else {
+                        let Some(damage) = damage else {
+                            tracing::warn!(?attackbox_entt, "Hitbox sans dégâts ni effets de sort");
+                            continue;
+                        };
+                        damage_queue.data.push(DamageEvent {
+                            target: *victim_entt,
+                            amount: damage.0,
+                        });
+
+                        let mut dx = victim_pos.x - attackbox_pos.x;
+                        let mut dy = victim_pos.y - attackbox_pos.y;
+                        let distance = (dx * dx + dy * dy).sqrt();
+                        if distance > 0.0 {
+                            dx /= distance;
+                            dy /= distance;
+                        } else {
+                            dx = 1.0;
+                            dy = 0.0;
+                        }
+                        command.add_component(
+                            *victim_entt,
+                            Knockback {
+                                dx: dx as f32 * 600.0,
+                                dy: dy as f32 * 600.0,
+                                duration: 0.12,
+                            },
+                        );
+                    }
+
+                    hit = true;
+                    if is_projectile {
+                        command.remove(*attackbox_entt);
                         break;
                     }
                 }

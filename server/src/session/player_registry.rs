@@ -1,11 +1,48 @@
 // src/player_registry.rs
 use legion::Entity;
-use utils::protocol::SpellSlot;
 use std::collections::HashMap;
 use utils::arena::{Arena, Id};
 use utils::ids::PlayerTag;
+use utils::protocol::SpellSlot;
 
-use utils::spell_types::{SpellId};
+use utils::spell_types::{CastCost, SpellId};
+
+#[derive(Debug, Clone, Copy)]
+pub struct SpellSlotState {
+    pub spell_id: Option<SpellId>,
+    pub cooldown_remaining: f32,
+    pub charges_remaining: Option<u32>,
+}
+
+impl SpellSlotState {
+    const EMPTY: Self = Self {
+        spell_id: None,
+        cooldown_remaining: 0.0,
+        charges_remaining: None,
+    };
+}
+
+#[derive(Debug, Clone)]
+pub struct SpellLoadout {
+    pub slots: [SpellSlotState; utils::protocol::SPELL_SLOT_COUNT],
+}
+
+impl Default for SpellLoadout {
+    fn default() -> Self {
+        Self {
+            slots: [SpellSlotState::EMPTY; utils::protocol::SPELL_SLOT_COUNT],
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpellUseError {
+    PlayerNotFound,
+    SpellNotOwned,
+    CooldownActive,
+    NotEnoughGold,
+    NoMoreCharges,
+}
 
 #[derive(Debug, Clone)]
 pub struct PlayerEntry {
@@ -13,8 +50,7 @@ pub struct PlayerEntry {
     pub entity: Option<Entity>,
     pub entity_id: Option<u64>,
     pub gold: u32,
-    pub spells: [Option<SpellId>; 4],
-    // Ajouter une hash map pour tracker le cooldown des sorts du joueur ?
+    pub spell_loadout: SpellLoadout,
 }
 
 pub struct PlayerRegistry {
@@ -38,7 +74,7 @@ impl PlayerRegistry {
             entity: None,
             entity_id: None,
             gold: 0,
-            spells: [None; 4], // TODO: Changer la valeur hardcoder par une constante
+            spell_loadout: SpellLoadout::default(),
         };
         let id = self.arena.insert(entry);
         self.client_to_id.insert(client_id, id);
@@ -117,31 +153,113 @@ impl PlayerRegistry {
         self.client_to_id.keys().copied()
     }
 
-    pub fn add_spell(&mut self, client_id: u64, spell_id: SpellId, spell_slot: SpellSlot) {
-        let Some(id) = self.client_to_id.get(&client_id) else {
-            tracing::error!("Client {client_id} introuvable dand le registre");
-            return;
-        };
-        if let Some(entry) = self.arena.get_mut(*id) {
-            entry.spells[spell_slot as usize] = Some(spell_id);
-        }
+    pub fn first_free_spell_slot(&self, client_id: u64) -> Option<SpellSlot> {
+        self.get_entry(client_id)?
+            .spell_loadout
+            .slots
+            .iter()
+            .position(|slot| slot.spell_id.is_none())
+            .map(SpellSlot::from)
     }
 
-    pub fn remove_spell(&mut self, client_id: u64, spell_slot: SpellSlot) {
-        let Some(id) = self.client_to_id.get(&client_id) else {
-            tracing::error!("Client {client_id} introuvable dand le registre");
-            return;
-        };
-        if let Some(entry) = self.arena.get_mut(*id) {
-            entry.spells[spell_slot as usize] = None;
-        }
+    pub fn spell_at(&self, client_id: u64, spell_slot: SpellSlot) -> Option<SpellId> {
+        self.get_entry(client_id)?.spell_loadout.slots[spell_slot.index()].spell_id
     }
 
-    pub fn get_spells(&self, client_id: u64) -> Option<[Option<SpellId>; 4]> {
-        self.client_to_id
+    pub fn add_spell(
+        &mut self,
+        client_id: u64,
+        spell_id: SpellId,
+        spell_slot: SpellSlot,
+        charges: Option<u32>,
+    ) -> bool {
+        let Some(id) = self.client_to_id.get(&client_id) else {
+            tracing::error!("Client {client_id} introuvable dans le registre");
+            return false;
+        };
+        if let Some(entry) = self.arena.get_mut(*id) {
+            let slot = &mut entry.spell_loadout.slots[spell_slot.index()];
+            if slot.spell_id.is_some() {
+                return false;
+            }
+            *slot = SpellSlotState {
+                spell_id: Some(spell_id),
+                cooldown_remaining: 0.0,
+                charges_remaining: charges,
+            };
+            return true;
+        }
+        false
+    }
+
+    pub fn try_begin_spell_cast(
+        &mut self,
+        client_id: u64,
+        spell_slot: SpellSlot,
+        cost: CastCost,
+    ) -> Result<SpellId, SpellUseError> {
+        let id = *self
+            .client_to_id
             .get(&client_id)
-            .and_then(|id| self.arena.get(*id))
-            .map(|entry| entry.spells)
+            .ok_or(SpellUseError::PlayerNotFound)?;
+        let entry = self
+            .arena
+            .get_mut(id)
+            .ok_or(SpellUseError::PlayerNotFound)?;
+        let slot = &mut entry.spell_loadout.slots[spell_slot.index()];
+        let spell_id = slot.spell_id.ok_or(SpellUseError::SpellNotOwned)?;
+
+        if slot.cooldown_remaining > 0.0 {
+            return Err(SpellUseError::CooldownActive);
+        }
+        if entry.gold < cost.gold {
+            return Err(SpellUseError::NotEnoughGold);
+        }
+        if matches!(slot.charges_remaining, Some(0)) {
+            return Err(SpellUseError::NoMoreCharges);
+        }
+
+        entry.gold -= cost.gold;
+        slot.cooldown_remaining = cost.cooldown.max(0.0);
+        if let Some(charges) = &mut slot.charges_remaining {
+            *charges -= 1;
+        }
+        Ok(spell_id)
+    }
+
+    pub fn cooldowns(&self, client_id: u64) -> Option<[f32; utils::protocol::SPELL_SLOT_COUNT]> {
+        let entry = self.get_entry(client_id)?;
+        Some(std::array::from_fn(|index| {
+            entry.spell_loadout.slots[index].cooldown_remaining
+        }))
+    }
+
+    pub fn update_spell_cooldowns(
+        &mut self,
+        dt: f32,
+    ) -> Vec<(u64, [f32; utils::protocol::SPELL_SLOT_COUNT])> {
+        let mut updates = Vec::new();
+        for client_id in self.client_to_id.values().copied() {
+            let Some(entry) = self.arena.get_mut(client_id) else {
+                continue;
+            };
+            let mut changed = false;
+            for slot in &mut entry.spell_loadout.slots {
+                if slot.cooldown_remaining > 0.0 {
+                    slot.cooldown_remaining = (slot.cooldown_remaining - dt).max(0.0);
+                    changed = true;
+                }
+            }
+            if changed {
+                updates.push((
+                    entry.client_id,
+                    std::array::from_fn(|index| {
+                        entry.spell_loadout.slots[index].cooldown_remaining
+                    }),
+                ));
+            }
+        }
+        updates
     }
 }
 
@@ -149,6 +267,11 @@ impl PlayerRegistry {
 mod tests {
     use super::*;
     use legion::World;
+
+    fn test_spell_id() -> SpellId {
+        let mut arena = utils::Arena::<(), utils::ids::SpellTag>::new();
+        SpellId::from(arena.insert(()))
+    }
 
     #[test]
     fn test_player_registry_lobby_to_spawn_lifecycle() {
@@ -268,5 +391,78 @@ mod tests {
         assert_eq!(registry.entity_to_client(1001), None);
         assert_eq!(registry.entity_to_client(1002), Some(42));
         assert_eq!(registry.get_entity(42), Some(entity_b));
+    }
+
+    #[test]
+    fn spell_cast_updates_cost_cooldown_and_charges_atomically() {
+        let client_id = 42;
+        let spell_id = test_spell_id();
+        let mut registry = PlayerRegistry::with_capacity(1);
+        registry.add(client_id);
+        registry.add_gold(client_id, 10);
+        assert!(registry.add_spell(client_id, spell_id, SpellSlot::First, Some(2)));
+
+        let cost = CastCost {
+            cooldown: 3.0,
+            gold: 2,
+            charges: Some(2),
+        };
+        assert_eq!(
+            registry.try_begin_spell_cast(client_id, SpellSlot::First, cost),
+            Ok(spell_id)
+        );
+        let entry = registry.get_entry(client_id).unwrap();
+        let slot = entry.spell_loadout.slots[SpellSlot::First.index()];
+        assert_eq!(entry.gold, 8);
+        assert_eq!(slot.cooldown_remaining, 3.0);
+        assert_eq!(slot.charges_remaining, Some(1));
+
+        assert_eq!(
+            registry.try_begin_spell_cast(client_id, SpellSlot::First, cost),
+            Err(SpellUseError::CooldownActive)
+        );
+        let entry = registry.get_entry(client_id).unwrap();
+        assert_eq!(entry.gold, 8);
+        assert_eq!(
+            entry.spell_loadout.slots[SpellSlot::First.index()].charges_remaining,
+            Some(1)
+        );
+
+        registry.update_spell_cooldowns(3.0);
+        assert_eq!(
+            registry.try_begin_spell_cast(client_id, SpellSlot::First, cost),
+            Ok(spell_id)
+        );
+        registry.update_spell_cooldowns(3.0);
+        assert_eq!(
+            registry.try_begin_spell_cast(client_id, SpellSlot::First, cost),
+            Err(SpellUseError::NoMoreCharges)
+        );
+    }
+
+    #[test]
+    fn rejected_cast_does_not_consume_gold_or_charge() {
+        let client_id = 7;
+        let spell_id = test_spell_id();
+        let mut registry = PlayerRegistry::with_capacity(1);
+        registry.add(client_id);
+        registry.add_gold(client_id, 1);
+        assert!(registry.add_spell(client_id, spell_id, SpellSlot::Second, Some(1)));
+
+        let result = registry.try_begin_spell_cast(
+            client_id,
+            SpellSlot::Second,
+            CastCost {
+                cooldown: 1.0,
+                gold: 2,
+                charges: Some(1),
+            },
+        );
+        assert_eq!(result, Err(SpellUseError::NotEnoughGold));
+        let entry = registry.get_entry(client_id).unwrap();
+        let slot = entry.spell_loadout.slots[SpellSlot::Second.index()];
+        assert_eq!(entry.gold, 1);
+        assert_eq!(slot.cooldown_remaining, 0.0);
+        assert_eq!(slot.charges_remaining, Some(1));
     }
 }

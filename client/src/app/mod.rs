@@ -13,8 +13,8 @@ use crate::core;
 use crate::core::client::GameNetClient;
 use crate::core::event::SpellUseEvent;
 use crate::graphic_data::asset_manager::AssetManager;
-use crate::graphic_data::{ClientSpellSlots, post_process_effect_type};
 use crate::graphic_data::tile_map::TileMap;
+use crate::graphic_data::{ClientSpellSlots, post_process_effect_type};
 use crate::rendering::ScreenScale;
 use crate::rendering::camera::Camera;
 use crate::rendering::vfx::particle::ParticlePool;
@@ -80,7 +80,10 @@ impl App {
         let client_id = ClientId(rand::random::<u64>());
         resource.insert(client_id);
 
-        let client_spell_slot = ClientSpellSlots { slots: [None; 4], cooldowns: [0.0; 4] };
+        let client_spell_slot = ClientSpellSlots {
+            slots: [None; utils::protocol::SPELL_SLOT_COUNT],
+            cooldowns: [0.0; utils::protocol::SPELL_SLOT_COUNT],
+        };
         resource.insert(client_spell_slot);
         resource.insert(SpellUseEvent(None));
 

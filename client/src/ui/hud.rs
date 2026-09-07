@@ -657,6 +657,19 @@ pub fn update(
             } else {
                 0.0
             };
+
+            // gui.ui_ctx.tween.add(nodus::Tween {
+            //     property: nodus::TweenProperty::Size { from:  nodus::UiVec2::new(
+            //         nodus::UiUnit::ParentPercent(0.9),
+            //         nodus::UiUnit::ParentPercent(0.9),
+            //     ),to: nodus::UiVec2::new(nodus::UiUnit::ScreenWidth(0.0), nodus::UiUnit::ScreenHeight(0.0)) },
+            //     duration: cooldowns[i].max(0.0),
+            //     elapsed: 0.0,
+            //     easing: nodus::easing::linear,
+            //     target: slot.cooldown_overlay,
+            //     done: false,
+            //     on_complete: vec![nodus::UIEvent::SetVisible { target: slot.cooldown_overlay, visible: false }],
+            // });
             gui.ui_ctx.send_event(nodus::UIEvent::SetVisible {
                 target: slot.cooldown_overlay,
                 visible,

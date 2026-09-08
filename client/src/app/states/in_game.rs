@@ -98,7 +98,7 @@ impl InGameScene {
         client: &mut GameNetClient,
         screen_size: winit::dpi::PhysicalSize<u32>,
         gui: &mut GuiContext,
-        input_state: &Input,
+        input_state: &mut Input,
         scale: &ScreenScale,
         cam: &mut Camera,
         dt: f32,
@@ -304,7 +304,7 @@ impl InGameScene {
     fn handle_ui(&mut self, gui: &mut GuiContext, input_state: &Input, resources: &mut Resources) {
         let mouse_pos = input_state.mouse_position();
         let pressed = input_state.is_mouse_pressed(winit::event::MouseButton::Left);
-        let released = input_state.is_mousew_released(winit::event::MouseButton::Left);
+        let released = input_state.is_mouse_released(winit::event::MouseButton::Left);
         let output_event =
             gui.ui_ctx
                 .process_input(Vec2::new(mouse_pos.0, mouse_pos.1), pressed, released);
@@ -380,7 +380,7 @@ impl InGameScene {
         &mut self,
         client: &mut GameNetClient,
         size: winit::dpi::PhysicalSize<u32>,
-        input_state: &Input,
+        input_state: &mut Input,
     ) {
         if self.ticks.last_tick.elapsed() >= Ticks::TICK_DURATION {
             self.ticks.last_tick = Instant::now();

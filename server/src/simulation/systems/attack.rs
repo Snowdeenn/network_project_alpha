@@ -193,6 +193,7 @@ pub fn create_attack_box(
 #[read_component(Owner)]
 #[read_component(Health)]
 #[read_component(Damage)]
+#[read_component(SpellEffects)]
 pub fn check_collide_attackbox(
     world: &mut SubWorld,
     command: &mut CommandBuffer,

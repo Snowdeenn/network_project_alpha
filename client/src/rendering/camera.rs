@@ -81,7 +81,7 @@ impl Default for CameraShake {
 // Bruit pseudo-aléatoire déterministe dans [-1, 1]
 // Basé sur une fonction sinus à haute fréquence — pas de dépendance externe
 fn pseudo_noise(t: f32) -> f32 {
-    (t.sin() * 43758.545).fract() * 2.0 - 1.0
+    (t.sin() * 43_758.547).rem_euclid(1.0) * 2.0 - 1.0
 }
 
 #[derive(Clone, Copy)]

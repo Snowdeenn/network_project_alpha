@@ -1,4 +1,5 @@
 [workspace]
+resolver = "3"
 members = [
     "client",
     "server",
@@ -6,4 +7,3 @@ members = [
     "nodus",
     "prism",
 ]
-workspace.resolver = "3"

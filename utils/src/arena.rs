@@ -81,6 +81,8 @@ struct Slot<Data> {
 ///
 /// # Exemple
 /// ```rust
+/// use utils::Arena;
+///
 /// let mut arena: Arena<String> = Arena::new();
 /// let id = arena.insert("Hello World".to_string());
 ///

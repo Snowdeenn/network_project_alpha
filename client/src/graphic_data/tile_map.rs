@@ -94,7 +94,7 @@ impl<'de> Deserialize<'de> for TextureAtlasInfo {
 }
 
 pub struct TileMap {
-    texture_atlas: utils::ids::TextureId,
+    texture_atlas: prism::ids::TextureId,
     atlas_info: TextureAtlasInfo,
     tile_size: u32,
 }

@@ -176,7 +176,7 @@ pub fn handle_shop_ui_event(
                 };
                 // TODO: afficher le bg en fonction de l'élément du sort
                 if item_opt.is_some() {
-                    let border_color = utils::colors::Color::GREEN;
+                    let border_color = prism::Color::GREEN;
                     ui_ctx.send_event(nodus::UIEvent::SetColor {
                         target: card.root,
                         color: border_color,
@@ -242,7 +242,7 @@ pub fn handle_shop_ui_event(
                 on_complete: vec![
                     nodus::UIEvent::SetColor {
                         target: card.sold_overlay,
-                        color: utils::colors::Color::new(40, 40, 40, 255),
+                        color: prism::Color::new(40, 40, 40, 255),
                     },
                     nodus::UIEvent::SetOpacity {
                         target: card.sold_overlay,

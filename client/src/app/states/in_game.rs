@@ -226,7 +226,7 @@ impl InGameScene {
                                 lt_max: lifetime,
                                 scale: 0.1,
                                 growth: 3.5,
-                                color: utils::colors::Color::LIGHTGRAY,
+                                color: prism::Color::LIGHTGRAY,
                             });
                         }
                     }
@@ -272,7 +272,7 @@ impl InGameScene {
                         lt_max: lifetime,
                         scale: 0.15,
                         growth: 5.5,
-                        color: utils::colors::Color::DARKGOLDENROD,
+                        color: prism::Color::DARKGOLDENROD,
                     })
                 }
                 cam.shake.add_trauma(0.5);
@@ -293,7 +293,7 @@ impl InGameScene {
                     half_width,
                     60.0,
                     0.15,
-                    utils::colors::Color::WHITE,
+                    prism::Color::WHITE,
                 );
             }
             _ => (),

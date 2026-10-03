@@ -17,7 +17,7 @@ struct SlashVfx {
     end_angle: f32,
     lifetime: f32,
     lt_max: f32,
-    color: utils::colors::Color,
+    color: prism::Color,
 }
 
 /// Override couleur sur une entité pendant `timer` secondes.
@@ -41,11 +41,11 @@ struct SwordTrail {
     points: [TrailPoint; TRAIL_POINTS],
     head: usize,
     count: usize,
-    color: utils::colors::Color,
+    color: prism::Color,
 }
 
 impl SwordTrail {
-    fn new(color: utils::colors::Color) -> Self {
+    fn new(color: prism::Color) -> Self {
         Self {
             points: [TrailPoint {
                 pos: Vec2::zero(),
@@ -92,7 +92,7 @@ struct DashGhost {
     pos: Vec2,
     lifetime: f32,
     lt_max: f32,
-    color: utils::colors::Color,
+    color: prism::Color,
 }
 
 struct Pool<T: Copy, const N: usize> {
@@ -162,7 +162,7 @@ impl VfxManager {
         outer_r: f32,
         half_arc: f32,
         duration: f32,
-        color: utils::colors::Color,
+        color: prism::Color,
     ) {
         self.slashes.spawn(SlashVfx {
             pos,
@@ -193,7 +193,7 @@ impl VfxManager {
 
     /// Pousse une nouvelle position dans le trail de l'entité `entity_id`.
     /// Le trail est créé automatiquement s'il n'existe pas encore.
-    pub fn push_trail_point(&mut self, entity_id: u64, pos: Vec2, color: utils::colors::Color) {
+    pub fn push_trail_point(&mut self, entity_id: u64, pos: Vec2, color: prism::Color) {
         self.sword_trails
             .entry(entity_id)
             .or_insert_with(|| SwordTrail::new(color))
@@ -201,7 +201,7 @@ impl VfxManager {
     }
 
     /// Spawn d'un ghost de dash à la position `pos`.
-    pub fn spawn_dash_ghost(&mut self, pos: Vec2, duration: f32, color: utils::colors::Color) {
+    pub fn spawn_dash_ghost(&mut self, pos: Vec2, duration: f32, color: prism::Color) {
         self.dash_ghosts.spawn(DashGhost {
             pos,
             lifetime: duration,
@@ -451,7 +451,7 @@ mod tests_vfx {
             30.0,
             45.0,
             0.15,
-            utils::colors::Color::WHITE,
+            prism::Color::WHITE,
         );
         assert_eq!(vfx.slashes.iter_active().count(), 1);
     }
@@ -459,15 +459,7 @@ mod tests_vfx {
     #[test]
     fn slash_expires_after_update() {
         let mut vfx = VfxManager::new();
-        vfx.spawn_slash(
-            v(0.0, 0.0),
-            0.0,
-            5.0,
-            20.0,
-            30.0,
-            0.1,
-            utils::colors::Color::WHITE,
-        );
+        vfx.spawn_slash(v(0.0, 0.0), 0.0, 5.0, 20.0, 30.0, 0.1, prism::Color::WHITE);
         vfx.update(0.2);
         assert_eq!(vfx.slashes.iter_active().count(), 0);
     }
@@ -475,15 +467,7 @@ mod tests_vfx {
     #[test]
     fn slash_still_active_mid_lifetime() {
         let mut vfx = VfxManager::new();
-        vfx.spawn_slash(
-            v(0.0, 0.0),
-            0.0,
-            5.0,
-            20.0,
-            30.0,
-            0.3,
-            utils::colors::Color::WHITE,
-        );
+        vfx.spawn_slash(v(0.0, 0.0), 0.0, 5.0, 20.0, 30.0, 0.3, prism::Color::WHITE);
         vfx.update(0.1);
         assert_eq!(vfx.slashes.iter_active().count(), 1);
     }
@@ -494,7 +478,7 @@ mod tests_vfx {
 
     #[test]
     fn trail_push_count() {
-        let mut trail = SwordTrail::new(utils::colors::Color::WHITE);
+        let mut trail = SwordTrail::new(prism::Color::WHITE);
         trail.push(v(0.0, 0.0));
         trail.push(v(1.0, 0.0));
         trail.push(v(2.0, 0.0));
@@ -503,7 +487,7 @@ mod tests_vfx {
 
     #[test]
     fn trail_count_caps_at_max() {
-        let mut trail = SwordTrail::new(utils::colors::Color::WHITE);
+        let mut trail = SwordTrail::new(prism::Color::WHITE);
         for i in 0..(TRAIL_POINTS + 5) {
             trail.push(v(i as f32, 0.0));
         }
@@ -512,7 +496,7 @@ mod tests_vfx {
 
     #[test]
     fn trail_ring_overwrites_oldest() {
-        let mut trail = SwordTrail::new(utils::colors::Color::WHITE);
+        let mut trail = SwordTrail::new(prism::Color::WHITE);
         for i in 0..TRAIL_POINTS {
             trail.push(v(i as f32, 0.0));
         }
@@ -525,7 +509,7 @@ mod tests_vfx {
 
     #[test]
     fn trail_alpha_decreases_with_age() {
-        let mut trail = SwordTrail::new(utils::colors::Color::WHITE);
+        let mut trail = SwordTrail::new(prism::Color::WHITE);
         trail.push(v(0.0, 0.0));
         trail.push(v(1.0, 0.0));
         trail.update(0.05); // vieillit tous les points
@@ -539,7 +523,7 @@ mod tests_vfx {
     fn trail_via_vfx_manager_created_on_first_push() {
         let mut vfx = VfxManager::new();
         assert!(vfx.sword_trails.is_empty());
-        vfx.push_trail_point(42, v(0.0, 0.0), utils::colors::Color::WHITE);
+        vfx.push_trail_point(42, v(0.0, 0.0), prism::Color::WHITE);
         assert_eq!(vfx.sword_trails.len(), 1);
     }
 
@@ -550,14 +534,14 @@ mod tests_vfx {
     #[test]
     fn dash_ghost_active_after_spawn() {
         let mut vfx = VfxManager::new();
-        vfx.spawn_dash_ghost(v(10.0, 20.0), 0.2, utils::colors::Color::BLUE);
+        vfx.spawn_dash_ghost(v(10.0, 20.0), 0.2, prism::Color::BLUE);
         assert_eq!(vfx.dash_ghosts.iter_active().count(), 1);
     }
 
     #[test]
     fn dash_ghost_expires_after_update() {
         let mut vfx = VfxManager::new();
-        vfx.spawn_dash_ghost(v(0.0, 0.0), 0.1, utils::colors::Color::BLUE);
+        vfx.spawn_dash_ghost(v(0.0, 0.0), 0.1, prism::Color::BLUE);
         vfx.update(0.2);
         assert_eq!(vfx.dash_ghosts.iter_active().count(), 0);
     }
@@ -570,16 +554,8 @@ mod tests_vfx {
     fn update_clears_expired_across_all_pools() {
         let mut vfx = VfxManager::new();
         vfx.spawn_flash(1, 0.05);
-        vfx.spawn_slash(
-            v(0.0, 0.0),
-            0.0,
-            5.0,
-            15.0,
-            30.0,
-            0.05,
-            utils::colors::Color::WHITE,
-        );
-        vfx.spawn_dash_ghost(v(0.0, 0.0), 0.05, utils::colors::Color::RED);
+        vfx.spawn_slash(v(0.0, 0.0), 0.0, 5.0, 15.0, 30.0, 0.05, prism::Color::WHITE);
+        vfx.spawn_dash_ghost(v(0.0, 0.0), 0.05, prism::Color::RED);
 
         vfx.update(0.1);
 

@@ -10,7 +10,7 @@ pub struct Particle {
     pub lt_max: f32,
     pub scale: f32,
     pub growth: f32,
-    pub color: utils::colors::Color,
+    pub color: prism::Color,
 }
 
 struct Slot {
@@ -32,7 +32,7 @@ impl ParticlePool {
             lt_max: 1.0,
             scale: 0.0,
             growth: 0.0,
-            color: utils::colors::Color::WHITE,
+            color: prism::Color::WHITE,
         };
 
         Self {
@@ -120,7 +120,7 @@ mod tests_particle {
             lt_max: lifetime,
             scale: 0.1,
             growth: 1.0,
-            color: utils::colors::Color::WHITE,
+            color: prism::Color::WHITE,
         }
     }
 
@@ -171,7 +171,7 @@ mod tests_particle {
             lt_max: 1.0,
             scale: 0.1,
             growth: 0.0,
-            color: utils::colors::Color::WHITE,
+            color: prism::Color::WHITE,
         });
         pool.update(0.1);
         let p = pool.slots.iter().find(|s| s.active).unwrap();
@@ -200,7 +200,7 @@ mod tests_particle {
             lt_max: 1.0,
             scale: 0.1,
             growth: 0.0,
-            color: utils::colors::Color::WHITE,
+            color: prism::Color::WHITE,
         });
         pool.update(0.1);
         let p = pool.slots.iter().find(|s| s.active).unwrap();
@@ -218,7 +218,7 @@ mod tests_particle {
             lt_max: 1.0,
             scale: 0.1,
             growth: 10.0,
-            color: utils::colors::Color::WHITE,
+            color: prism::Color::WHITE,
         });
         pool.update(0.1);
         let p = pool.slots.iter().find(|s| s.active).unwrap();

@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 utils    = { path = "../utils" }
+math.workspace = true
 renet      = "2.0.0"
 renet_netcode  = "2.0.0"
 tokio      = { version = "1.52", features = ["full"] }

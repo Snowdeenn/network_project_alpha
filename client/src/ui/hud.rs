@@ -2,8 +2,8 @@ use crate::app::resources::Resources;
 use crate::app::states::in_game::{GuiContext, HudBuffers};
 use crate::core::config::*;
 use nodus::VisualProps;
+use prism::ids::MaterialId;
 use std::fmt::Write;
-use utils::ids::MaterialId;
 use utils::protocol::StateSnapshot;
 
 pub fn init_hud(
@@ -23,7 +23,7 @@ pub fn init_hud(
         ),
         nodus::VisualProps {
             kind: nodus::VisualKind::None, // Node qui contient tout le hud
-            color: utils::colors::Color::TRANSPARENT,
+            color: prism::Color::TRANSPARENT,
             visible: false, // caché par défaut
             opacity: 1.0,
         },
@@ -37,7 +37,7 @@ pub fn init_hud(
         size: nodus::UiVec2::screen(0.2, 0.05),
         content: "Vague 0 | 0 ennemis",
         font_size: 24.0,
-        color: utils::colors::Color::WHITE,
+        color: prism::Color::WHITE,
     };
     register.insert(crate::key::hud::WAVE_LABEL, wave_label_id);
 
@@ -47,8 +47,8 @@ pub fn init_hud(
         anchor: nodus::Anchor::TopLeft,
         offset: nodus::UiVec2::screen(HUD_PADDING_X, HUD_BAR_Y),
         size: nodus::UiVec2::screen(HUD_BAR_W, HUD_BAR_H),
-        bg: utils::colors::Color::DARKGRAY,
-        fill_color: utils::colors::Color::WHITE,
+        bg: prism::Color::DARKGRAY,
+        fill_color: prism::Color::WHITE,
         material: hp_material_id,
         // ratio initial à 1.0 (barre pleine) encodé en f32 little-endian
         uniform_data: bytemuck::cast_slice(&[1.0f32]).to_vec(),
@@ -64,7 +64,7 @@ pub fn init_hud(
         size: nodus::UiVec2::new(nodus::UiUnit::ParentPercent(1.0), nodus::UiUnit::ParentPercent(1.0)),
         content: "100/100",
         font_size: 16.0,
-        color: utils::colors::Color::WHITE,
+        color: prism::Color::WHITE,
     };
     register.insert(crate::key::hud::HP_TEXT, hp_text_id);
 
@@ -76,7 +76,7 @@ pub fn init_hud(
         size: nodus::UiVec2::screen(0.1, 0.03),
         content: "Or : 0",
         font_size: 24.0,
-        color: utils::colors::Color::GOLD,
+        color: prism::Color::GOLD,
     };
     register.insert(crate::key::hud::GOLD_LABEL, gold_label_id);
 
@@ -92,7 +92,7 @@ pub fn init_hud(
                 content: "".to_string(),
                 font_size: 40.0,
             },
-            color: utils::colors::Color::RED,
+            color: prism::Color::RED,
             visible: false,
             opacity: 1.0,
         },
@@ -108,7 +108,7 @@ pub fn init_hud(
         ),
         VisualProps {
             kind: nodus::VisualKind::Rect,
-            color: utils::colors::Color::BLACK,
+            color: prism::Color::BLACK,
             opacity: 1.0,
             visible: false,
         },
@@ -118,9 +118,9 @@ pub fn init_hud(
         nodus::Interact {
             state: nodus::InteractState::Normal,
             style: nodus::ButtonStyle {
-                normal: utils::colors::Color::BLACK,
-                hover: utils::colors::Color::GRAY,
-                pressed: utils::colors::Color::LIGHTGRAY,
+                normal: prism::Color::BLACK,
+                hover: prism::Color::GRAY,
+                pressed: prism::Color::LIGHTGRAY,
             },
         },
     );
@@ -143,7 +143,7 @@ pub fn init_hud(
         ),
         content: "Shared Lives".to_string(),
         font_size: 15.0,
-        color: utils::colors::Color::WHITE,
+        color: prism::Color::WHITE,
     );
     register.insert(
         crate::key::hud::RESPAWN_SHARED_LIVES_BUTTON_LABEL,
@@ -159,7 +159,7 @@ pub fn init_hud(
         ),
         nodus::VisualProps {
             kind: nodus::VisualKind::Rect,
-            color: utils::colors::Color::BLACK,
+            color: prism::Color::BLACK,
             visible: false,
             opacity: 1.0,
         },
@@ -169,9 +169,9 @@ pub fn init_hud(
         nodus::Interact {
             state: nodus::InteractState::Normal,
             style: nodus::ButtonStyle {
-                normal: utils::colors::Color::BLACK,
-                hover: utils::colors::Color::GRAY,
-                pressed: utils::colors::Color::LIGHTGRAY,
+                normal: prism::Color::BLACK,
+                hover: prism::Color::GRAY,
+                pressed: prism::Color::LIGHTGRAY,
             },
         },
     );
@@ -191,7 +191,7 @@ pub fn init_hud(
         ),
         content: "Gold".to_string(),
         font_size: 15.0,
-        color: utils::colors::Color::WHITE,
+        color: prism::Color::WHITE,
     );
     register.insert(
         crate::key::hud::RESPAWN_GOLD_BUTTON_LABEL,
@@ -212,7 +212,7 @@ pub fn init_hud(
                 content: "Shared_live".to_string(),
                 font_size: 20.0,
             },
-            color: utils::colors::Color::WHITE,
+            color: prism::Color::WHITE,
             visible: true,
             opacity: 1.0,
         };
@@ -246,7 +246,7 @@ pub fn init_hud(
             ),
             nodus::VisualProps {
                 kind: nodus::VisualKind::Rect,
-                color: utils::colors::Color::GOLD,
+                color: prism::Color::GOLD,
                 visible: true,
                 opacity: 1.0,
             },
@@ -263,7 +263,7 @@ pub fn init_hud(
             ),
             nodus::VisualProps {
                 kind: nodus::VisualKind::Rect,
-                color: utils::colors::Color::BLACK,
+                color: prism::Color::BLACK,
                 visible: true,
                 opacity: 1.0,
             },
@@ -280,7 +280,7 @@ pub fn init_hud(
             ),
             nodus::VisualProps {
                 kind: nodus::VisualKind::Rect,
-                color: utils::colors::Color::GRAY,
+                color: prism::Color::GRAY,
                 visible: false,
                 opacity: 0.5,
             },
@@ -327,7 +327,7 @@ pub fn init_shop(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regis
         ),
         nodus::VisualProps {
             kind: nodus::VisualKind::None,
-            color: utils::colors::Color::new(0, 0, 0, 150),
+            color: prism::Color::new(0, 0, 0, 150),
             visible: false,
             opacity: 1.0,
         },
@@ -342,7 +342,7 @@ pub fn init_shop(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regis
         size: nodus::UiVec2::screen(0.3, SHOP_TITLE_FONT_SIZE),
         content: SHOP_TITLE_TEXT,
         font_size: SHOP_TITLE_FONT_SIZE * REFERENCE_H,
-        color: utils::colors::Color::GOLD,
+        color: prism::Color::GOLD,
     };
     register.insert(crate::key::shop::TITLE, title_id);
 
@@ -363,7 +363,7 @@ pub fn init_shop(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regis
             ),
             nodus::VisualProps {
                 kind: nodus::VisualKind::Rect,
-                color: utils::colors::Color::DARKGRAY,
+                color: prism::Color::DARKGRAY,
                 visible: true,
                 opacity: 1.0,
             },
@@ -382,7 +382,7 @@ pub fn init_shop(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regis
             ),
             nodus::VisualProps {
                 kind: nodus::VisualKind::Rect,
-                color: utils::colors::Color::BLACK,
+                color: prism::Color::BLACK,
                 visible: true,
                 opacity: 1.0,
             },
@@ -397,7 +397,7 @@ pub fn init_shop(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regis
             ),
             nodus::VisualProps {
                 kind: nodus::VisualKind::Rect,
-                color: utils::colors::Color::DARKGRAY,
+                color: prism::Color::DARKGRAY,
                 visible: true,
                 opacity: 1.0,
             },
@@ -411,7 +411,7 @@ pub fn init_shop(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regis
             size: nodus::UiVec2::screen(SHOP_ART_W, SHOP_NAME_FONT_SIZE),
             content: "",
             font_size: SHOP_NAME_FONT_SIZE * REFERENCE_H,
-            color: utils::colors::Color::WHITE,
+            color: prism::Color::WHITE,
         };
 
         let desc_id = nodus::text_label! {
@@ -425,7 +425,7 @@ pub fn init_shop(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regis
             size: nodus::UiVec2::screen(SHOP_ART_W, 0.05),
             content: "",
             font_size: 0.018 * REFERENCE_H,
-            color: utils::colors::Color::LIGHTGRAY,
+            color: prism::Color::LIGHTGRAY,
         };
 
         let price_id = nodus::text_label! {
@@ -436,7 +436,7 @@ pub fn init_shop(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regis
             size: nodus::UiVec2::screen(SHOP_ART_W, SHOP_PRICE_FONT_SIZE),
             content: "",
             font_size: SHOP_PRICE_FONT_SIZE * REFERENCE_H,
-            color: utils::colors::Color::GOLD,
+            color: prism::Color::GOLD,
         };
 
         let sold_overlay_id = ui_ctx.add_node(
@@ -451,7 +451,7 @@ pub fn init_shop(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regis
             ),
             nodus::VisualProps {
                 kind: nodus::VisualKind::Rect,
-                color: utils::colors::Color::new(20, 220, 60, 255),
+                color: prism::Color::new(20, 220, 60, 255),
                 visible: false,
                 opacity: 0.0,
             },
@@ -465,7 +465,7 @@ pub fn init_shop(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regis
             size: nodus::UiVec2::screen(0.1, 0.03),
             content: "",
             font_size: 35.0,
-            color: utils::colors::Color::WHITE,
+            color: prism::Color::WHITE,
         };
 
         let error_overlay_id = ui_ctx.add_node(
@@ -480,7 +480,7 @@ pub fn init_shop(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regis
             ),
             nodus::VisualProps {
                 kind: nodus::VisualKind::Rect,
-                color: utils::colors::Color::new(220, 20, 60, 255),
+                color: prism::Color::new(220, 20, 60, 255),
                 visible: false,
                 opacity: 0.0,
             },
@@ -506,7 +506,7 @@ pub fn init_shop(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regis
         size: nodus::UiVec2::screen(0.2, CLOSE_SHOP_FONT),
         content: "G — Fermer",
         font_size: CLOSE_SHOP_FONT,
-        color: utils::colors::Color::GRAY,
+        color: prism::Color::GRAY,
     };
     register.insert(crate::key::shop::CLOSE, close_id);
 }
@@ -538,7 +538,7 @@ pub fn update(
 
         let hp_material_id = match gui
             .ids
-            .get::<utils::ids::MaterialId>(crate::key::material::HP_MATERIAL)
+            .get::<prism::ids::MaterialId>(crate::key::material::HP_MATERIAL)
         {
             Some(id) => id,
             None => {

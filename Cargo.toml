@@ -1,9 +1,10 @@
 [workspace]
+resolver = "3"
 members = [
     "client",
     "server",
     "utils",
-    "nodus",
-    "prism",
 ]
-workspace.resolver = "3"
+
+[workspace.dependencies]
+math = { git = "https://github.com/Snowdeenn/math.git" }

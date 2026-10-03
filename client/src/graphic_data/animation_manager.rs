@@ -1,8 +1,9 @@
 use serde::Deserialize;
 use std::{collections::HashMap, fmt, path::Path};
 
+use prism::ids::TextureId;
 use utils::arena::Arena;
-use utils::ids::{AnimId, AnimTag, TextureId};
+use utils::ids::{AnimId, AnimTag};
 use utils::protocol::BossKind;
 
 #[derive(Debug)]

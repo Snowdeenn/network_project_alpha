@@ -31,7 +31,7 @@ pub fn init_lobby(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regi
         ),
         nodus::VisualProps {
             kind: nodus::VisualKind::None, // Node qui contient tout le lobby
-            color: utils::colors::Color::TRANSPARENT,
+            color: prism::Color::TRANSPARENT,
             visible: false, // caché par défaut
             opacity: 1.0,
         },
@@ -46,7 +46,7 @@ pub fn init_lobby(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regi
         size: nodus::UiVec2::screen(0.3, 0.05),
         content: "Code : ----",
         font_size: 24.0,
-        color: utils::colors::Color::GOLD,
+        color: prism::Color::GOLD,
     };
     register.insert(crate::key::lobby::CODE_LABEL, code_label);
 
@@ -62,7 +62,7 @@ pub fn init_lobby(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regi
             ),
             nodus::VisualProps {
                 kind: nodus::VisualKind::Rect,
-                color: utils::colors::Color::new(30, 30, 30, 255),
+                color: prism::Color::new(30, 30, 30, 255),
                 visible: true,
                 opacity: 1.0,
             },
@@ -76,7 +76,7 @@ pub fn init_lobby(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regi
             size: nodus::UiVec2::screen(0.14, 0.03),
             content: "En attente ...",
             font_size: 16.0,
-            color: utils::colors::Color::GRAY,
+            color: prism::Color::GRAY,
         };
 
         let player_name = nodus::text_label! {
@@ -87,7 +87,7 @@ pub fn init_lobby(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regi
             size: nodus::UiVec2::screen(0.16, 0.03),
             content: "",
             font_size: 20.0,
-            color: utils::colors::Color::WHITE,
+            color: prism::Color::WHITE,
         };
 
         let class_text = nodus::text_label! {
@@ -98,7 +98,7 @@ pub fn init_lobby(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regi
             size: nodus::UiVec2::screen(0.16, 0.03),
             content: "",
             font_size: 18.0,
-            color: utils::colors::Color::SKYBLUE,
+            color: prism::Color::SKYBLUE,
         };
 
         let ready_text = nodus::text_label! {
@@ -109,7 +109,7 @@ pub fn init_lobby(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regi
             size: nodus::UiVec2::screen(0.16, 0.03),
             content: "",
             font_size: 18.0,
-            color: utils::colors::Color::RED,
+            color: prism::Color::RED,
         };
 
         // Overlay doré pour le slot local — caché par défaut
@@ -125,7 +125,7 @@ pub fn init_lobby(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regi
             ),
             nodus::VisualProps {
                 kind: nodus::VisualKind::Rect,
-                color: utils::colors::Color::GOLD,
+                color: prism::Color::GOLD,
                 visible: false,
                 opacity: 0.15,
             },
@@ -149,7 +149,7 @@ pub fn init_lobby(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regi
         size: nodus::UiVec2::screen(0.5, 0.04),
         content: "1/2/3/4 — Choisir une classe    ESPACE — Prêt",
         font_size: 20.0,
-        color: utils::colors::Color::LIGHTGRAY,
+        color: prism::Color::LIGHTGRAY,
     };
     register.insert(crate::key::lobby::INSTRUCTION, instructions);
 
@@ -161,7 +161,7 @@ pub fn init_lobby(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regi
         size: nodus::UiVec2::screen(0.3, 0.04),
         content: "",
         font_size: 22.0,
-        color: utils::colors::Color::GOLD,
+        color: prism::Color::GOLD,
     };
     register.insert(crate::key::lobby::CLASS, class_label);
 }
@@ -201,7 +201,7 @@ pub fn update(ui_ctx: &mut nodus::UiContext, ids: &utils::ids::Register, state: 
                 // Fond vide
                 ui_ctx.send_event(nodus::UIEvent::SetColor {
                     target: slot_id.root,
-                    color: utils::colors::Color::new(30, 30, 30, 255),
+                    color: prism::Color::new(30, 30, 30, 255),
                 });
                 ui_ctx.send_event(nodus::UIEvent::SetVisible {
                     target: slot_id.waiting_text,
@@ -228,7 +228,7 @@ pub fn update(ui_ctx: &mut nodus::UiContext, ids: &utils::ids::Register, state: 
                 // Fond occupé
                 ui_ctx.send_event(nodus::UIEvent::SetColor {
                     target: slot_id.root,
-                    color: utils::colors::Color::DARKGRAY,
+                    color: prism::Color::DARKGRAY,
                 });
                 ui_ctx.send_event(nodus::UIEvent::SetVisible {
                     target: slot_id.waiting_text,
@@ -269,14 +269,14 @@ pub fn update(ui_ctx: &mut nodus::UiContext, ids: &utils::ids::Register, state: 
                 // Ready
                 let (ready_text, ready_color) = if is_local {
                     if state.ready {
-                        ("PRÊT ✓", utils::colors::Color::GREEN)
+                        ("PRÊT ✓", prism::Color::GREEN)
                     } else {
-                        ("PAS PRÊT", utils::colors::Color::RED)
+                        ("PAS PRÊT", prism::Color::RED)
                     }
                 } else if info.ready {
-                    ("PRÊT ✓", utils::colors::Color::GREEN)
+                    ("PRÊT ✓", prism::Color::GREEN)
                 } else {
-                    ("PAS PRÊT", utils::colors::Color::RED)
+                    ("PAS PRÊT", prism::Color::RED)
                 };
                 ui_ctx.send_event(nodus::UIEvent::SetVisible {
                     target: slot_id.ready_text,

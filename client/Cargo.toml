@@ -5,8 +5,9 @@ edition = "2024"
 
 [dependencies]
 utils  = { path = "../utils" }
-nodus = { path = "../nodus" }
-prism = { path = "../prism"  }
+math.workspace = true
+nodus = { git = "https://github.com/Snowdeenn/nodus.git" }
+prism = { git = "https://github.com/Snowdeenn/prism.git" }
 serde = { version = "1.0", features = [ "derive" ] }
 serde_json = "1.0"
 renet   = "2.0.0"
@@ -25,4 +26,3 @@ weave = { git = "https://github.com/Snowdeenn/weave.git" }
 egui = "0.36.1"
 egui-wgpu = "0.36.1"
 egui-winit = "0.36.1"
-

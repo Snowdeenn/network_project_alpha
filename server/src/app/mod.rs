@@ -203,7 +203,7 @@ impl ServerApp {
 
         // --- ThreadPool ---
         {
-            let thread_pool = weave::ThreadPoolBuidler::new()
+            let thread_pool = weave::ThreadPoolBuilder::new()
                 .num_thread(num_cpus::get())
                 .thread_name("ThreadPool Server")
                 .build();

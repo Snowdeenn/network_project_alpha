@@ -257,11 +257,11 @@ impl winit::application::ApplicationHandler for App {
         }
         let text_vert_id = self
             .id_register
-            .get::<utils::ids::ShaderId>(crate::key::shader::TEXTURED_VERTEX)
+            .get::<prism::ids::ShaderId>(crate::key::shader::TEXTURED_VERTEX)
             .unwrap();
         let text_frag_id = self
             .id_register
-            .get::<utils::ids::ShaderId>(crate::key::shader::TEXTURED_FRAGMENT)
+            .get::<prism::ids::ShaderId>(crate::key::shader::TEXTURED_FRAGMENT)
             .unwrap();
         let mut renderer = match prism::Renderer::new(
             &gpu_ctx,
@@ -299,7 +299,7 @@ impl winit::application::ApplicationHandler for App {
 
             let hit_flash_shader_id = self
                 .id_register
-                .get::<utils::ids::ShaderId>(crate::key::post::HIT_FLASH_FRAG)
+                .get::<prism::ids::ShaderId>(crate::key::post::HIT_FLASH_FRAG)
                 .expect("Le hit flash id devrait être la");
 
             let uniform = post_process_effect_type::HitFlashUniform { intensity: 0.5 };
@@ -351,7 +351,7 @@ impl winit::application::ApplicationHandler for App {
         let hp_material_id = {
             let vert_id = self
                 .id_register
-                .get::<utils::ids::ShaderId>(crate::key::shader::TEXTURED_VERTEX)
+                .get::<prism::ids::ShaderId>(crate::key::shader::TEXTURED_VERTEX)
                 .unwrap();
             let frag_id = gpu_resources
                 .load_shader(

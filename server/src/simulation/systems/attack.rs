@@ -193,6 +193,7 @@ pub fn create_attack_box(
 #[read_component(Owner)]
 #[read_component(Health)]
 #[read_component(Damage)]
+#[read_component(SpellEffects)]
 pub fn check_collide_attackbox(
     world: &mut SubWorld,
     command: &mut CommandBuffer,
@@ -270,8 +271,6 @@ pub fn check_collide_attackbox(
             .entry_ref(*attackbox_entt)
             .map(|e| e.get_component::<Projectile>().is_ok())
             .unwrap_or(false);
-        let mut hit = false;
-
         // --- BROADPHASE : Construire une AABB de recherche englobant l'OBB rotatée ---
         // Estimation conservatrice : un carré bordant basé sur la diagonale (w + h)
         let broadphase_w = (attackbox_geom.half_width + attackbox_geom.half_length) as f64;
@@ -299,15 +298,8 @@ pub fn check_collide_attackbox(
             }
 
             if obb_vs_aabb(attackbox_pos, attackbox_geom, victim_pos, victim_col) {
-                let mut should_damage = false;
-                if attacker_is_player {
-                    should_damage = true;
-                } else {
-                    let victim_is_player = players.contains(victim_entt);
-                    if victim_is_player {
-                        should_damage = true;
-                    }
-                }
+                let victim_is_player = players.contains(victim_entt);
+                let should_damage = attacker_is_player != victim_is_player;
 
                 if should_damage {
                     game_event_queue.data.push(GameEvent {
@@ -321,36 +313,44 @@ pub fn check_collide_attackbox(
                             .ok()
                             .map(|se| (se.effects.clone(), se.aoe))
                     });
-
                     if let Some((effects, aoe)) = spell_effects {
-                        if aoe.is_some() {
-                            command.push((
-                                PendingAoe {
-                                    origin: [attackbox_pos.x as f32, attackbox_pos.y as f32],
-                                    aim_dir: attackbox_geom.dir,
-                                    aoe,
-                                    effects,
-                                    owner: owner.0,
-                                    caster_is_player: attacker_is_player,
-                                },
-                                Active(true),
-                            ));
-                        } else {
-                            crate::simulation::systems::spells::apply_effects(
-                                &effects,
-                                *victim_entt,
-                                [attackbox_pos.x as f32, attackbox_pos.y as f32],
-                                [victim_pos.x as f32, victim_pos.y as f32],
-                                command,
-                                damage_queue,
-                            );
+                        match aoe {
+                            Some(aoe) => {
+                                command.push((
+                                    PendingAoe {
+                                        origin: [
+                                            attackbox_pos.x as f32 + attackbox_geom.half_length,
+                                            attackbox_pos.y as f32 + attackbox_geom.half_width,
+                                        ],
+                                        aim_dir: attackbox_geom.dir,
+                                        aoe: Some(aoe),
+                                        effects,
+                                        owner: owner.0,
+                                        caster_is_player: attacker_is_player,
+                                    },
+                                    Active(true),
+                                ));
+                            }
+                            None => {
+                                crate::simulation::systems::spells::apply_effects(
+                                    &effects,
+                                    *victim_entt,
+                                    [
+                                        attackbox_pos.x as f32 + attackbox_geom.half_length,
+                                        attackbox_pos.y as f32 + attackbox_geom.half_width,
+                                    ],
+                                    [victim_pos.x as f32, victim_pos.y as f32],
+                                    command,
+                                    damage_queue,
+                                );
+                            }
                         }
                     } else {
                         let Some(damage) = damage else {
                             tracing::warn!(?attackbox_entt, "Hitbox sans dégâts ni effets de sort");
                             continue;
                         };
-                        damage_queue.data.push(DamageEvent {
+                        damage_queue.push(DamageEvent {
                             target: *victim_entt,
                             amount: damage.0,
                         });
@@ -375,17 +375,19 @@ pub fn check_collide_attackbox(
                         );
                     }
 
-                    hit = true;
                     if is_projectile {
                         command.remove(*attackbox_entt);
                         break;
                     }
                 }
             }
+        }
 
-            if !is_projectile || hit {
-                command.remove(*attackbox_entt);
-            }
+        // Une attaque de mêlée ne doit vivre qu'un tick, même si la broadphase
+        // n'a trouvé aucun candidat. Les projectiles vivent jusqu'à un impact
+        // ou jusqu'à l'expiration de leur LifeTime.
+        if !is_projectile {
+            command.remove(*attackbox_entt);
         }
     }
     buff_manager.release(players_id);
@@ -440,5 +442,170 @@ pub fn projectile_life_time(
         command.remove(*entity);
     } else {
         lt.0 = remaining;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::simulation::systems::health::apply_damage_system;
+    use crate::simulation::systems::spells::apply_aoe_system;
+    use legion::{EntityStore, Resources, Schedule, World};
+    use utils::spell_types::{AoeSpellShape, Element, SpellEffectKind};
+
+    fn test_resources() -> Resources {
+        let mut resources = Resources::default();
+        resources.insert(Queue::<DamageEvent> { data: vec![] });
+        resources.insert(Queue::<GameEvent> { data: vec![] });
+        resources.insert(BufferManager::with_capacity(8));
+        resources.insert(SpatialGrid::new(64.0, 1_000.0, 1_000.0));
+        resources
+    }
+
+    fn spawn_player(world: &mut World) -> Entity {
+        world.push((Player,))
+    }
+
+    fn spawn_enemy(world: &mut World, x: f64, y: f64, hp: u32) -> Entity {
+        world.push((
+            IA,
+            Position { x, y },
+            Collider { w: 40.0, h: 40.0 },
+            Health {
+                hp,
+                max_hp: hp,
+                state: HealthState::Alive,
+            },
+            Active(true),
+        ))
+    }
+
+    fn spawn_player_victim(world: &mut World, x: f64, y: f64, hp: u32) -> Entity {
+        world.push((
+            Player,
+            Position { x, y },
+            Collider { w: 40.0, h: 40.0 },
+            Health {
+                hp,
+                max_hp: hp,
+                state: HealthState::Alive,
+            },
+            Active(true),
+        ))
+    }
+
+    fn spawn_spell_projectile(
+        world: &mut World,
+        owner: Entity,
+        aoe: Option<AoeSpellShape>,
+    ) -> Entity {
+        world.push((
+            Position { x: 20.0, y: 20.0 },
+            Geometry {
+                dir: [1.0, 0.0],
+                half_length: 10.0,
+                half_width: 10.0,
+            },
+            Owner(owner),
+            Projectile,
+            SpellEffects {
+                effects: vec![SpellEffectKind::Damage {
+                    amount: 10.0,
+                    element: Element::Fire,
+                }],
+                aoe,
+            },
+        ))
+    }
+
+    fn health(world: &World, entity: Entity) -> u32 {
+        world
+            .entry_ref(entity)
+            .unwrap()
+            .get_component::<Health>()
+            .unwrap()
+            .hp
+    }
+
+    fn combat_schedule() -> Schedule {
+        Schedule::builder()
+            .add_system(check_collide_attackbox_system())
+            .add_system(apply_aoe_system())
+            .add_system(apply_damage_system())
+            .build()
+    }
+
+    #[test]
+    fn non_aoe_spell_applies_damage_once_to_the_direct_target() {
+        let mut world = World::default();
+        let owner = spawn_player(&mut world);
+        let victim = spawn_enemy(&mut world, 20.0, 20.0, 100);
+        let projectile = spawn_spell_projectile(&mut world, owner, None);
+        let mut resources = test_resources();
+
+        combat_schedule().execute(&mut world, &mut resources);
+
+        assert_eq!(health(&world, victim), 90);
+        assert!(world.entry_ref(projectile).is_err());
+    }
+
+    #[test]
+    fn aoe_spell_applies_its_damage_once_to_the_impact_target() {
+        let mut world = World::default();
+        let owner = spawn_player(&mut world);
+        let victim = spawn_enemy(&mut world, 20.0, 20.0, 100);
+        spawn_spell_projectile(
+            &mut world,
+            owner,
+            Some(AoeSpellShape::Circle {
+                offset: utils::math::Vec2::zero(),
+                radius: 50.0,
+            }),
+        );
+        let mut resources = test_resources();
+
+        let mut schedule = combat_schedule();
+        schedule.execute(&mut world, &mut resources);
+        // Le PendingAoe créé via CommandBuffer devient visible au tick suivant.
+        schedule.execute(&mut world, &mut resources);
+
+        assert_eq!(health(&world, victim), 90);
+    }
+
+    #[test]
+    fn player_spell_does_not_damage_another_player() {
+        let mut world = World::default();
+        let owner = spawn_player(&mut world);
+        let teammate = spawn_player_victim(&mut world, 20.0, 20.0, 100);
+        spawn_spell_projectile(&mut world, owner, None);
+        let mut resources = test_resources();
+
+        combat_schedule().execute(&mut world, &mut resources);
+
+        assert_eq!(health(&world, teammate), 100);
+    }
+
+    #[test]
+    fn melee_attackbox_is_removed_even_without_candidates() {
+        let mut world = World::default();
+        let owner = spawn_player(&mut world);
+        let attackbox = world.push((
+            Position { x: 20.0, y: 20.0 },
+            Geometry {
+                dir: [1.0, 0.0],
+                half_length: 10.0,
+                half_width: 10.0,
+            },
+            Owner(owner),
+            Damage(10),
+        ));
+        let mut resources = test_resources();
+        let mut schedule = Schedule::builder()
+            .add_system(check_collide_attackbox_system())
+            .build();
+
+        schedule.execute(&mut world, &mut resources);
+
+        assert!(world.entry_ref(attackbox).is_err());
     }
 }

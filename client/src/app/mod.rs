@@ -638,7 +638,7 @@ impl winit::application::ApplicationHandler for App {
                             client,
                             screen_size,
                             &mut gui_ctx,
-                            &self.input_state,
+                            &mut self.input_state,
                             scale,
                             &mut self.cam,
                             dt,

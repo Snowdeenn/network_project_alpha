@@ -183,6 +183,7 @@ pub fn spell_cast_resolver(
 #[read_component(Position)]
 #[read_component(Health)]
 #[read_component(PendingAoe)]
+#[read_component(Player)]
 pub fn apply_aoe(
     world: &mut SubWorld,
     command: &mut CommandBuffer,
@@ -209,11 +210,40 @@ pub fn apply_aoe(
     }
 
     for (aoe_entity, pending) in query_aoe.iter(world) {
-        let hits = match &pending.aoe {
+        let hits: Vec<legion::Entity> = match &pending.aoe {
             None => {
-                // Pas d'AOE — effet ponctuel à l'origine, aucune entité cherchée ici
-                // Le dégât a déjà été appliqué sur la cible directe dans check_collide_attackbox
-                vec![]
+                // Un ciblage SingleTarget sans forme d'AOE sélectionne l'entité
+                // ennemie qui contient précisément le point visé.
+                let point = Position {
+                    x: pending.origin[0] as f64,
+                    y: pending.origin[1] as f64,
+                };
+                let mut candidates = vec![];
+                grid.query(&point, &Collider { w: 0.0, h: 0.0 }, &mut candidates);
+                candidates.sort_unstable();
+                candidates.dedup();
+
+                let victims = buff_manager
+                    .get::<Vec<(legion::Entity, Collider, Position)>>(victims_id)
+                    .unwrap();
+                candidates
+                    .iter()
+                    .find_map(|&idx| {
+                        let (entity, collider, pos) = &victims[idx];
+                        if *entity == pending.owner
+                            || same_team(world, *entity, pending.caster_is_player)
+                        {
+                            return None;
+                        }
+
+                        let contains_point = point.x >= pos.x
+                            && point.x <= pos.x + collider.w
+                            && point.y >= pos.y
+                            && point.y <= pos.y + collider.h;
+                        contains_point.then_some(*entity)
+                    })
+                    .into_iter()
+                    .collect()
             }
             Some(AoeSpellShape::Circle { offset, radius }) => {
                 let cx = pending.origin[0] + offset.x;
@@ -479,6 +509,7 @@ pub fn apply_effect(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::simulation::systems::health::apply_damage_system;
     use legion::{EntityStore, IntoQuery, Resources, Schedule, World};
 
     #[test]
@@ -524,5 +555,62 @@ mod tests {
         let projectiles: Vec<_> = query.iter(&world).collect();
         assert_eq!(projectiles.len(), 1);
         assert_eq!((projectiles[0].4).0, caster);
+    }
+
+    #[test]
+    fn single_target_without_aoe_applies_effects_to_entity_under_target_point() {
+        let mut world = World::default();
+        let caster = world.push((Player,));
+        let target_pos = Position { x: 100.0, y: 100.0 };
+        let target_collider = Collider { w: 40.0, h: 40.0 };
+        let target = world.push((
+            IA,
+            target_pos,
+            target_collider,
+            Health {
+                hp: 100,
+                max_hp: 100,
+                state: HealthState::Alive,
+            },
+            Active(true),
+        ));
+        world.push((
+            PendingAoe {
+                origin: [110.0, 110.0],
+                aim_dir: [1.0, 0.0],
+                aoe: None,
+                effects: vec![SpellEffectKind::Damage {
+                    amount: 10.0,
+                    element: utils::spell_types::Element::Fire,
+                }],
+                owner: caster,
+                caster_is_player: true,
+            },
+            Active(true),
+        ));
+
+        let mut grid = crate::navigation::SpatialGrid::new(64.0, 1_000.0, 1_000.0);
+        grid.insert(0, &target_pos, &target_collider);
+        grid.build();
+
+        let mut resources = Resources::default();
+        resources.insert(grid);
+        resources.insert(utils::buffer::BufferManager::with_capacity(4));
+        resources.insert(crate::utils::Queue::<DamageEvent> { data: vec![] });
+        resources.insert(crate::utils::Queue::<GameEvent> { data: vec![] });
+
+        let mut schedule = Schedule::builder()
+            .add_system(apply_aoe_system())
+            .add_system(apply_damage_system())
+            .build();
+        schedule.execute(&mut world, &mut resources);
+
+        let hp = world
+            .entry_ref(target)
+            .unwrap()
+            .get_component::<Health>()
+            .unwrap()
+            .hp;
+        assert_eq!(hp, 90);
     }
 }

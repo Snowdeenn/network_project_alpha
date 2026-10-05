@@ -101,8 +101,6 @@ pub enum SpellEffectKind {
     ApplyStatus {
         status: AppliedStatus,
         duration: f32,
-        tick_interval: f32,
-        damage_per_tick: f32,
     },
     Heal {
         amount: u32,
@@ -112,8 +110,12 @@ pub enum SpellEffectKind {
 #[derive(
     Debug, Clone, Copy, serde::Serialize, serde::Deserialize, bincode::Encode, bincode::Decode,
 )]
+#[serde(tag = "kind")]
 pub enum AppliedStatus {
-    Burn,
+    Burn {
+        tick_interval: f32,
+        damage_per_tick: f32,
+    },
     Blind,
     Slowed,
     // ...

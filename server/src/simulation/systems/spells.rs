@@ -567,6 +567,9 @@ pub fn apply_effects(
                     duration: *duration,
                 }),
                 AppliedStatus::Slowed { speed_multiplier } => {
+                    tracing::info!(
+                        "Entity: {target:?} is slowed for {duration}, by {speed_multiplier}"
+                    );
                     active_slows.data.push(ActiveSlow {
                         target,
                         remaining: *duration,
@@ -678,6 +681,127 @@ mod tests {
     use super::*;
     use crate::simulation::systems::health::apply_damage_system;
     use legion::{EntityStore, IntoQuery, Resources, Schedule, World};
+
+    fn ice_binding_effects() -> Vec<SpellEffectKind> {
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../assets/config/spell.json");
+        let registry = SpellRegister::init(path.to_str().unwrap()).unwrap();
+        registry
+            .get_spell(*registry.resolve_string("slow").unwrap())
+            .unwrap()
+            .effects
+            .clone()
+    }
+
+    #[test]
+    fn ice_binding_applies_half_speed_only_to_target_and_expires_after_four_seconds() {
+        let mut world = World::default();
+        let target = world.push((
+            Velocity {
+                dx: 100.0,
+                dy: -80.0,
+            },
+            PendingEffect {
+                effects: ice_binding_effects(),
+            },
+            Position { x: 0.0, y: 0.0 },
+        ));
+        let unaffected = world.push((Velocity {
+            dx: 100.0,
+            dy: -80.0,
+        },));
+        let mut resources = Resources::default();
+        resources.insert(std::time::Duration::from_secs(1));
+        resources.insert(ActiveSlows::default());
+        resources.insert(ActiveBurns::default());
+        resources.insert(crate::utils::Queue::<DamageEvent> { data: vec![] });
+        resources.insert(crate::utils::Queue::<SpellSupportEvent> { data: vec![] });
+        let mut apply = Schedule::builder()
+            .add_system(apply_effect_system())
+            .build();
+        apply.execute(&mut world, &mut resources);
+        let mut tick = Schedule::builder()
+            .add_system(update_active_slows_system())
+            .build();
+        for second in 1..=5 {
+            // Movement systems supply a fresh base velocity every tick for enemies.
+            *world
+                .entry_mut(target)
+                .unwrap()
+                .get_component_mut::<Velocity>()
+                .unwrap() = Velocity {
+                dx: 100.0,
+                dy: -80.0,
+            };
+            tick.execute(&mut world, &mut resources);
+            let entry = world.entry_ref(target).unwrap();
+            let velocity = entry.get_component::<Velocity>().unwrap();
+            let expected = if second <= 4 {
+                (50.0, -40.0)
+            } else {
+                (100.0, -80.0)
+            };
+            assert_eq!((velocity.dx, velocity.dy), expected);
+            assert_eq!(
+                resources.get::<ActiveSlows>().unwrap().data.len(),
+                usize::from(second < 4)
+            );
+        }
+        let entry = world.entry_ref(unaffected).unwrap();
+        let velocity = entry.get_component::<Velocity>().unwrap();
+        assert_eq!((velocity.dx, velocity.dy), (100.0, -80.0));
+    }
+
+    #[test]
+    fn ice_binding_slows_ranged_enemy_in_server_movement_order() {
+        let mut world = World::default();
+        let player = world.push((Player, Position { x: 1000.0, y: 0.0 }));
+        let enemy = world.push((
+            IA,
+            RangedBrain,
+            Active(true),
+            Target(Some(player)),
+            Position { x: 0.0, y: 0.0 },
+            Velocity { dx: 100.0, dy: 0.0 },
+            MovementStats {
+                accel: 100.0,
+                max_speed: 100.0,
+            },
+            AttackStats {
+                range: 100.0,
+                damage: 1,
+                box_half_length: 1.0,
+                box_half_width: 1.0,
+                projectile_speed: None,
+            },
+        ));
+        world.entry(enemy).unwrap().add_component(PendingEffect {
+            effects: ice_binding_effects(),
+        });
+        let mut resources = Resources::default();
+        resources.insert(std::time::Duration::from_secs(1));
+        resources.insert(ActiveSlows::default());
+        resources.insert(ActiveBurns::default());
+        resources.insert(crate::utils::Queue::<DamageEvent> { data: vec![] });
+        resources.insert(crate::utils::Queue::<SpellSupportEvent> { data: vec![] });
+        Schedule::builder()
+            .add_system(apply_effect_system())
+            .build()
+            .execute(&mut world, &mut resources);
+        // Keep the same ordering as App's simulation schedule.
+        Schedule::builder()
+            .add_system(crate::simulation::systems::ia::ranged_ia_movement_system())
+            .add_system(update_active_slows_system())
+            .add_system(crate::simulation::systems::physics::update_position_system())
+            .build()
+            .execute(&mut world, &mut resources);
+        let entry = world.entry_ref(enemy).unwrap();
+        assert_eq!(
+            entry.get_component::<Position>().unwrap().x,
+            50.0,
+            "Entrave glaciale must halve enemy movement during its active duration"
+        );
+    }
 
     #[test]
     fn heal_is_capped_and_does_not_revive_and_blind_targets_only_its_player() {

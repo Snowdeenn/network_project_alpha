@@ -41,5 +41,38 @@
         "duration": 4.0
       }
     ]
+  },
+  {
+    "id": "slow",
+    "name": "Entrave glaciale",
+    "description": "Projette une sphère glaciale qui ralentit les ennemis à l'impact.",
+    "purchase_cost": {
+      "gold": 2
+    },
+    "cast_cost": {
+      "cooldown": 3.0,
+      "gold": 3,
+      "charges": null
+    },
+    "targeting": {
+      "kind": "Directional",
+      "range": 300.0,
+      "projectile_radius": 8.0,
+      "speed": 400.0,
+      "aoe": {
+        "shape": "Circle",
+        "radius": 50.0
+      }
+    },
+    "effects": [
+      {
+        "kind": "ApplyStatus",
+        "status": {
+          "kind": "Slowed",
+          "speed_multiplier": 0.5
+        },
+        "duration": 4.0
+      }
+    ]
   }
 ]

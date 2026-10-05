@@ -1,7 +1,10 @@
-# CAHIER DES CHARGES : FRAMEWORK UI HAUTE PERFORMANCE (RUST / RAYLIB)
+# Cahier des charges : framework UI en Rust — Nodus / Prism / WGPU
+
+
+> Mise à jour du 5 octobre 2026. Ce document décrit des objectifs de conception, pas un inventaire de fonctionnalités livrées. Le jeu utilise actuellement `nodus::UiContext`, les événements UI Nodus, Prism/WGPU pour le rendu et Egui pour le debug. Nodus et Prism sont des dépendances Git externes au workspace. Les objectifs AAA, de coût inférieur à 0,5 ms, de zéro allocation, de SDF et d'optimisation à la compilation ne sont pas des résultats mesurés ou garantis. Voir [la roadmap du rendu](roadmap-renderer-vfx.md) pour l'état de l'intégration.
 
 ## 1. Présentation du Projet & Objectifs
-Le projet consiste à concevoir et développer un framework d'interface utilisateur (UI) spécialisé pour le jeu vidéo 2D, assis sur la bibliothèque graphique Raylib et tirant pleinement parti du langage Rust. 
+Le projet consiste à concevoir et développer un framework d'interface utilisateur (UI) spécialisé pour le jeu vidéo 2D, intégré au rendu Prism sur WGPU et tirant pleinement parti du langage Rust.
 
 L'objectif ultime est de fournir un outil permettant de créer des **Heads-Up Displays (HUD) de qualité AAA** : fluides, hautement animés, adaptatifs, tout en déportant un maximum de logique et de vérifications au moment de la compilation (*compile-time*) pour garantir des performances optimales (Zéro-Cost Abstraction).
 
@@ -52,7 +55,7 @@ Le framework doit déléguer un maximum de travail au compilateur Rust (`rustc`)
 ### 3.3. Optimisation du Rendu (Pipeline Graphique)
 Pour garantir des performances AAA, le framework doit minimiser l'impact sur le GPU.
 * **Command Buffer (Batching) :** La passe de rendu ne dessine rien directement. Elle génère une liste de structures de données épurées (`DrawCommand`).
-* **Tri des commandes :** Le framework trie les commandes avant exécution pour regrouper les éléments utilisant le même shader ou la même texture, réduisant drastiquement les *Draw Calls* de Raylib.
+* **Tri des commandes :** Le framework trie les commandes avant exécution pour regrouper les éléments utilisant le même shader ou la même texture, visant à réduire les appels de rendu GPU.
 
 ```rust
 // Exemple de structure de commande épurée pour le Batcher
@@ -61,13 +64,13 @@ pub struct UIVertex {
     pub uv: [f32; 2],
     pub color: [u8; 4],
 }
-````
+```
 
 ## 4. Contraintes et Critères de Performance
 
 * **Fréquence de rafraîchissement :** Le framework ne doit pas impacter la boucle principale du jeu. L'objectif est un coût d'exécution inférieur à **0.5 milliseconde** par frame pour un HUD complet (cible à plus de 144 FPS).
 * **Allocation Mémoire :** Zéro allocation mémoire dynamique (`String`, `Vec::push`) dans la boucle de rendu principale une fois l'UI initialisée. Réutilisation de buffers pré-alloués (*Pool Allocation*).
-* **Dépendances minimales :** Utiliser uniquement `raylib-rs` pour la couche graphique. L'intégration d'un moteur de layout tiers (ex: `taffy`) est tolérée si elle est justifiée par les performances.
+* **Intégration actuelle :** Nodus fournit l'UI et Prism les ressources GPU et le rendu WGPU ; Winit gère la fenêtre et les événements. Les dépendances internes de ces bibliothèques ne sont pas détaillées dans ce document.
 
 ---
 
@@ -83,7 +86,7 @@ Le projet sera découpé en 4 phases majeures :
 ### Phase 2 : Le Moteur de Rendu Évolué
 * Création du système de `DrawCommand` (Batching).
 * Intégration du composant de rendu de textures personnalisées et support du 9-Patch.
-* Mise en place du chargement et de l'application des Shaders Raylib sur les nœuds de l'UI.
+* Mise en place du chargement et de l'application des shaders WGSL via Prism sur les nœuds de l'UI.
 
 ### Phase 3 : Dynamique et Animations (Le Look AAA)
 * Développement du module de Tweining (interpolations de mouvements et d'opacité).

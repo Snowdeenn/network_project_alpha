@@ -1,117 +1,65 @@
-# Roadmap Renderer & VFX — Project Alpha
+# Roadmap rendu et VFX — Project Alpha
 
----
+État au 5 octobre 2026 par lecture des sources du jeu. Les capacités internes des dépendances Git Prism et Nodus ne sont pas auditées ici. Les fonctionnalités présentes restent à vérifier en jeu.
 
-## Existant réutilisable
+## Architecture actuelle
 
-| Système | État |
-|---|---|
-| `ShaderManager` sur `Arena<Shader, ShaderTag>` | ✅ Solide — à étendre |
-| `TextureManager` sur `Arena<Texture2D, TextureTag>` | ✅ Solide — à aligner sur `AssetManager` |
-| `AnimationManager` | ✅ À garder — supprimer `texture.rs` (doublon) |
-| `BufferManager` partagé | ✅ Transverse — prêt à l'emploi |
-| `ParticleSystem` basique | ⚠️ À refactorer en pool fixe |
+- `client/src/app/mod.rs` initialise Winit, le contexte GPU Prism, les ressources, shaders et passes de post-process.
+- `client/src/app/states/in_game.rs` gère snapshots, événements, scène, caméra et rendu.
+- `client/src/rendering/mod.rs` génère les commandes monde/HUD.
+- `client/src/graphic_data/asset_manager.rs` regroupe actuellement le gestionnaire d'animations ; les ressources GPU sont gérées avec Prism.
+- `client/src/graphic_data/tile_map.rs` gère le rendu de la carte.
+- `client/src/ui/` contient le HUD Nodus et le debug Egui.
+- `client/src/graphic_data/shader/` contient les shaders WGSL.
 
----
+Les anciennes étapes Raylib, DrawRing, GLSL et RenderTexture2D sont remplacées par l'intégration WGPU/Prism. Le module `rendering/backend/raylib.rs` conserve un nom historique.
 
-## Phase 0 — Nettoyage
+## Fondations
 
-- Supprimer `texture.rs` — doublon de `animation_manager.rs`
-- Extraire `InGame` de `main.rs` dans `screens/ingame.rs`
-- Réorganiser l'arborescence des modules renderer
+- [x] Scène InGameScene extraite de la boucle principale.
+- [x] Rendu via prism::Frame et commandes monde/HUD.
+- [x] Chargement des animations JSON avec les ressources GPU Prism.
+- [x] Registre d'identifiants et BufferManager partagé.
+- [x] Initialisation des shaders et passes de post-process, avec uniforms de flash.
+- [x] Caméra et interpolation depuis les snapshots.
+- [ ] Clarifier ou renommer le module portant encore le nom Raylib.
+- [ ] Vérifier l'ordre des passes, la composition carte/monde et le redimensionnement.
+- [ ] Valider les ressources et identifiants lors des rechargements ou changements de scène.
 
----
+## Effets branchés au gameplay
 
-## Phase 1 — Fondations renderer
+- [x] ParticlePool : 512 emplacements préalloués et réutilisés après expiration ; les spawns sont ignorés si le pool est plein.
+- [x] Poussière de déplacement depuis les positions interpolées.
+- [x] Particules d'impact et camera shake sur EntityHit.
+- [x] Slash depuis position, direction et dimensions de SpawnRect.
+- [x] Flash de post-process sur PlayerHit.
+- [ ] Ajuster densité, durée et intensité des effets en playtest.
 
-Ordre strict à respecter — chaque étape est prérequis de la suivante.
+## Primitives présentes, intégration à compléter
 
-**1. `AssetManager` — registre central**
-- Struct unique exposée en ressource Legion
-- Contient `TextureManager` + `AnimationManager` comme sous-managers
-- Expose `textures()` / `textures_mut()` et `anims()` / `anims_mut()` pour des borrows disjoints propres
-- Point d'entrée unique depuis tous les systèmes via `read_resource` / `write_resource`
+VfxManager expose des flashes par entité, trails d'épée avec historique circulaire et fantômes de dash, avec des tests unitaires. La scène appelle actuellement spawn_slash, mais ne branche pas ces trois autres API.
 
-**2. `TextureManager` refactor**
-- `TextureId` générationnel via l'arène
-- Registry centralisé — plus aucun système ne stocke de `Texture2D` directement
-- API : `load(path) -> TextureId`, `get(id) -> Option<&Texture2D>`
+- [ ] Déclencher le flash de l'entité touchée et appliquer son état au rendu.
+- [ ] Alimenter les trails avec les positions et phases d'attaque.
+- [ ] Déclencher les fantômes de dash depuis un état ou événement adapté.
+- [ ] Nettoyer les historiques des entités disparues et vérifier les limites de capacité.
+- [ ] Ajouter burst de mort ennemi et respiration à l'arrêt.
 
-**3. `AnimationManager` refactor**
-- Utilise `TextureId` du `TextureManager` au lieu de stocker les `Texture2D` directement
-- `AnimId` générationnel via l'arène
-- Dépend de `TextureId` — ne peut commencer qu'après le point 2
+## Polish et éclairage
 
-**4. `ShaderManager` extension**
-- Passes nommées (world, vfx, hud, post-process)
-- Uniforms par batch
-- *(hot_reload → Phase 4)*
+- [ ] Lerp de l'arme et transitions UI.
+- [ ] Retour visuel sur achat refusé.
+- [ ] Glow via les commandes et modes de blending Prism.
+- [ ] Bloom dans une passe WGSL.
+- [ ] Lumières sur les projectiles et réglage du camera shake.
+- [ ] Effets sonores synchronisés avec les événements de gameplay.
 
-**5. `RenderPipeline`**
-- Passes ordonnées : `world → vfx → hud → post-process`
-- Le slot `post-process` est réservé dès maintenant, même vide — évite un refactor en Phase 3
-- Dépend de `ShaderManager` étendu
+## Performance et outillage
 
----
+- [ ] Mesurer coût des commandes, texte HUD, particules et trails.
+- [ ] Identifier les allocations restantes avant de promettre un rendu sans allocation.
+- [ ] Évaluer AnimEntityManager et le nettoyage des entités supprimées.
+- [ ] Étudier le hot reload des shaders avec Prism ; il n'est pas établi par l'intégration actuelle.
+- [ ] Mesurer séparément sérialisation réseau et construction des snapshots.
 
-## Phase 2 — Particules & VFX
-
-*Prérequis : Phase 1 complète, notamment `ShaderManager` (flash impact = shader).*
-
-**`ParticlePool`**
-- Pool fixe de `Particle` — taille dimensionnée au max de particules simultanées
-- API acquire / release — zéro allocation après init
-- Ring buffer interne
-
-**Particules gameplay**
-- Poussière — run + changement de direction
-- Respiration — timer idle
-- Impact — `EntityHit`
-- Mort ennemi — burst
-
-**`VfxManager`**
-- Slash effect via `DrawRing` adapté aux dimensions et à l'orientation de l'`AttackBox`
-  *(projection repère monde → repère écran, fonction utilitaire dédiée)*
-- Flash impact ennemi — inversion couleur 1 frame via shader pass
-- Trail épée — ring buffer de N positions historisées + lerp
-  *(N = paramètre explicite, détermine la longueur visuelle)*
-- VFX dash — traînée semi-transparente
-
----
-
-## Phase 3 — Feel & polish
-
-- Lerp arme derrière joueur
-- Camera shake sur impacts forts — offset sur la matrice de vue
-- Tween apparition UI — scale 0→1 avec rebond
-- Glow simulation — sprite dupliqué + `BLEND_ADDITIVE` Raylib
-  *(rendu du sprite dupliqué avant le sprite normal)*
-- Shader bloom post-process — `RenderTexture2D` Raylib dans le slot post-process réservé en Phase 1
-- Lumières douces projectiles ennemis
-
----
-
-## Phase 4 — DX & perf
-
-- `ShaderManager` hot_reload — file watching + recompilation, derrière un feature flag
-- `AnimEntityManager` sur `Arena<AnimEntity, AnimEntityTag>` — remplace `HashMap<u64, AnimEntity>`
-- `HudUpdater` — unifie les 5 `send_event` HUD
-- `format!` HUD → `write!` sur buffers pré-alloués via `BufferManager`
-- Sérialisation réseau client zéro alloc *(spécifique client Project Alpha)*
-
----
-
-## Dépendances inter-phases
-
-```
-TextureId (Ph1)
-    └── AnimId (Ph1)
-            └── AnimEntityManager (Ph4)
-
-ShaderManager passes (Ph1)
-    └── Flash impact (Ph2)
-    └── Bloom (Ph3)
-
-RenderPipeline slot post-process réservé (Ph1)
-    └── Bloom branché dessus (Ph3)
-```
+Priorité : brancher et valider les primitives existantes, puis mesurer avant d'ajouter bloom et optimisations.

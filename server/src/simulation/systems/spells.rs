@@ -191,6 +191,8 @@ pub fn apply_aoe(
     #[resource] grid: &crate::navigation::SpatialGrid,
     #[resource] buff_manager: &mut utils::buffer::BufferManager,
     #[resource] damage_queue: &mut crate::utils::Queue<DamageEvent>,
+    #[resource] active_burns: &mut ActiveBurns,
+    #[resource] active_slows: &mut ActiveSlows,
 ) {
     let (victims_id, candidates_id) = (
         buff_manager.acquire_id::<Vec<(legion::Entity, Collider, Position)>>(),
@@ -413,6 +415,8 @@ pub fn apply_aoe(
                 [target_pos.x as f32, target_pos.y as f32],
                 command,
                 damage_queue,
+                active_burns,
+                active_slows,
             );
         }
 
@@ -431,6 +435,30 @@ fn same_team(world: &SubWorld, target: legion::Entity, caster_is_player: bool) -
     target_is_player == caster_is_player
 }
 
+// TODO: Déplacer ça dans un endroit plus approprier
+pub struct ActiveBurn {
+    pub target: legion::Entity,
+    pub remaining: f32,
+    pub tick_interval: f32,
+    pub tick_accumulator: f32,
+    pub damage_per_tick: u32,
+}
+
+#[derive(Default)]
+pub struct ActiveBurns {
+    pub data: Vec<ActiveBurn>,
+}
+
+pub struct ActiveSlow {
+    pub target: legion::Entity,
+    pub remaining: f32,
+    pub speed_multiplier: f32,
+}
+#[derive(Default)]
+pub struct ActiveSlows {
+    pub data: Vec<ActiveSlow>
+}
+
 pub fn apply_effects(
     effects: &[SpellEffectKind],
     target: legion::Entity,
@@ -438,6 +466,8 @@ pub fn apply_effects(
     target_pos: [f32; 2],
     command: &mut CommandBuffer,
     damage_queue: &mut crate::utils::Queue<crate::replication::DamageEvent>,
+    active_burns: &mut ActiveBurns,
+    active_slows: &mut ActiveSlows,
 ) {
     for effect in effects {
         match effect {
@@ -460,9 +490,28 @@ pub fn apply_effects(
                     },
                 );
             }
-            SpellEffectKind::ApplyStatus { .. } => {
-                // à implémenter
-            }
+            SpellEffectKind::ApplyStatus { status, duration } => match status {
+                AppliedStatus::Burn {
+                    tick_interval,
+                    damage_per_tick,
+                } => {
+                    active_burns.data.push(ActiveBurn {
+                        target,
+                        remaining: *duration,
+                        tick_interval: *tick_interval,
+                        tick_accumulator: 0.0,
+                        damage_per_tick: *damage_per_tick as u32,
+                    });
+                }
+                AppliedStatus::Blind => {}
+                AppliedStatus::Slowed { speed_mutiplier } => {
+                    active_slows.data.push(ActiveSlow {
+                        target,
+                        remaining: *duration,
+                        speed_multiplier: *speed_mutiplier
+                    });
+                }
+            },
             SpellEffectKind::Heal { .. } => {
                 // à implémenter
             }
@@ -494,6 +543,8 @@ pub fn apply_effect(
     pos: &Position,
     command: &mut CommandBuffer,
     #[resource] damage_queue: &mut crate::utils::Queue<DamageEvent>,
+    #[resource] active_burns: &mut ActiveBurns,
+    #[resource] active_slows: &mut ActiveSlows,
 ) {
     apply_effects(
         &pending.effects,
@@ -502,8 +553,55 @@ pub fn apply_effect(
         [pos.x as f32, pos.y as f32], // origin == target pour OnSelf
         command,
         damage_queue,
+        active_burns,
+        active_slows,
     );
     command.remove_component::<PendingEffect>(*entity);
+}
+
+#[system(for_each)]
+pub fn update_active_slows(
+    velocity: &mut Velocity,
+    #[resource] active_slows: &mut ActiveSlows,
+    #[resource] dt: &std::time::Duration
+) {
+    let elapsed = dt.as_secs_f32();
+    for slow in &mut active_slows.data {
+        let active_time = elapsed.min(slow.remaining);
+        slow.remaining -= elapsed;
+
+        if active_time > 0.0 {
+            velocity.dx *= slow.speed_multiplier as f64;
+            velocity.dy *= slow.speed_multiplier as f64;
+        }
+    }
+}
+
+#[system]
+pub fn update_active_burns(
+    #[resource] burns: &mut ActiveBurns,
+    #[resource] dt: &std::time::Duration,
+    #[resource] damage_queue: &mut crate::utils::Queue<DamageEvent>,
+) {
+    let elapsed = dt.as_secs_f32();
+
+    for burn in &mut burns.data {
+        let active_time = elapsed.min(burn.remaining);
+
+        burn.remaining -= elapsed;
+        burn.tick_accumulator += active_time;
+
+        while burn.tick_accumulator >= burn.tick_interval {
+            damage_queue.push(DamageEvent {
+                target: burn.target,
+                amount: burn.damage_per_tick,
+            });
+
+            burn.tick_accumulator -= burn.tick_interval;
+        }
+    }
+
+    burns.data.retain(|burn| burn.remaining > 0.0);
 }
 
 #[cfg(test)]

@@ -2,6 +2,8 @@ use crate::app::next_id;
 use crate::navigation::SpatialGrid;
 use crate::replication::event::*;
 use crate::simulation::resources::components::*;
+use crate::simulation::systems::spells::ActiveBurns;
+use crate::simulation::systems::spells::ActiveSlows;
 use crate::utils::Queue;
 use crate::utils::obb_vs_aabb;
 use legion::systems::CommandBuffer;
@@ -198,6 +200,8 @@ pub fn check_collide_attackbox(
     world: &mut SubWorld,
     command: &mut CommandBuffer,
     #[resource] damage_queue: &mut Queue<DamageEvent>,
+    #[resource] active_burns: &mut ActiveBurns,
+    #[resource] active_slows: &mut ActiveSlows,
     #[resource] game_event_queue: &mut Queue<GameEvent>,
     #[resource] buff_manager: &mut BufferManager,
     #[resource] grid: &mut SpatialGrid,
@@ -342,6 +346,8 @@ pub fn check_collide_attackbox(
                                     [victim_pos.x as f32, victim_pos.y as f32],
                                     command,
                                     damage_queue,
+                                    active_burns,
+                                    active_slows,
                                 );
                             }
                         }

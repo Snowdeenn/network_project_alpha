@@ -117,7 +117,9 @@ pub enum AppliedStatus {
         damage_per_tick: f32,
     },
     Blind,
-    Slowed,
+    Slowed {
+        speed_mutiplier: f32,
+    },
     // ...
 }
 
@@ -168,3 +170,5 @@ impl RawSpell {
         )
     }
 }
+
+

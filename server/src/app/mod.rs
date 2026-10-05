@@ -21,10 +21,7 @@ use crate::simulation::resources::{
 };
 use crate::simulation::systems::flow_field::update_flow_fields_system;
 use crate::simulation::systems::spawn::respawn_player_system;
-use crate::simulation::systems::spells::{
-    apply_aoe_system, apply_effect_system, listen_spell_cast_system, spell_cast_resolver_system,
-    update_spell_cooldowns_system,
-};
+use crate::simulation::systems::spells::*;
 use crate::simulation::systems::{
     attack::*, coin::*, debug::*, health::*, ia::*, physics::*, state::dash_system, wave::*,
 };
@@ -76,6 +73,8 @@ impl ServerApp {
             resources.insert(PlayerShops::new());
             resources.insert(PlayerRegistry::with_capacity(16));
             resources.insert(BufferManager::with_capacity(24));
+            resources.insert(ActiveBurns::default());
+            resources.insert(ActiveSlows::default());
         }
 
         // --- wave config ---
@@ -225,6 +224,7 @@ impl ServerApp {
             .add_system(update_flow_fields_system())
             .add_system(friction_system())
             .add_system(update_velocity_system())
+            .add_system(update_active_slows_system())
             .add_system(melee_ia_movement_system())
             .add_system(ranged_ia_movement_system())
             .add_system(knockback_system())
@@ -242,6 +242,7 @@ impl ServerApp {
             .add_system(kamikaze_suicide_system())
             .add_system(apply_aoe_system())
             .add_system(apply_effect_system())
+            .add_system(update_active_burns_system())
             .add_system(apply_damage_system())
             .add_system(health_system())
             .add_system(coin_push_to_queue_system())

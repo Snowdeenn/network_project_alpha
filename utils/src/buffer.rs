@@ -83,6 +83,16 @@ impl AnyBuffer for String {
 /// mémoire libérés et limiter les désallocations.
 pub struct BufferManager {
     buffers: Arena<Box<dyn AnyBuffer>, BufferTag>,
+    stats: BufferStats,
+}
+
+#[derive(Clone, Copy, Default, serde::Serialize)]
+pub struct BufferStats {
+    pub slots: usize,
+    pub acquisitions: u64,
+    pub reused: u64,
+    pub replacements: u64,
+    pub new_slots: u64,
 }
 
 impl BufferManager {
@@ -90,6 +100,7 @@ impl BufferManager {
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             buffers: Arena::with_capacity(capacity),
+            stats: BufferStats::default(),
         }
     }
 
@@ -100,16 +111,26 @@ impl BufferManager {
     #[must_use]
     #[inline]
     pub fn acquire_id<C: AnyBuffer + Default + 'static>(&mut self) -> BufferId {
+        self.stats.acquisitions += 1;
         if let Some(id) = self.buffers.acquire() {
             if let Some(buffer) = self.buffers.get(id) {
                 if buffer.as_any().downcast_ref::<C>().is_some() {
+                    self.stats.reused += 1;
                     return id;
                 }
             }
 
             self.buffers.release_index(id);
         }
-        self.buffers.insert(Box::new(C::default()))
+        let slots = self.buffers.allocated_slots();
+        let id = self.buffers.insert(Box::new(C::default()));
+        if self.buffers.allocated_slots() == slots { self.stats.replacements += 1; }
+        else { self.stats.new_slots += 1; }
+        id
+    }
+
+    pub fn stats(&self) -> BufferStats {
+        BufferStats { slots: self.buffers.allocated_slots(), ..self.stats }
     }
 
     /// Réserve un buffer de type `C` et retourne un tuple contenant son [`BufferId`]

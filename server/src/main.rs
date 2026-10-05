@@ -1,4 +1,7 @@
 use server::ServerApp;
+#[cfg(feature = "allocation-metrics")]
+#[global_allocator]
+static ALLOCATOR: server::allocations::CountingAllocator = server::allocations::CountingAllocator;
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 

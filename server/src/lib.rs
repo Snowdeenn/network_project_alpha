@@ -1,4 +1,6 @@
 pub mod app;
+pub mod allocations;
+pub mod metrics;
 pub mod config;
 pub mod navigation;
 pub mod net;

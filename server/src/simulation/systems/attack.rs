@@ -202,6 +202,7 @@ pub fn check_collide_attackbox(
     #[resource] damage_queue: &mut Queue<DamageEvent>,
     #[resource] active_burns: &mut ActiveBurns,
     #[resource] active_slows: &mut ActiveSlows,
+    #[resource] support_effects: &mut Queue<crate::simulation::systems::spells::SpellSupportEvent>,
     #[resource] game_event_queue: &mut Queue<GameEvent>,
     #[resource] buff_manager: &mut BufferManager,
     #[resource] grid: &mut SpatialGrid,
@@ -348,6 +349,7 @@ pub fn check_collide_attackbox(
                                     damage_queue,
                                     active_burns,
                                     active_slows,
+                                    support_effects,
                                 );
                             }
                         }
@@ -463,6 +465,11 @@ mod tests {
         let mut resources = Resources::default();
         resources.insert(Queue::<DamageEvent> { data: vec![] });
         resources.insert(Queue::<GameEvent> { data: vec![] });
+        resources.insert(ActiveBurns::default());
+        resources.insert(ActiveSlows::default());
+        resources.insert(
+            Queue::<crate::simulation::systems::spells::SpellSupportEvent> { data: vec![] },
+        );
         resources.insert(BufferManager::with_capacity(8));
         resources.insert(SpatialGrid::new(64.0, 1_000.0, 1_000.0));
         resources

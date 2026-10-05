@@ -98,6 +98,7 @@ pub struct Arena<Data, Tag = Data> {
 }
 
 impl<Data, Tag> Arena<Data, Tag> {
+    pub fn allocated_slots(&self) -> usize { self.nodes.len() }
     /// Crée une nouvelle arène vide sans allocation initiale.
     pub fn new() -> Self {
         Arena {

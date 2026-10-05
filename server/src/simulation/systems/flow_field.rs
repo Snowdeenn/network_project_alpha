@@ -1,5 +1,5 @@
 use crate::simulation::resources::components::*;
-use legion::{Entity, Query, system};
+use legion::{Entity, IntoQuery, component, system};
 use utils::{
     map::{flow_field::FlowField, grid::Grid},
     math::Vec2,
@@ -9,13 +9,13 @@ use crate::navigation::FlowFieldManager;
 
 #[system]
 #[read_component(Position)]
-#[filter(component::<Player>())]
 pub fn update_flow_fields(
     world: &legion::world::SubWorld,
     #[resource] grid: &Grid,
     #[resource] flow_field_manager: &mut FlowFieldManager,
-    query: &mut Query<(Entity, &Position)>,
+
 ) {
+    let mut query = <(Entity, &Position)>::query().filter(component::<Player>());
     for (player_entt, pos) in query.iter(world) {
         let player_vec = Vec2::new(pos.x as f32, pos.y as f32);
 

@@ -79,18 +79,5 @@ fn validate_spell(id: &str, spell: &Spell) -> std::io::Result<()> {
             format!("Configuration invalide pour le sort {id}"),
         ));
     }
-    for effect in &spell.effects {
-        if matches!(
-            effect,
-            utils::spell_types::SpellEffectKind::ApplyStatus { .. }
-                | utils::spell_types::SpellEffectKind::Heal { .. }
-        ) {
-            tracing::warn!(
-                spell_id = id,
-                ?effect,
-                "Effet de sort pas encore implémenté"
-            );
-        }
-    }
     Ok(())
 }

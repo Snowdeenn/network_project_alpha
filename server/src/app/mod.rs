@@ -50,6 +50,7 @@ pub struct ServerApp {
     session: SessionState,
     tick_id: u64,
     last_tick: Instant,
+    metrics: Option<crate::metrics::TickMetrics>,
 }
 
 impl ServerApp {
@@ -74,6 +75,7 @@ impl ServerApp {
             resources.insert(PlayerRegistry::with_capacity(16));
             resources.insert(BufferManager::with_capacity(24));
             resources.insert(ActiveBurns::default());
+            resources.insert(Queue::<SpellSupportEvent> { data: vec![] });
             resources.insert(ActiveSlows::default());
         }
 
@@ -219,42 +221,43 @@ impl ServerApp {
         }
 
         let schedule = Schedule::builder()
-            .add_system(update_spell_cooldowns_system())
-            .add_system(ia_targeting_system())
-            .add_system(update_flow_fields_system())
-            .add_system(friction_system())
-            .add_system(update_velocity_system())
-            .add_system(update_active_slows_system())
-            .add_system(melee_ia_movement_system())
-            .add_system(ranged_ia_movement_system())
-            .add_system(knockback_system())
-            .add_system(dash_system())
-            .add_system(update_position_system())
-            .add_system(collide_system())
-            .add_system(collide_arena_system())
-            .add_system(projectile_life_time_system())
-            .add_system(listen_spell_cast_system())
-            .add_system(spell_cast_resolver_system())
-            .add_system(read_player_attack_intent_system())
-            .add_system(ia_attack_system())
-            .add_system(create_attack_box_system())
-            .add_system(check_collide_attackbox_system())
-            .add_system(kamikaze_suicide_system())
-            .add_system(apply_aoe_system())
-            .add_system(apply_effect_system())
-            .add_system(update_active_burns_system())
-            .add_system(apply_damage_system())
-            .add_system(health_system())
-            .add_system(coin_push_to_queue_system())
-            .add_system(coin_spawn_system())
-            .add_system(coin_pickup_system())
-            .add_system(apply_pickup_system())
-            .add_system(wave_death_reaper_system())
-            .add_system(wave_spawner_system())
-            .add_system(wave_flow_manager_system())
-            .add_system(respawn_player_system())
-            .add_system(send_collider_system())
-            .add_system(debug_projectile_positions_system())
+            .add_system(crate::allocations::instrument("update_spell_cooldowns_system", update_spell_cooldowns_system()))
+            .add_system(crate::allocations::instrument("ia_targeting_system", ia_targeting_system()))
+            .add_system(crate::allocations::instrument("update_flow_fields_system", update_flow_fields_system()))
+            .add_system(crate::allocations::instrument("friction_system", friction_system()))
+            .add_system(crate::allocations::instrument("update_velocity_system", update_velocity_system()))
+            .add_system(crate::allocations::instrument("update_active_slows_system", update_active_slows_system()))
+            .add_system(crate::allocations::instrument("melee_ia_movement_system", melee_ia_movement_system()))
+            .add_system(crate::allocations::instrument("ranged_ia_movement_system", ranged_ia_movement_system()))
+            .add_system(crate::allocations::instrument("knockback_system", knockback_system()))
+            .add_system(crate::allocations::instrument("dash_system", dash_system()))
+            .add_system(crate::allocations::instrument("update_position_system", update_position_system()))
+            .add_system(crate::allocations::instrument("collide_system", collide_system()))
+            .add_system(crate::allocations::instrument("collide_arena_system", collide_arena_system()))
+            .add_system(crate::allocations::instrument("projectile_life_time_system", projectile_life_time_system()))
+            .add_system(crate::allocations::instrument("listen_spell_cast_system", listen_spell_cast_system()))
+            .add_system(crate::allocations::instrument("spell_cast_resolver_system", spell_cast_resolver_system()))
+            .add_system(crate::allocations::instrument("read_player_attack_intent_system", read_player_attack_intent_system()))
+            .add_system(crate::allocations::instrument("ia_attack_system", ia_attack_system()))
+            .add_system(crate::allocations::instrument("create_attack_box_system", create_attack_box_system()))
+            .add_system(crate::allocations::instrument("check_collide_attackbox_system", check_collide_attackbox_system()))
+            .add_system(crate::allocations::instrument("kamikaze_suicide_system", kamikaze_suicide_system()))
+            .add_system(crate::allocations::instrument("apply_aoe_system", apply_aoe_system()))
+            .add_system(crate::allocations::instrument("apply_effect_system", apply_effect_system()))
+            .add_system(crate::allocations::instrument("apply_support_effects_system", apply_support_effects_system()))
+            .add_system(crate::allocations::instrument("update_active_burns_system", update_active_burns_system()))
+            .add_system(crate::allocations::instrument("apply_damage_system", apply_damage_system()))
+            .add_system(crate::allocations::instrument("health_system", health_system()))
+            .add_system(crate::allocations::instrument("coin_push_to_queue_system", coin_push_to_queue_system()))
+            .add_system(crate::allocations::instrument("coin_spawn_system", coin_spawn_system()))
+            .add_system(crate::allocations::instrument("coin_pickup_system", coin_pickup_system()))
+            .add_system(crate::allocations::instrument("apply_pickup_system", apply_pickup_system()))
+            .add_system(crate::allocations::instrument("wave_death_reaper_system", wave_death_reaper_system()))
+            .add_system(crate::allocations::instrument("wave_spawner_system", wave_spawner_system()))
+            .add_system(crate::allocations::instrument("wave_flow_manager_system", wave_flow_manager_system()))
+            .add_system(crate::allocations::instrument("respawn_player_system", respawn_player_system()))
+            .add_system(crate::allocations::instrument("send_collider_system", send_collider_system()))
+            .add_system(crate::allocations::instrument("debug_projectile_positions_system", debug_projectile_positions_system()))
             .build();
 
         let session = {
@@ -272,6 +275,7 @@ impl ServerApp {
             session,
             tick_id: 0,
             last_tick: Instant::now(),
+            metrics: crate::metrics::TickMetrics::from_env()?,
         })
     }
 
@@ -285,7 +289,7 @@ impl ServerApp {
 
             self.tick(dt);
 
-            // Régulation du rythme (60 Hz)
+            // Régulation du rythme (20 Hz)
             let elapsed = start.elapsed();
             if elapsed < target_dt {
                 std::thread::sleep(target_dt - elapsed);
@@ -294,6 +298,14 @@ impl ServerApp {
     }
 
     fn tick(&mut self, dt: Duration) {
+        let tick_start = Instant::now();
+        let mut sample = crate::metrics::TickSample {
+            tick_interval_ms: dt.as_secs_f64() * 1000.0,
+            ..Default::default()
+        };
+        self.net.counters = Default::default();
+        let mut allocation_mark = crate::allocations::snapshot();
+        sample.allocations.enabled = cfg!(feature = "allocation-metrics");
         self.net.update(dt);
         crate::net::poll_event(
             &mut self.net,
@@ -302,6 +314,9 @@ impl ServerApp {
             &mut self.world,
         );
         crate::replication::process_incoming_game_event(&mut self.net, &mut self.resources);
+        sample.network_receive_ms = tick_start.elapsed().as_secs_f64() * 1000.0;
+        sample.allocations.network_receive = crate::allocations::checkpoint(&mut allocation_mark);
+        let stage = Instant::now();
 
         // Traite les inputs reçus du client
         {
@@ -332,7 +347,23 @@ impl ServerApp {
             *res_dt = TICK_DURATION;
         }
 
+        sample.commands_ms = stage.elapsed().as_secs_f64() * 1000.0;
+        sample.allocations.commands = crate::allocations::checkpoint(&mut allocation_mark);
+        let stage = Instant::now();
+
         crate::simulation::run_simulation(&mut self.schedule, &mut self.world, &mut self.resources);
+        sample.simulation_ms = stage.elapsed().as_secs_f64() * 1000.0;
+        sample.allocations.simulation = crate::allocations::checkpoint(&mut allocation_mark);
+        if self.metrics.is_some() {
+            sample.queued_events = self.resources.get::<Queue<GameEvent>>().unwrap().data.len()
+                + self
+                    .resources
+                    .get::<Queue<TargetedGameEvent>>()
+                    .unwrap()
+                    .data
+                    .len();
+        }
+        let stage = Instant::now();
         // Process Game Event
         {
             let (mut world, _) = self
@@ -342,6 +373,9 @@ impl ServerApp {
         }
 
         // ---- Maj Snapshot ----
+        sample.events_ms = stage.elapsed().as_secs_f64() * 1000.0;
+        sample.allocations.events = crate::allocations::checkpoint(&mut allocation_mark);
+        let stage = Instant::now();
         {
             let active_clients: Vec<u64> = self
                 .resources
@@ -358,7 +392,40 @@ impl ServerApp {
             );
         }
 
+        sample.snapshots_ms = stage.elapsed().as_secs_f64() * 1000.0;
+        sample.allocations.snapshots = crate::allocations::checkpoint(&mut allocation_mark);
+        let stage = Instant::now();
         self.net.flush();
+        sample.network_send_ms = stage.elapsed().as_secs_f64() * 1000.0;
+        sample.allocations.network_send = crate::allocations::checkpoint(&mut allocation_mark);
+        let stage = Instant::now();
         crate::utils::clear_resource_queues(&mut self.resources);
+        sample.cleanup_ms = stage.elapsed().as_secs_f64() * 1000.0;
+        sample.allocations.cleanup = crate::allocations::checkpoint(&mut allocation_mark);
+        sample.allocations.totals = crate::allocations::snapshot();
+        sample.processing_ms = tick_start.elapsed().as_secs_f64() * 1000.0;
+        sample.over_budget = sample.processing_ms > 50.0;
+        if let Some(metrics) = &mut self.metrics {
+            sample.buffers = self.resources.get::<utils::buffer::BufferManager>().unwrap().stats();
+            sample.flow_fields = self.resources.get::<crate::navigation::FlowFieldManager>().unwrap().fields.len();
+            sample.allocations.systems = crate::allocations::system_samples();
+            use legion::IntoQuery;
+            sample.allocated_entities = self.world.len();
+            sample.active_entities = <&components::Active>::query()
+                .iter(&self.world)
+                .filter(|active| active.0)
+                .count();
+            sample.players = self
+                .resources
+                .get::<PlayerRegistry>()
+                .unwrap()
+                .iter_clients()
+                .count();
+            sample.network = std::mem::take(&mut self.net.counters);
+            if let Err(error) = metrics.record(sample) {
+                tracing::error!(%error, "Impossible d'écrire les métriques de tick");
+                self.metrics = None;
+            }
+        }
     }
 }

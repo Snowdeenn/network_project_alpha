@@ -4,7 +4,9 @@ use crate::{
     simulation::resources::components::*,
     simulation::resources::spells::SpellRegister,
 };
-use legion::{EntityStore, query::IntoQuery, system, systems::CommandBuffer, world::SubWorld};
+use legion::{
+    Entity, EntityStore, query::IntoQuery, system, systems::CommandBuffer, world::SubWorld,
+};
 use utils::protocol::GameEvent;
 use utils::spell_types::*;
 
@@ -193,6 +195,7 @@ pub fn apply_aoe(
     #[resource] damage_queue: &mut crate::utils::Queue<DamageEvent>,
     #[resource] active_burns: &mut ActiveBurns,
     #[resource] active_slows: &mut ActiveSlows,
+    #[resource] support_effects: &mut crate::utils::Queue<SpellSupportEvent>,
 ) {
     let (victims_id, candidates_id) = (
         buff_manager.acquire_id::<Vec<(legion::Entity, Collider, Position)>>(),
@@ -263,6 +266,7 @@ pub fn apply_aoe(
 
                 let mut candidates = vec![];
                 grid.query(&broadphase_pos, &broadphase_col, &mut candidates);
+                candidates.sort_unstable();
                 candidates.dedup();
 
                 let victims = buff_manager
@@ -317,6 +321,7 @@ pub fn apply_aoe(
 
                 let mut candidates = vec![];
                 grid.query(&broadphase_pos, &broadphase_col, &mut candidates);
+                candidates.sort_unstable();
                 candidates.dedup();
 
                 let victims = buff_manager
@@ -361,6 +366,7 @@ pub fn apply_aoe(
 
                 let mut candidates = vec![];
                 grid.query(&broadphase_pos, &broadphase_col, &mut candidates);
+                candidates.sort_unstable();
                 candidates.dedup();
 
                 let victims = buff_manager
@@ -417,6 +423,7 @@ pub fn apply_aoe(
                 damage_queue,
                 active_burns,
                 active_slows,
+                support_effects,
             );
         }
 
@@ -456,7 +463,58 @@ pub struct ActiveSlow {
 }
 #[derive(Default)]
 pub struct ActiveSlows {
-    pub data: Vec<ActiveSlow>
+    pub data: Vec<ActiveSlow>,
+}
+
+pub enum SpellSupportEvent {
+    Heal {
+        target: legion::Entity,
+        amount: u32,
+    },
+    Blind {
+        target: legion::Entity,
+        duration: f32,
+    },
+}
+
+#[system]
+#[write_component(Health)]
+pub fn apply_support_effects(
+    world: &mut SubWorld,
+    #[resource] effects: &mut crate::utils::Queue<SpellSupportEvent>,
+    #[resource] players: &PlayerRegistry,
+    #[resource] targeted_events: &mut crate::utils::Queue<TargetedGameEvent>,
+) {
+    for effect in effects.data.drain(..) {
+        match effect {
+            SpellSupportEvent::Heal { target, amount } => {
+                if let Ok(mut entry) = world.entry_mut(target) {
+                    if let Ok(health) = entry.get_component_mut::<Health>() {
+                        // Le soin ne remplace pas le parcours de respawn.
+                        if health.state == HealthState::Alive && health.hp > 0 {
+                            health.hp = health.hp.saturating_add(amount).min(health.max_hp);
+                        }
+                    }
+                }
+            }
+            SpellSupportEvent::Blind { target, duration } => {
+                if !duration.is_finite() || duration <= 0.0 {
+                    continue;
+                }
+                if let Some(client_id) = players
+                    .iter_clients()
+                    .find(|client_id| players.get_entity(*client_id) == Some(target))
+                {
+                    targeted_events.push(TargetedGameEvent {
+                        client_id,
+                        event: GameEvent {
+                            kind: utils::protocol::GameEventKind::PlayerBlind { duration },
+                        },
+                    });
+                }
+            }
+        }
+    }
 }
 
 pub fn apply_effects(
@@ -468,6 +526,7 @@ pub fn apply_effects(
     damage_queue: &mut crate::utils::Queue<crate::replication::DamageEvent>,
     active_burns: &mut ActiveBurns,
     active_slows: &mut ActiveSlows,
+    support_effects: &mut crate::utils::Queue<SpellSupportEvent>,
 ) {
     for effect in effects {
         match effect {
@@ -503,18 +562,22 @@ pub fn apply_effects(
                         damage_per_tick: *damage_per_tick as u32,
                     });
                 }
-                AppliedStatus::Blind => {}
-                AppliedStatus::Slowed { speed_mutiplier } => {
+                AppliedStatus::Blind => support_effects.push(SpellSupportEvent::Blind {
+                    target,
+                    duration: *duration,
+                }),
+                AppliedStatus::Slowed { speed_multiplier } => {
                     active_slows.data.push(ActiveSlow {
                         target,
                         remaining: *duration,
-                        speed_multiplier: *speed_mutiplier
+                        speed_multiplier: *speed_multiplier,
                     });
                 }
             },
-            SpellEffectKind::Heal { .. } => {
-                // à implémenter
-            }
+            SpellEffectKind::Heal { amount } => support_effects.push(SpellSupportEvent::Heal {
+                target,
+                amount: *amount,
+            }),
         }
     }
 }
@@ -545,6 +608,7 @@ pub fn apply_effect(
     #[resource] damage_queue: &mut crate::utils::Queue<DamageEvent>,
     #[resource] active_burns: &mut ActiveBurns,
     #[resource] active_slows: &mut ActiveSlows,
+    #[resource] support_effects: &mut crate::utils::Queue<SpellSupportEvent>,
 ) {
     apply_effects(
         &pending.effects,
@@ -555,26 +619,31 @@ pub fn apply_effect(
         damage_queue,
         active_burns,
         active_slows,
+        support_effects,
     );
     command.remove_component::<PendingEffect>(*entity);
 }
 
 #[system(for_each)]
 pub fn update_active_slows(
+    entity: &Entity,
     velocity: &mut Velocity,
     #[resource] active_slows: &mut ActiveSlows,
-    #[resource] dt: &std::time::Duration
+    #[resource] dt: &std::time::Duration,
 ) {
     let elapsed = dt.as_secs_f32();
     for slow in &mut active_slows.data {
-        let active_time = elapsed.min(slow.remaining);
-        slow.remaining -= elapsed;
+        if slow.target == *entity {
+            let active_time = elapsed.min(slow.remaining);
+            slow.remaining -= elapsed;
 
-        if active_time > 0.0 {
-            velocity.dx *= slow.speed_multiplier as f64;
-            velocity.dy *= slow.speed_multiplier as f64;
+            if active_time > 0.0 {
+                velocity.dx *= slow.speed_multiplier as f64;
+                velocity.dy *= slow.speed_multiplier as f64;
+            }
         }
     }
+    active_slows.data.retain(|slow| slow.remaining > 0.0);
 }
 
 #[system]
@@ -609,6 +678,81 @@ mod tests {
     use super::*;
     use crate::simulation::systems::health::apply_damage_system;
     use legion::{EntityStore, IntoQuery, Resources, Schedule, World};
+
+    #[test]
+    fn heal_is_capped_and_does_not_revive_and_blind_targets_only_its_player() {
+        let mut world = World::default();
+        let player = world.push((Health {
+            hp: 80,
+            max_hp: 100,
+            state: HealthState::Alive,
+        },));
+        let dead = world.push((Health {
+            hp: 0,
+            max_hp: 100,
+            state: HealthState::Dead,
+        },));
+        let enemy = world.push(());
+        let mut players = PlayerRegistry::with_capacity(2);
+        players.add(42);
+        players.link_entity(42, player, 1001);
+        players.add(99);
+        players.link_entity(99, dead, 1002);
+        let mut resources = Resources::default();
+        resources.insert(players);
+        resources.insert(crate::utils::Queue::<TargetedGameEvent> { data: vec![] });
+        resources.insert(crate::utils::Queue::<SpellSupportEvent> {
+            data: vec![
+                SpellSupportEvent::Heal {
+                    target: player,
+                    amount: u32::MAX,
+                },
+                SpellSupportEvent::Heal {
+                    target: dead,
+                    amount: 50,
+                },
+                SpellSupportEvent::Blind {
+                    target: player,
+                    duration: 4.0,
+                },
+                SpellSupportEvent::Blind {
+                    target: enemy,
+                    duration: 4.0,
+                },
+            ],
+        });
+        let mut schedule = Schedule::builder()
+            .add_system(apply_support_effects_system())
+            .build();
+        schedule.execute(&mut world, &mut resources);
+        schedule.execute(&mut world, &mut resources);
+        assert_eq!(
+            world
+                .entry_ref(player)
+                .unwrap()
+                .get_component::<Health>()
+                .unwrap()
+                .hp,
+            100
+        );
+        assert_eq!(
+            world
+                .entry_ref(dead)
+                .unwrap()
+                .get_component::<Health>()
+                .unwrap()
+                .hp,
+            0
+        );
+        let events = resources
+            .get::<crate::utils::Queue<TargetedGameEvent>>()
+            .unwrap();
+        assert_eq!(events.data.len(), 1);
+        assert_eq!(events.data[0].client_id, 42);
+        assert!(
+            matches!(events.data[0].event.kind, utils::protocol::GameEventKind::PlayerBlind { duration } if duration == 4.0)
+        );
+    }
 
     #[test]
     fn pending_cast_is_consumed_and_creates_one_complete_projectile() {
@@ -696,6 +840,9 @@ mod tests {
         resources.insert(utils::buffer::BufferManager::with_capacity(4));
         resources.insert(crate::utils::Queue::<DamageEvent> { data: vec![] });
         resources.insert(crate::utils::Queue::<GameEvent> { data: vec![] });
+        resources.insert(ActiveBurns::default());
+        resources.insert(ActiveSlows::default());
+        resources.insert(crate::utils::Queue::<SpellSupportEvent> { data: vec![] });
 
         let mut schedule = Schedule::builder()
             .add_system(apply_aoe_system())

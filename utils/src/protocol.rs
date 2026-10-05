@@ -154,6 +154,9 @@ pub enum GameEventKind {
     SpellUsed {
         slot: SpellSlot,
     },
+    PlayerBlind {
+        duration: f32,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Encode, Decode)]

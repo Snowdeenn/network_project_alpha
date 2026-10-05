@@ -5,6 +5,8 @@ pub fn handle_event(
     app_resource: &mut crate::app::resources::Resources,
 ) {
     match event.kind {
+        // L'effet visuel d'aveuglement sera implémenté séparément.
+        utils::protocol::GameEventKind::PlayerBlind { .. } => (),
         utils::protocol::GameEventKind::ShopOpened { inventory } => {
             let mut shop_ui = app_resource.write_resource::<crate::core::shop_state::ShopUiState>();
             shop_ui.open(inventory);

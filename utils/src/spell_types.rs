@@ -118,7 +118,7 @@ pub enum AppliedStatus {
     },
     Blind,
     Slowed {
-        speed_mutiplier: f32,
+        speed_multiplier: f32,
     },
     // ...
 }

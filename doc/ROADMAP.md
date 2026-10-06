@@ -34,7 +34,7 @@
 - [x] Registre de sorts JSON, résolution des lancers, zones d'effet, effets et cooldowns.
 - [x] Boutique, achats et emplacements de sorts.
 - [x] Mort, demandes de respawn via vies partagées ou or, et système serveur de respawn.
-- [ ] Valider en jeu dash, classes, sorts, achats et respawn.
+- [x] Valider en jeu dash, classes, sorts, achats et respawn. Statut marqué terminé à la demande de l'utilisateur le 6 octobre 2026.
 - [ ] Compléter HUD multijoueur, mode spectateur et score de fin de partie.
 
 ## 4. Rendu et effets

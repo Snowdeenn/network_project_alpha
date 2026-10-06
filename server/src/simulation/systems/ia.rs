@@ -175,7 +175,6 @@ pub fn ranged_ia_movement(world: &mut SubWorld) {
             let tolerance_zone = 50.0;
             let retreat_distance = stats.range - tolerance_zone;
 
-            // TODO: Changer les valeurs hardcodé par mouvement speed
             if distance > stats.range {
                 velo.dx = dir_x
                     * mov_stats

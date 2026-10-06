@@ -1,4 +1,3 @@
-// src/player_registry.rs
 use legion::Entity;
 use std::collections::HashMap;
 use utils::arena::{Arena, Id};
@@ -94,28 +93,27 @@ impl PlayerRegistry {
     }
 
     pub fn remove(&mut self, client_id: u64) -> Option<PlayerEntry> {
-        if let Some(id) = self.client_to_id.remove(&client_id) {
-            if let Some(entry) = self.arena.remove(id) {
-                if let Some(entity_id) = entry.entity_id {
-                    self.entity_to_id.remove(&entity_id);
-                }
-                return Some(entry);
-            }
+        let id = self.client_to_id.remove(&client_id)?;
+        let entry = self.arena.remove(id)?;
+        if let Some(entity_id) = entry.entity_id {
+            self.entity_to_id.remove(&entity_id);
         }
-        None
+        Some(entry)
     }
 
     pub fn get_entity(&self, client_id: u64) -> Option<Entity> {
-        self.client_to_id
-            .get(&client_id)
-            .and_then(|id| self.arena.get(*id))
-            .and_then(|entry| entry.entity)
+        self.get_entry(client_id).and_then(|entry| entry.entity)
     }
 
     pub fn get_entry(&self, client_id: u64) -> Option<&PlayerEntry> {
         self.client_to_id
             .get(&client_id)
             .and_then(|id| self.arena.get(*id))
+    }
+
+    fn get_entry_mut(&mut self, client_id: u64) -> Option<&mut PlayerEntry> {
+        let id = *self.client_to_id.get(&client_id)?;
+        self.arena.get_mut(id)
     }
 
     pub fn entity_to_client(&self, entity_id: u64) -> Option<u64> {
@@ -126,25 +124,19 @@ impl PlayerRegistry {
     }
 
     pub fn add_gold(&mut self, client_id: u64, amount: u32) {
-        if let Some(id) = self.client_to_id.get(&client_id) {
-            if let Some(entry) = self.arena.get_mut(*id) {
-                entry.gold = entry.gold.saturating_add(amount);
-            }
+        if let Some(entry) = self.get_entry_mut(client_id) {
+            entry.gold = entry.gold.saturating_add(amount);
         }
     }
 
     pub fn sub_gold(&mut self, client_id: u64, amount: u32) {
-        if let Some(id) = self.client_to_id.get(&client_id) {
-            if let Some(entry) = self.arena.get_mut(*id) {
-                entry.gold = entry.gold.saturating_sub(amount);
-            }
+        if let Some(entry) = self.get_entry_mut(client_id) {
+            entry.gold = entry.gold.saturating_sub(amount);
         }
     }
 
     pub fn get_gold(&self, client_id: u64) -> u32 {
-        self.client_to_id
-            .get(&client_id)
-            .and_then(|id| self.arena.get(*id))
+        self.get_entry(client_id)
             .map(|entry| entry.gold)
             .unwrap_or(0)
     }
@@ -198,13 +190,8 @@ impl PlayerRegistry {
         spell_slot: SpellSlot,
         cost: CastCost,
     ) -> Result<SpellId, SpellUseError> {
-        let id = *self
-            .client_to_id
-            .get(&client_id)
-            .ok_or(SpellUseError::PlayerNotFound)?;
         let entry = self
-            .arena
-            .get_mut(id)
+            .get_entry_mut(client_id)
             .ok_or(SpellUseError::PlayerNotFound)?;
         let slot = &mut entry.spell_loadout.slots[spell_slot.index()];
         let spell_id = slot.spell_id.ok_or(SpellUseError::SpellNotOwned)?;

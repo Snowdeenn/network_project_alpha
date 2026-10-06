@@ -29,6 +29,24 @@ pub fn init_hud(
         },
     );
     register.insert(crate::key::hud::ROOT, root);
+    init_wave_label(ui_ctx, root, register);
+
+    init_health_bar(ui_ctx, root, register, hp_material_id);
+
+    init_gold_label(ui_ctx, root, register);
+
+    init_respawn_menu(ui_ctx, root, register);
+
+    init_shared_lives_label(ui_ctx, root, register);
+
+    init_spell_slots(ui_ctx, root, register);
+}
+
+fn init_wave_label(
+    ui_ctx: &mut nodus::UiContext,
+    root: nodus::NodeId,
+    register: &mut utils::ids::Register,
+) {
     let wave_label_id = nodus::text_label! {
         ctx: ui_ctx,
         parent: root,
@@ -40,7 +58,14 @@ pub fn init_hud(
         color: prism::Color::WHITE,
     };
     register.insert(crate::key::hud::WAVE_LABEL, wave_label_id);
+}
 
+fn init_health_bar(
+    ui_ctx: &mut nodus::UiContext,
+    root: nodus::NodeId,
+    register: &mut utils::ids::Register,
+    hp_material_id: MaterialId,
+) {
     let (hp_bg_id, hp_fill_id) = nodus::progress_bar! {
         ctx: ui_ctx,
         parent: root,
@@ -67,7 +92,13 @@ pub fn init_hud(
         color: prism::Color::WHITE,
     };
     register.insert(crate::key::hud::HP_TEXT, hp_text_id);
+}
 
+fn init_gold_label(
+    ui_ctx: &mut nodus::UiContext,
+    root: nodus::NodeId,
+    register: &mut utils::ids::Register,
+) {
     let gold_label_id = nodus::text_label! {
         ctx: ui_ctx,
         parent: root,
@@ -79,7 +110,13 @@ pub fn init_hud(
         color: prism::Color::GOLD,
     };
     register.insert(crate::key::hud::GOLD_LABEL, gold_label_id);
+}
 
+fn init_respawn_menu(
+    ui_ctx: &mut nodus::UiContext,
+    root: nodus::NodeId,
+    register: &mut utils::ids::Register,
+) {
     let respawn_label_id = ui_ctx.add_node(
         root,
         nodus::LayoutProps::new(
@@ -99,11 +136,26 @@ pub fn init_hud(
     );
     register.insert(crate::key::hud::RESPAWN_LABEL, respawn_label_id);
 
-    let respawn_shared_lives_button = ui_ctx.add_node(
+    let (button, label) = create_respawn_button(ui_ctx, root, -300.0, 0.2, "Shared Lives");
+    register.insert(crate::key::hud::RESPAWN_SHARED_LIVES_BUTTON, button);
+    register.insert(crate::key::hud::RESPAWN_SHARED_LIVES_BUTTON_LABEL, label);
+    let (button, label) = create_respawn_button(ui_ctx, root, 300.0, 0.4, "Gold");
+    register.insert(crate::key::hud::RESPAWN_GOLD_BUTTON, button);
+    register.insert(crate::key::hud::RESPAWN_GOLD_BUTTON_LABEL, label);
+}
+
+fn create_respawn_button(
+    ui_ctx: &mut nodus::UiContext,
+    root: nodus::NodeId,
+    x: f32,
+    label_x: f32,
+    text: &str,
+) -> (nodus::NodeId, nodus::NodeId) {
+    let button = ui_ctx.add_node(
         root,
         nodus::LayoutProps::new(
             nodus::Anchor::Center,
-            nodus::UiVec2::new(nodus::UiUnit::Pixels(-300.0), nodus::UiUnit::Pixels(-114.0)),
+            nodus::UiVec2::new(nodus::UiUnit::Pixels(x), nodus::UiUnit::Pixels(-114.0)),
             nodus::UiVec2::pixels(200.0, 50.0),
         ),
         VisualProps {
@@ -114,7 +166,7 @@ pub fn init_hud(
         },
     );
     ui_ctx.set_interact(
-        respawn_shared_lives_button,
+        button,
         nodus::Interact {
             state: nodus::InteractState::Normal,
             style: nodus::ButtonStyle {
@@ -124,80 +176,30 @@ pub fn init_hud(
             },
         },
     );
-    register.insert(
-        crate::key::hud::RESPAWN_SHARED_LIVES_BUTTON,
-        respawn_shared_lives_button,
-    );
-
-    let respawn_shared_life_label = nodus::text_label!(
+    let label = nodus::text_label!(
         ctx: ui_ctx,
-        parent: respawn_shared_lives_button,
+        parent: button,
         anchor: nodus::Anchor::TopLeft,
         offset: nodus::UiVec2::new(
-            nodus::UiUnit::ParentPercent(0.2),
+            nodus::UiUnit::ParentPercent(label_x),
             nodus::UiUnit::ParentPercent(0.3)
         ),
         size: nodus::UiVec2::new(
             nodus::UiUnit::ParentPercent(0.25),
             nodus::UiUnit::ParentPercent(0.3)
         ),
-        content: "Shared Lives".to_string(),
+        content: text.to_string(),
         font_size: 15.0,
         color: prism::Color::WHITE,
     );
-    register.insert(
-        crate::key::hud::RESPAWN_SHARED_LIVES_BUTTON_LABEL,
-        respawn_shared_life_label,
-    );
+    (button, label)
+}
 
-    let respawn_gold_button = ui_ctx.add_node(
-        root,
-        nodus::LayoutProps::new(
-            nodus::Anchor::Center,
-            nodus::UiVec2::new(nodus::UiUnit::Pixels(300.0), nodus::UiUnit::Pixels(-114.0)),
-            nodus::UiVec2::pixels(200.0, 50.0),
-        ),
-        nodus::VisualProps {
-            kind: nodus::VisualKind::Rect,
-            color: prism::Color::BLACK,
-            visible: false,
-            opacity: 1.0,
-        },
-    );
-    ui_ctx.set_interact(
-        respawn_gold_button,
-        nodus::Interact {
-            state: nodus::InteractState::Normal,
-            style: nodus::ButtonStyle {
-                normal: prism::Color::BLACK,
-                hover: prism::Color::GRAY,
-                pressed: prism::Color::LIGHTGRAY,
-            },
-        },
-    );
-    register.insert(crate::key::hud::RESPAWN_GOLD_BUTTON, respawn_gold_button);
-
-    let respawn_gold_button_label = nodus::text_label!(
-        ctx: ui_ctx,
-        parent: respawn_gold_button,
-        anchor: nodus::Anchor::TopLeft,
-        offset: nodus::UiVec2::new(
-            nodus::UiUnit::ParentPercent(0.4),
-            nodus::UiUnit::ParentPercent(0.3)
-        ),
-        size: nodus::UiVec2::new(
-            nodus::UiUnit::ParentPercent(0.25),
-            nodus::UiUnit::ParentPercent(0.3)
-        ),
-        content: "Gold".to_string(),
-        font_size: 15.0,
-        color: prism::Color::WHITE,
-    );
-    register.insert(
-        crate::key::hud::RESPAWN_GOLD_BUTTON_LABEL,
-        respawn_gold_button_label,
-    );
-
+fn init_shared_lives_label(
+    ui_ctx: &mut nodus::UiContext,
+    root: nodus::NodeId,
+    register: &mut utils::ids::Register,
+) {
     let shared_lives_label = {
         let layout = nodus::LayoutProps::new(
             nodus::Anchor::TopRight,
@@ -219,7 +221,13 @@ pub fn init_hud(
         nodus::text_label!(ctx: ui_ctx, parent: root, layout: layout, visual: visual)
     };
     register.insert(crate::key::hud::SHARED_LIVES_LABEL, shared_lives_label);
+}
 
+fn init_spell_slots(
+    ui_ctx: &mut nodus::UiContext,
+    root: nodus::NodeId,
+    register: &mut utils::ids::Register,
+) {
     let screen_w = ui_ctx.size().0;
     let screen_h = ui_ctx.size().1;
 
@@ -347,154 +355,12 @@ pub fn init_shop(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regis
     register.insert(crate::key::shop::TITLE, title_id);
 
     let card_w_unit = nodus::UiUnit::ScreenWidth(SHOP_CARD_W);
-    let card_h_unit = nodus::UiUnit::ScreenHeight(SHOP_CARD_H);
-    let card_y_unit = nodus::UiUnit::ScreenHeight(SHOP_CARD_Y);
     let gap_unit = (1.0 - card_w_unit * 3.0) / 4.0;
 
     for i in 0..3 {
         let card_x_unit = gap_unit + (card_w_unit + gap_unit) * (i as f32);
 
-        let card_root = ui_ctx.add_node(
-            shop_root,
-            nodus::LayoutProps::new(
-                nodus::Anchor::TopLeft,
-                nodus::UiVec2::new(card_x_unit, card_y_unit),
-                nodus::UiVec2::new(card_w_unit, card_h_unit),
-            ),
-            nodus::VisualProps {
-                kind: nodus::VisualKind::Rect,
-                color: prism::Color::DARKGRAY,
-                visible: true,
-                opacity: 1.0,
-            },
-        );
-
-        let border = nodus::UiUnit::ScreenHeight(SHOP_BORDER_OFFSET);
-        let card_inner = ui_ctx.add_node(
-            card_root,
-            nodus::LayoutProps::new(
-                nodus::Anchor::TopLeft,
-                nodus::UiVec2::new(nodus::UiUnit::ScreenWidth(SHOP_BORDER_OFFSET), border),
-                nodus::UiVec2::new(
-                    nodus::UiUnit::ScreenWidth(SHOP_CARD_W - SHOP_BORDER_OFFSET * 2.0),
-                    nodus::UiUnit::ScreenHeight(SHOP_CARD_H - SHOP_BORDER_OFFSET * 2.0),
-                ),
-            ),
-            nodus::VisualProps {
-                kind: nodus::VisualKind::Rect,
-                color: prism::Color::BLACK,
-                visible: true,
-                opacity: 1.0,
-            },
-        );
-
-        let art_id = ui_ctx.add_node(
-            card_inner,
-            nodus::LayoutProps::new(
-                nodus::Anchor::TopLeft,
-                nodus::UiVec2::screen(SHOP_ART_OFFSET_X, SHOP_ART_OFFSET_Y),
-                nodus::UiVec2::screen(SHOP_ART_W, SHOP_ART_H),
-            ),
-            nodus::VisualProps {
-                kind: nodus::VisualKind::Rect,
-                color: prism::Color::DARKGRAY,
-                visible: true,
-                opacity: 1.0,
-            },
-        );
-
-        let name_id = nodus::text_label! {
-            ctx: ui_ctx,
-            parent: card_inner,
-            anchor: nodus::Anchor::TopLeft,
-            offset: nodus::UiVec2::screen(SHOP_TEXT_PADDING_X, SHOP_NAME_OFFSET_Y),
-            size: nodus::UiVec2::screen(SHOP_ART_W, SHOP_NAME_FONT_SIZE),
-            content: "",
-            font_size: SHOP_NAME_FONT_SIZE * REFERENCE_H,
-            color: prism::Color::WHITE,
-        };
-
-        let desc_id = nodus::text_label! {
-            ctx: ui_ctx,
-            parent: card_inner,
-            anchor: nodus::Anchor::TopLeft,
-            offset: nodus::UiVec2::screen(
-                SHOP_TEXT_PADDING_X,
-                SHOP_NAME_OFFSET_Y + SHOP_NAME_FONT_SIZE + (4.0 / 1080.0),
-            ),
-            size: nodus::UiVec2::screen(SHOP_ART_W, 0.05),
-            content: "",
-            font_size: 0.018 * REFERENCE_H,
-            color: prism::Color::LIGHTGRAY,
-        };
-
-        let price_id = nodus::text_label! {
-            ctx: ui_ctx,
-            parent: card_inner,
-            anchor: nodus::Anchor::TopLeft,
-            offset: nodus::UiVec2::screen(SHOP_TEXT_PADDING_X, SHOP_PRICE_OFFSET_Y),
-            size: nodus::UiVec2::screen(SHOP_ART_W, SHOP_PRICE_FONT_SIZE),
-            content: "",
-            font_size: SHOP_PRICE_FONT_SIZE * REFERENCE_H,
-            color: prism::Color::GOLD,
-        };
-
-        let sold_overlay_id = ui_ctx.add_node(
-            card_inner,
-            nodus::LayoutProps::new(
-                nodus::Anchor::TopLeft,
-                nodus::UiVec2::pixels(0.0, 0.0),
-                nodus::UiVec2::new(
-                    nodus::UiUnit::ParentPercent(1.0),
-                    nodus::UiUnit::ParentPercent(1.0),
-                ),
-            ),
-            nodus::VisualProps {
-                kind: nodus::VisualKind::Rect,
-                color: prism::Color::new(20, 220, 60, 255),
-                visible: false,
-                opacity: 0.0,
-            },
-        );
-
-        let sold_text_id = nodus::text_label! {
-            ctx: ui_ctx,
-            parent: sold_overlay_id,
-            anchor: nodus::Anchor::Center,
-            offset: nodus::UiVec2::pixels(30.0, 0.0),
-            size: nodus::UiVec2::screen(0.1, 0.03),
-            content: "",
-            font_size: 35.0,
-            color: prism::Color::WHITE,
-        };
-
-        let error_overlay_id = ui_ctx.add_node(
-            card_inner,
-            nodus::LayoutProps::new(
-                nodus::Anchor::TopLeft,
-                nodus::UiVec2::pixels(0.0, 0.0),
-                nodus::UiVec2::new(
-                    nodus::UiUnit::ParentPercent(1.0),
-                    nodus::UiUnit::ParentPercent(1.0),
-                ),
-            ),
-            nodus::VisualProps {
-                kind: nodus::VisualKind::Rect,
-                color: prism::Color::new(220, 20, 60, 255),
-                visible: false,
-                opacity: 0.0,
-            },
-        );
-        let card_id = ShopCardIds {
-            root: card_root,
-            art: art_id,
-            name: name_id,
-            desc: desc_id,
-            price: price_id,
-            sold_overlay: sold_overlay_id,
-            error_overlay: error_overlay_id,
-            sold_text: sold_text_id,
-        };
+        let card_id = create_shop_card(ui_ctx, shop_root, card_x_unit);
         register.insert(crate::key::shop::SHOP_CARD_KEYS[i], card_id);
     }
 
@@ -509,6 +375,157 @@ pub fn init_shop(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regis
         color: prism::Color::GRAY,
     };
     register.insert(crate::key::shop::CLOSE, close_id);
+}
+
+fn create_shop_card(
+    ui_ctx: &mut nodus::UiContext,
+    shop_root: nodus::NodeId,
+    card_x_unit: nodus::UiUnit,
+) -> ShopCardIds {
+    let card_w_unit = nodus::UiUnit::ScreenWidth(SHOP_CARD_W);
+    let card_h_unit = nodus::UiUnit::ScreenHeight(SHOP_CARD_H);
+    let card_y_unit = nodus::UiUnit::ScreenHeight(SHOP_CARD_Y);
+    let card_root = ui_ctx.add_node(
+        shop_root,
+        nodus::LayoutProps::new(
+            nodus::Anchor::TopLeft,
+            nodus::UiVec2::new(card_x_unit, card_y_unit),
+            nodus::UiVec2::new(card_w_unit, card_h_unit),
+        ),
+        nodus::VisualProps {
+            kind: nodus::VisualKind::Rect,
+            color: prism::Color::DARKGRAY,
+            visible: true,
+            opacity: 1.0,
+        },
+    );
+
+    let border = nodus::UiUnit::ScreenHeight(SHOP_BORDER_OFFSET);
+    let card_inner = ui_ctx.add_node(
+        card_root,
+        nodus::LayoutProps::new(
+            nodus::Anchor::TopLeft,
+            nodus::UiVec2::new(nodus::UiUnit::ScreenWidth(SHOP_BORDER_OFFSET), border),
+            nodus::UiVec2::new(
+                nodus::UiUnit::ScreenWidth(SHOP_CARD_W - SHOP_BORDER_OFFSET * 2.0),
+                nodus::UiUnit::ScreenHeight(SHOP_CARD_H - SHOP_BORDER_OFFSET * 2.0),
+            ),
+        ),
+        nodus::VisualProps {
+            kind: nodus::VisualKind::Rect,
+            color: prism::Color::BLACK,
+            visible: true,
+            opacity: 1.0,
+        },
+    );
+
+    let art_id = ui_ctx.add_node(
+        card_inner,
+        nodus::LayoutProps::new(
+            nodus::Anchor::TopLeft,
+            nodus::UiVec2::screen(SHOP_ART_OFFSET_X, SHOP_ART_OFFSET_Y),
+            nodus::UiVec2::screen(SHOP_ART_W, SHOP_ART_H),
+        ),
+        nodus::VisualProps {
+            kind: nodus::VisualKind::Rect,
+            color: prism::Color::DARKGRAY,
+            visible: true,
+            opacity: 1.0,
+        },
+    );
+
+    let name_id = nodus::text_label! {
+        ctx: ui_ctx,
+        parent: card_inner,
+        anchor: nodus::Anchor::TopLeft,
+        offset: nodus::UiVec2::screen(SHOP_TEXT_PADDING_X, SHOP_NAME_OFFSET_Y),
+        size: nodus::UiVec2::screen(SHOP_ART_W, SHOP_NAME_FONT_SIZE),
+        content: "",
+        font_size: SHOP_NAME_FONT_SIZE * REFERENCE_H,
+        color: prism::Color::WHITE,
+    };
+
+    let desc_id = nodus::text_label! {
+        ctx: ui_ctx,
+        parent: card_inner,
+        anchor: nodus::Anchor::TopLeft,
+        offset: nodus::UiVec2::screen(
+            SHOP_TEXT_PADDING_X,
+            SHOP_NAME_OFFSET_Y + SHOP_NAME_FONT_SIZE + (4.0 / 1080.0),
+        ),
+        size: nodus::UiVec2::screen(SHOP_ART_W, 0.05),
+        content: "",
+        font_size: 0.018 * REFERENCE_H,
+        color: prism::Color::LIGHTGRAY,
+    };
+
+    let price_id = nodus::text_label! {
+        ctx: ui_ctx,
+        parent: card_inner,
+        anchor: nodus::Anchor::TopLeft,
+        offset: nodus::UiVec2::screen(SHOP_TEXT_PADDING_X, SHOP_PRICE_OFFSET_Y),
+        size: nodus::UiVec2::screen(SHOP_ART_W, SHOP_PRICE_FONT_SIZE),
+        content: "",
+        font_size: SHOP_PRICE_FONT_SIZE * REFERENCE_H,
+        color: prism::Color::GOLD,
+    };
+
+    let sold_overlay_id = ui_ctx.add_node(
+        card_inner,
+        nodus::LayoutProps::new(
+            nodus::Anchor::TopLeft,
+            nodus::UiVec2::pixels(0.0, 0.0),
+            nodus::UiVec2::new(
+                nodus::UiUnit::ParentPercent(1.0),
+                nodus::UiUnit::ParentPercent(1.0),
+            ),
+        ),
+        nodus::VisualProps {
+            kind: nodus::VisualKind::Rect,
+            color: prism::Color::new(20, 220, 60, 255),
+            visible: false,
+            opacity: 0.0,
+        },
+    );
+
+    let sold_text_id = nodus::text_label! {
+        ctx: ui_ctx,
+        parent: sold_overlay_id,
+        anchor: nodus::Anchor::Center,
+        offset: nodus::UiVec2::pixels(30.0, 0.0),
+        size: nodus::UiVec2::screen(0.1, 0.03),
+        content: "",
+        font_size: 35.0,
+        color: prism::Color::WHITE,
+    };
+
+    let error_overlay_id = ui_ctx.add_node(
+        card_inner,
+        nodus::LayoutProps::new(
+            nodus::Anchor::TopLeft,
+            nodus::UiVec2::pixels(0.0, 0.0),
+            nodus::UiVec2::new(
+                nodus::UiUnit::ParentPercent(1.0),
+                nodus::UiUnit::ParentPercent(1.0),
+            ),
+        ),
+        nodus::VisualProps {
+            kind: nodus::VisualKind::Rect,
+            color: prism::Color::new(220, 20, 60, 255),
+            visible: false,
+            opacity: 0.0,
+        },
+    );
+    ShopCardIds {
+        root: card_root,
+        art: art_id,
+        name: name_id,
+        desc: desc_id,
+        price: price_id,
+        sold_overlay: sold_overlay_id,
+        error_overlay: error_overlay_id,
+        sold_text: sold_text_id,
+    }
 }
 
 pub fn update(

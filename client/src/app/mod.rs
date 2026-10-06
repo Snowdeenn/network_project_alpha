@@ -1,5 +1,6 @@
 pub mod input;
 pub mod resources;
+mod setup;
 pub mod states;
 
 use std::sync::Arc;
@@ -159,220 +160,14 @@ impl winit::application::ApplicationHandler for App {
         }
         let mut gpu_resources = prism::GpuResources::new(&gpu_ctx);
 
-        // Chargement des shaders par defaut
-        // On exit la loop si le chargement échoue parce que si les shaders par defaut
-        // ne sont pas charger le client n'affichera rien
-        let default_vert_id = match gpu_resources
-            .load_shader(&gpu_ctx, "client/src/graphic_data/shader/default.vert.wgsl")
-        {
-            Ok(id) => id,
-            Err(e) => {
-                tracing::error!("Erreur lors du chargement du shader : {e}");
+        let mut renderer = match self.initialize_renderer(&gpu_ctx, &mut gpu_resources) {
+            Ok(renderer) => renderer,
+            Err(error) => {
+                tracing::error!("{error}");
                 event_loop.exit();
                 return;
             }
         };
-        self.id_register
-            .insert(crate::key::shader::DEFAULT_VERTEX, default_vert_id);
-
-        let default_frag_id = match gpu_resources
-            .load_shader(&gpu_ctx, "client/src/graphic_data/shader/default.frag.wgsl")
-        {
-            Ok(id) => id,
-            Err(e) => {
-                tracing::error!("Erreur lors du chargement du shader : {e}");
-                event_loop.exit();
-                return;
-            }
-        };
-        self.id_register
-            .insert(crate::key::shader::DEFAULT_FRAGMENT, default_frag_id);
-
-        let post_vert_id = match gpu_resources.load_shader(
-            &gpu_ctx,
-            "client/src/graphic_data/shader/default_post_process.vert.wgsl",
-        ) {
-            Ok(id) => id,
-            Err(e) => {
-                tracing::error!("Erreur lors du chargement du shader : {e}");
-                event_loop.exit();
-                return;
-            }
-        };
-        self.id_register
-            .insert(crate::key::post::DEFAULT_POST_VERTEX, post_vert_id);
-
-        let post_frag_id = match gpu_resources.load_shader(
-            &gpu_ctx,
-            "client/src/graphic_data/shader/default_post_process.frag.wgsl",
-        ) {
-            Ok(id) => id,
-            Err(e) => {
-                tracing::error!("Erreur lors du chargement du shader : {e}");
-                event_loop.exit();
-                return;
-            }
-        };
-        self.id_register
-            .insert(crate::key::post::DEFAULT_POST_FRAGMENT, post_frag_id);
-
-        match gpu_resources.load_shader(
-            &gpu_ctx,
-            "client/src/graphic_data/shader/default_textured.vert.wgsl",
-        ) {
-            Ok(id) => self
-                .id_register
-                .insert(crate::key::shader::TEXTURED_VERTEX, id),
-            Err(e) => {
-                tracing::error!("Erreur lors du chargement du shader : {e}");
-                event_loop.exit();
-                return;
-            }
-        }
-        match gpu_resources.load_shader(
-            &gpu_ctx,
-            "client/src/graphic_data/shader/default_textured.frag.wgsl",
-        ) {
-            Ok(id) => self
-                .id_register
-                .insert(crate::key::shader::TEXTURED_FRAGMENT, id),
-            Err(e) => {
-                tracing::error!("Erreur lors du chargement du shader : {e}");
-                event_loop.exit();
-                return;
-            }
-        }
-        match gpu_resources.load_shader(
-            &gpu_ctx,
-            "client/src/graphic_data/shader/hit_flash_effect.frag.wgsl",
-        ) {
-            Ok(id) => self
-                .id_register
-                .insert(crate::key::post::HIT_FLASH_FRAG, id),
-            Err(e) => {
-                tracing::error!("Erreur lors du chargement du shader : {e}");
-                event_loop.exit();
-                return;
-            }
-        }
-        match gpu_resources.load_shader(
-            &gpu_ctx,
-            "client/src/graphic_data/shader/blind_effect.frag.wgsl",
-        ) {
-            Ok(id) => {
-                self.id_register.insert(crate::key::post::BLIND_FRAG, id);
-            }
-            Err(e) => {
-                tracing::error!("Erreur lors du chargement du shader : {e}");
-                event_loop.exit();
-                return;
-            }
-        }
-        let text_vert_id = self
-            .id_register
-            .get::<prism::ids::ShaderId>(crate::key::shader::TEXTURED_VERTEX)
-            .unwrap();
-        let text_frag_id = self
-            .id_register
-            .get::<prism::ids::ShaderId>(crate::key::shader::TEXTURED_FRAGMENT)
-            .unwrap();
-        let mut renderer = match prism::Renderer::new(
-            &gpu_ctx,
-            &mut gpu_resources,
-            default_vert_id,
-            default_frag_id,
-            text_vert_id,
-            text_frag_id,
-        ) {
-            Ok(r) => r,
-            Err(err) => {
-                tracing::error!("Échec de l'initialisation du renderer Prism : {err}");
-                event_loop.exit();
-                return;
-            }
-        };
-
-        // Ajout des RenderPass du post process
-        {
-            // Pass par defaut pass throught
-            let _default_pass_id = match renderer.add_post_process_pass::<()>(
-                &gpu_ctx,
-                &gpu_resources,
-                post_vert_id,
-                post_frag_id,
-                None,
-            ) {
-                Ok(id) => id,
-                Err(e) => {
-                    tracing::error!("Erreur lors de la création de la Post Process Pass: {e}");
-                    event_loop.exit();
-                    return;
-                }
-            };
-
-            let hit_flash_shader_id = self
-                .id_register
-                .get::<prism::ids::ShaderId>(crate::key::post::HIT_FLASH_FRAG)
-                .expect("Le hit flash id devrait être la");
-
-            let uniform = post_process_effect_type::HitFlashUniform { intensity: 0.5 };
-            let hit_flash_id = match renderer.add_post_process_pass(
-                &gpu_ctx,
-                &gpu_resources,
-                post_vert_id,
-                hit_flash_shader_id,
-                Some(uniform),
-            ) {
-                Ok(id) => id,
-                Err(e) => {
-                    tracing::error!("Erreur lors de la création de la Post Process Pass: {e}");
-                    event_loop.exit();
-                    return;
-                }
-            };
-            renderer.disable_post_process_pass(hit_flash_id);
-            let hit_flash = post_process_effect_type::HitFlashEffect {
-                id: hit_flash_id,
-                timer: 0.0, // Init à 0 parce que le joueur n'est pas hit
-                total_duration: 0.2,
-                intensity: uniform.intensity,
-            };
-            self.resource.insert(hit_flash);
-
-            let blind_shader_id = self
-                .id_register
-                .get::<prism::ids::ShaderId>(crate::key::post::BLIND_FRAG)
-                .expect("Le blind id devrait être la");
-
-            let blind_uniform = post_process_effect_type::BlindUniform {
-                amount: 1.0,
-                aspect_ratio: gpu_ctx.size.width as f32 / gpu_ctx.size.height as f32,
-            };
-
-            let blind_id = match renderer.add_post_process_pass(
-                &gpu_ctx,
-                &gpu_resources,
-                post_vert_id,
-                blind_shader_id,
-                Some(blind_uniform),
-            ) {
-                Ok(id) => id,
-                Err(e) => {
-                    tracing::error!("Erreur lors de la création de la Post Process Pass: {e}");
-                    event_loop.exit();
-                    return;
-                }
-            };
-            renderer.disable_post_process_pass(blind_id);
-            let blind = post_process_effect_type::BlindEffect {
-                id: blind_id,
-                timer: 0.0,
-                total_duration: 0.0,
-                aspect_ratio: gpu_ctx.size.width as f32 / gpu_ctx.size.height as f32,
-                amount: 0.0,
-            };
-            self.resource.insert(blind);
-        }
 
         let size = window.inner_size();
         let mut ui_ctx = nodus::UiContext::new(size.width as f32, size.height as f32);
@@ -395,47 +190,15 @@ impl winit::application::ApplicationHandler for App {
         }
         self.resource.insert(asset_manager);
 
-        let hp_material_id = {
-            let vert_id = self
-                .id_register
-                .get::<prism::ids::ShaderId>(crate::key::shader::TEXTURED_VERTEX)
-                .unwrap();
-            let frag_id = gpu_resources
-                .load_shader(
-                    &gpu_ctx,
-                    "client/src/graphic_data/shader/progress_bar.frag.wgsl",
-                )
-                .unwrap();
-            self.id_register.insert("shader/progress_bar_frag", frag_id);
-
-            // Créer la pipeline pour ce matériau
-            let pipeline = match renderer.create_pipeline(
-                &gpu_ctx,
-                &gpu_resources,
-                prism::PipelineKey {
-                    vertex_shader: vert_id,
-                    fragment_shader: frag_id,
-                    blend_mode: prism::BlendMode::Alpha,
-                    vertex_format: prism::VertexFormat::Pos2UvColor,
-                    bind_groups: &prism::MATERIAL_BIND_GROUP,
-                },
-            ) {
-                Ok(p) => p,
-                Err(e) => {
-                    tracing::error!("Impossible de créer la pipeline : {e}");
+        let hp_material_id =
+            match self.initialize_health_material(&gpu_ctx, &mut gpu_resources, &mut renderer) {
+                Ok(id) => id,
+                Err(error) => {
+                    tracing::error!("{error}");
                     event_loop.exit();
                     return;
                 }
             };
-
-            gpu_resources.create_material(
-                pipeline,
-                vec![], // pas de bind groups custom supplémentaires — les uniforms passent par le scratch buffer
-                std::mem::size_of::<f32>(), // uniform_size : un f32 (le ratio)
-            )
-        };
-        self.id_register
-            .insert(crate::key::material::HP_MATERIAL, hp_material_id);
 
         // Init des élements du ui des différentes scènes
         {
@@ -475,12 +238,27 @@ impl winit::application::ApplicationHandler for App {
             let consumed = debug_renderer.handle_event(window, &event);
             // A debug button must not also trigger an attack or movement input.
             let interactive = matches!(self.screen, core::screen::AppScreen::InGame)
-                && self.resource.read_resource::<core::debug_state::DebugState>().mode
+                && self
+                    .resource
+                    .read_resource::<core::debug_state::DebugState>()
+                    .mode
                     == core::debug_state::DebugMode::Interactive;
-            if interactive && consumed && matches!(&event,
-                winit::event::WindowEvent::MouseInput { state: winit::event::ElementState::Pressed, .. }
-                | winit::event::WindowEvent::KeyboardInput { event: winit::event::KeyEvent { state: winit::event::ElementState::Pressed, .. }, .. }
-            ) {
+            if interactive
+                && consumed
+                && matches!(
+                    &event,
+                    winit::event::WindowEvent::MouseInput {
+                        state: winit::event::ElementState::Pressed,
+                        ..
+                    } | winit::event::WindowEvent::KeyboardInput {
+                        event: winit::event::KeyEvent {
+                            state: winit::event::ElementState::Pressed,
+                            ..
+                        },
+                        ..
+                    }
+                )
+            {
                 return;
             }
         }
@@ -707,8 +485,13 @@ impl winit::application::ApplicationHandler for App {
                             dt,
                         );
                         // Rendu de la scène InGame
-                        self.in_game_scene
-                            .render(&mut frame, &mut self.resource, dt, &self.cam, screen_size);
+                        self.in_game_scene.render(
+                            &mut frame,
+                            &mut self.resource,
+                            dt,
+                            &self.cam,
+                            screen_size,
+                        );
 
                         if let Some(map) = &self.map {
                             map.draw(
@@ -764,7 +547,8 @@ impl winit::application::ApplicationHandler for App {
                                 .resource
                                 .write_resource::<post_process_effect_type::BlindEffect>();
 
-                            blind.aspect_ratio = screen_size.width as f32 / screen_size.height.max(1) as f32;
+                            blind.aspect_ratio =
+                                screen_size.width as f32 / screen_size.height.max(1) as f32;
                             let blind_uniform = post_process_effect_type::BlindUniform {
                                 amount: blind.amount,
                                 aspect_ratio: blind.aspect_ratio,

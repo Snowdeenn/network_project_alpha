@@ -32,17 +32,7 @@ pub fn read_player_attack_intent(
         timer.remaining = timer.remaining.saturating_sub(*dt);
 
         if state.attack && timer.remaining.is_zero() {
-            command.add_component(
-                *entity,
-                AttackIntent {
-                    aim_dir: state.aim_dir,
-                    box_half_length: stats.box_half_length,
-                    box_half_width: stats.box_half_width,
-                    projectile_speed: stats.projectile_speed,
-                    damage: stats.damage,
-                    range: stats.range,
-                },
-            );
+            command.add_component(*entity, attack_intent(stats, state.aim_dir));
             timer.remaining = timer.interval;
         }
     }
@@ -96,14 +86,7 @@ pub fn ia_attack(
                 if distance < (PLAYER_RADIUS as f64 + stats.range) && timer.remaining.is_zero() {
                     command.add_component(
                         *entity,
-                        AttackIntent {
-                            aim_dir: [(dx / distance) as f32, (dy / distance) as f32],
-                            box_half_length: stats.box_half_length,
-                            box_half_width: stats.box_half_width,
-                            projectile_speed: stats.projectile_speed,
-                            damage: stats.damage,
-                            range: stats.range,
-                        },
+                        attack_intent(stats, [(dx / distance) as f32, (dy / distance) as f32]),
                     );
                     timer.remaining = timer.interval;
                 }
@@ -111,6 +94,46 @@ pub fn ia_attack(
         }
     }
     buff_manager.release(p_position_id);
+}
+
+fn attack_intent(stats: &AttackStats, aim_dir: [f32; 2]) -> AttackIntent {
+    AttackIntent {
+        aim_dir,
+        box_half_length: stats.box_half_length,
+        box_half_width: stats.box_half_width,
+        projectile_speed: stats.projectile_speed,
+        damage: stats.damage,
+        range: stats.range,
+    }
+}
+
+fn attack_search_bounds(pos: &Position, geometry: &Geometry) -> (Position, Collider) {
+    let size = (geometry.half_width + geometry.half_length) as f64;
+    (
+        Position {
+            x: pos.x - size * 0.5,
+            y: pos.y - size * 0.5,
+        },
+        Collider { w: size, h: size },
+    )
+}
+
+fn attack_knockback(attackbox_pos: &Position, victim_pos: &Position) -> Knockback {
+    let mut dx = victim_pos.x - attackbox_pos.x;
+    let mut dy = victim_pos.y - attackbox_pos.y;
+    let distance = (dx * dx + dy * dy).sqrt();
+    if distance > 0.0 {
+        dx /= distance;
+        dy /= distance;
+    } else {
+        dx = 1.0;
+        dy = 0.0;
+    }
+    Knockback {
+        dx: dx as f32 * 600.0,
+        dy: dy as f32 * 600.0,
+        duration: 0.12,
+    }
 }
 
 const OFFSET_ATTACKBOX: f32 = 10.0;
@@ -276,18 +299,7 @@ pub fn check_collide_attackbox(
             .entry_ref(*attackbox_entt)
             .map(|e| e.get_component::<Projectile>().is_ok())
             .unwrap_or(false);
-        // --- BROADPHASE : Construire une AABB de recherche englobant l'OBB rotatée ---
-        // Estimation conservatrice : un carré bordant basé sur la diagonale (w + h)
-        let broadphase_w = (attackbox_geom.half_width + attackbox_geom.half_length) as f64;
-        let broadphase_h = (attackbox_geom.half_width + attackbox_geom.half_length) as f64;
-        let broadphase_pos = Position {
-            x: attackbox_pos.x - broadphase_w * 0.5,
-            y: attackbox_pos.y - broadphase_h * 0.5,
-        };
-        let broadphase_col = Collider {
-            w: broadphase_w,
-            h: broadphase_h,
-        };
+        let (broadphase_pos, broadphase_col) = attack_search_bounds(attackbox_pos, attackbox_geom);
 
         candidates.clear();
         grid.query(&broadphase_pos, &broadphase_col, &mut candidates);
@@ -302,92 +314,75 @@ pub fn check_collide_attackbox(
                 continue;
             }
 
-            if obb_vs_aabb(attackbox_pos, attackbox_geom, victim_pos, victim_col) {
-                let victim_is_player = players.contains(victim_entt);
-                let should_damage = attacker_is_player != victim_is_player;
+            if !obb_vs_aabb(attackbox_pos, attackbox_geom, victim_pos, victim_col) {
+                continue;
+            }
+            if attacker_is_player == players.contains(victim_entt) {
+                continue;
+            }
 
-                if should_damage {
-                    game_event_queue.data.push(GameEvent {
-                        kind: GameEventKind::EntityHit {
-                            pos: [victim_pos.x as f32, victim_pos.y as f32],
-                        },
-                    });
+            game_event_queue.data.push(GameEvent {
+                kind: GameEventKind::EntityHit {
+                    pos: [victim_pos.x as f32, victim_pos.y as f32],
+                },
+            });
 
-                    let spell_effects = world.entry_ref(*attackbox_entt).ok().and_then(|e| {
-                        e.get_component::<SpellEffects>()
-                            .ok()
-                            .map(|se| (se.effects.clone(), se.aoe))
-                    });
-                    if let Some((effects, aoe)) = spell_effects {
-                        match aoe {
-                            Some(aoe) => {
-                                command.push((
-                                    PendingAoe {
-                                        origin: [
-                                            attackbox_pos.x as f32 + attackbox_geom.half_length,
-                                            attackbox_pos.y as f32 + attackbox_geom.half_width,
-                                        ],
-                                        aim_dir: attackbox_geom.dir,
-                                        aoe: Some(aoe),
-                                        effects,
-                                        owner: owner.0,
-                                        caster_is_player: attacker_is_player,
-                                    },
-                                    Active(true),
-                                ));
-                            }
-                            None => {
-                                crate::simulation::systems::spells::apply_effects(
-                                    &effects,
-                                    *victim_entt,
-                                    [
-                                        attackbox_pos.x as f32 + attackbox_geom.half_length,
-                                        attackbox_pos.y as f32 + attackbox_geom.half_width,
-                                    ],
-                                    [victim_pos.x as f32, victim_pos.y as f32],
-                                    command,
-                                    damage_queue,
-                                    active_burns,
-                                    active_slows,
-                                    support_effects,
-                                );
-                            }
-                        }
-                    } else {
-                        let Some(damage) = damage else {
-                            tracing::warn!(?attackbox_entt, "Hitbox sans dégâts ni effets de sort");
-                            continue;
-                        };
-                        damage_queue.push(DamageEvent {
-                            target: *victim_entt,
-                            amount: damage.0,
-                        });
-
-                        let mut dx = victim_pos.x - attackbox_pos.x;
-                        let mut dy = victim_pos.y - attackbox_pos.y;
-                        let distance = (dx * dx + dy * dy).sqrt();
-                        if distance > 0.0 {
-                            dx /= distance;
-                            dy /= distance;
-                        } else {
-                            dx = 1.0;
-                            dy = 0.0;
-                        }
-                        command.add_component(
-                            *victim_entt,
-                            Knockback {
-                                dx: dx as f32 * 600.0,
-                                dy: dy as f32 * 600.0,
-                                duration: 0.12,
+            let spell_effects = world.entry_ref(*attackbox_entt).ok().and_then(|e| {
+                e.get_component::<SpellEffects>()
+                    .ok()
+                    .map(|se| (se.effects.clone(), se.aoe))
+            });
+            if let Some((effects, aoe)) = spell_effects {
+                match aoe {
+                    Some(aoe) => {
+                        command.push((
+                            PendingAoe {
+                                origin: [
+                                    attackbox_pos.x as f32 + attackbox_geom.half_length,
+                                    attackbox_pos.y as f32 + attackbox_geom.half_width,
+                                ],
+                                aim_dir: attackbox_geom.dir,
+                                aoe: Some(aoe),
+                                effects,
+                                owner: owner.0,
+                                caster_is_player: attacker_is_player,
                             },
+                            Active(true),
+                        ));
+                    }
+                    None => {
+                        crate::simulation::systems::spells::apply_effects(
+                            &effects,
+                            *victim_entt,
+                            [
+                                attackbox_pos.x as f32 + attackbox_geom.half_length,
+                                attackbox_pos.y as f32 + attackbox_geom.half_width,
+                            ],
+                            [victim_pos.x as f32, victim_pos.y as f32],
+                            command,
+                            damage_queue,
+                            active_burns,
+                            active_slows,
+                            support_effects,
                         );
                     }
-
-                    if is_projectile {
-                        command.remove(*attackbox_entt);
-                        break;
-                    }
                 }
+            } else {
+                let Some(damage) = damage else {
+                    tracing::warn!(?attackbox_entt, "Hitbox sans dégâts ni effets de sort");
+                    continue;
+                };
+                damage_queue.push(DamageEvent {
+                    target: *victim_entt,
+                    amount: damage.0,
+                });
+
+                command.add_component(*victim_entt, attack_knockback(attackbox_pos, victim_pos));
+            }
+
+            if is_projectile {
+                command.remove(*attackbox_entt);
+                break;
             }
         }
 
@@ -398,6 +393,7 @@ pub fn check_collide_attackbox(
             command.remove(*attackbox_entt);
         }
     }
+    *buff_manager.get_mut::<Vec<usize>>(candidates_id).unwrap() = candidates;
     buff_manager.release(players_id);
     buff_manager.release(attackboxes_id);
     buff_manager.release(victims_id);

@@ -1,3 +1,6 @@
+mod targeting;
+use targeting::select_aoe_targets;
+
 use crate::{
     replication::{DamageEvent, TargetedGameEvent},
     session::{PlayerRegistry, SpellUseError},
@@ -214,202 +217,13 @@ pub fn apply_aoe(
         );
     }
 
+    let mut candidates = std::mem::take(buff_manager.get_mut::<Vec<usize>>(candidates_id).unwrap());
+    let victims = buff_manager
+        .get::<Vec<(legion::Entity, Collider, Position)>>(victims_id)
+        .unwrap();
+
     for (aoe_entity, pending) in query_aoe.iter(world) {
-        let hits: Vec<legion::Entity> = match &pending.aoe {
-            None => {
-                // Un ciblage SingleTarget sans forme d'AOE sélectionne l'entité
-                // ennemie qui contient précisément le point visé.
-                let point = Position {
-                    x: pending.origin[0] as f64,
-                    y: pending.origin[1] as f64,
-                };
-                let mut candidates = vec![];
-                grid.query(&point, &Collider { w: 0.0, h: 0.0 }, &mut candidates);
-                candidates.sort_unstable();
-                candidates.dedup();
-
-                let victims = buff_manager
-                    .get::<Vec<(legion::Entity, Collider, Position)>>(victims_id)
-                    .unwrap();
-                candidates
-                    .iter()
-                    .find_map(|&idx| {
-                        let (entity, collider, pos) = &victims[idx];
-                        if *entity == pending.owner
-                            || same_team(world, *entity, pending.caster_is_player)
-                        {
-                            return None;
-                        }
-
-                        let contains_point = point.x >= pos.x
-                            && point.x <= pos.x + collider.w
-                            && point.y >= pos.y
-                            && point.y <= pos.y + collider.h;
-                        contains_point.then_some(*entity)
-                    })
-                    .into_iter()
-                    .collect()
-            }
-            Some(AoeSpellShape::Circle { offset, radius }) => {
-                let cx = pending.origin[0] + offset.x;
-                let cy = pending.origin[1] + offset.y;
-                let r = *radius as f64;
-
-                let broadphase_pos = Position {
-                    x: cx as f64 - r,
-                    y: cy as f64 - r,
-                };
-                let broadphase_col = Collider {
-                    w: r * 2.0,
-                    h: r * 2.0,
-                };
-
-                let mut candidates = vec![];
-                grid.query(&broadphase_pos, &broadphase_col, &mut candidates);
-                candidates.sort_unstable();
-                candidates.dedup();
-
-                let victims = buff_manager
-                    .get::<Vec<(legion::Entity, Collider, Position)>>(victims_id)
-                    .unwrap();
-                candidates
-                    .iter()
-                    .filter_map(|&idx| {
-                        let (entity, _, pos) = &victims[idx];
-                        if *entity == pending.owner
-                            || same_team(world, *entity, pending.caster_is_player)
-                        {
-                            return None;
-                        }
-                        let dx = pos.x - cx as f64;
-                        let dy = pos.y - cy as f64;
-                        if dx * dx + dy * dy <= r * r {
-                            Some(*entity)
-                        } else {
-                            None
-                        }
-                    })
-                    .collect()
-            }
-            Some(AoeSpellShape::Box {
-                offset,
-                size,
-                rotation,
-            }) => {
-                let cx = pending.origin[0] + offset.x;
-                let cy = pending.origin[1] + offset.y;
-
-                let aoe_pos = Position {
-                    x: cx as f64,
-                    y: cy as f64,
-                };
-                let aoe_geom = Geometry {
-                    half_length: size.x / 2.0,
-                    half_width: size.y / 2.0,
-                    dir: [rotation.cos(), rotation.sin()],
-                };
-
-                let broadphase_w = (aoe_geom.half_width + aoe_geom.half_length) as f64;
-                let broadphase_pos = Position {
-                    x: cx as f64 - broadphase_w,
-                    y: cy as f64 - broadphase_w,
-                };
-                let broadphase_col = Collider {
-                    w: broadphase_w * 2.0,
-                    h: broadphase_w * 2.0,
-                };
-
-                let mut candidates = vec![];
-                grid.query(&broadphase_pos, &broadphase_col, &mut candidates);
-                candidates.sort_unstable();
-                candidates.dedup();
-
-                let victims = buff_manager
-                    .get::<Vec<(legion::Entity, Collider, Position)>>(victims_id)
-                    .unwrap();
-                candidates
-                    .iter()
-                    .filter_map(|&idx| {
-                        let (entity, col, pos) = &victims[idx];
-                        if *entity == pending.owner
-                            || same_team(world, *entity, pending.caster_is_player)
-                        {
-                            return None;
-                        }
-                        if crate::utils::obb_vs_aabb(&aoe_pos, &aoe_geom, pos, col) {
-                            Some(*entity)
-                        } else {
-                            None
-                        }
-                    })
-                    .collect()
-            }
-            Some(AoeSpellShape::Cone {
-                offset,
-                direction,
-                angle,
-                range,
-            }) => {
-                let cx = pending.origin[0] + offset.x;
-                let cy = pending.origin[1] + offset.y;
-                let r = *range as f64;
-                let half_angle = (angle / 2.0).to_radians();
-
-                let broadphase_pos = Position {
-                    x: cx as f64 - r,
-                    y: cy as f64 - r,
-                };
-                let broadphase_col = Collider {
-                    w: r * 2.0,
-                    h: r * 2.0,
-                };
-
-                let mut candidates = vec![];
-                grid.query(&broadphase_pos, &broadphase_col, &mut candidates);
-                candidates.sort_unstable();
-                candidates.dedup();
-
-                let victims = buff_manager
-                    .get::<Vec<(legion::Entity, Collider, Position)>>(victims_id)
-                    .unwrap();
-                candidates
-                    .iter()
-                    .filter_map(|&idx| {
-                        let (entity, _, pos) = &victims[idx];
-                        if *entity == pending.owner
-                            || same_team(world, *entity, pending.caster_is_player)
-                        {
-                            return None;
-                        }
-                        let dx = pos.x - cx as f64;
-                        let dy = pos.y - cy as f64;
-                        let dist_sq = dx * dx + dy * dy;
-
-                        // Test distance
-                        if dist_sq > r * r {
-                            return None;
-                        }
-
-                        // Test angle — produit scalaire entre direction du cône et direction vers la cible
-                        let dist = dist_sq.sqrt();
-                        if dist < 0.001 {
-                            return Some(*entity); // cible au centre du cône
-                        }
-                        let to_target_x = dx / dist;
-                        let to_target_y = dy / dist;
-                        let dot =
-                            to_target_x * direction.x as f64 + to_target_y * direction.y as f64;
-                        let cos_half_angle = (half_angle as f64).cos();
-
-                        if dot >= cos_half_angle {
-                            Some(*entity)
-                        } else {
-                            None
-                        }
-                    })
-                    .collect()
-            }
-        };
+        let hits = select_aoe_targets(world, pending, grid, victims, &mut candidates);
 
         for target in hits {
             let entry = world.entry_ref(target).unwrap();
@@ -430,6 +244,7 @@ pub fn apply_aoe(
         command.remove(*aoe_entity);
     }
 
+    *buff_manager.get_mut::<Vec<usize>>(candidates_id).unwrap() = candidates;
     buff_manager.release(victims_id);
     buff_manager.release(candidates_id);
 }

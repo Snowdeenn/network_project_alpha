@@ -15,12 +15,19 @@ use crate::rendering::ScreenScale;
 use crate::rendering::camera::{self, Camera};
 use crate::rendering::vfx::particle::{Particle, ParticlePool};
 use crate::rendering::vfx::vfx_manager::VfxManager;
-use crate::ui::hud::{self};
+use crate::ui::hud;
 
 pub struct Snapshots {
     pub prev_snapshot: Option<StateSnapshot>,
     pub last_snapshot: Option<StateSnapshot>,
     pub last_snap_time: Instant,
+}
+
+impl Snapshots {
+    fn interpolation_factor(&self) -> f32 {
+        (self.last_snap_time.elapsed().as_secs_f32() / Ticks::TICK_DURATION.as_secs_f32())
+            .clamp(0.0, 1.0)
+    }
 }
 
 impl Default for Snapshots {
@@ -131,12 +138,18 @@ impl InGameScene {
         Self::send_respawn_request(client, gui, resources);
     }
 
-    pub fn render(&mut self, frame: &mut prism::Frame, resources: &mut Resources, dt: f32,
-        camera: &Camera, screen_size: winit::dpi::PhysicalSize<u32>) {
-        resources.write_resource::<post_process_effect_type::BlindEffect>().update(dt);
-        let t = (self.snapshots.last_snap_time.elapsed().as_secs_f32()
-            / Ticks::TICK_DURATION.as_secs_f32())
-        .clamp(0.0, 1.0);
+    pub fn render(
+        &mut self,
+        frame: &mut prism::Frame,
+        resources: &mut Resources,
+        dt: f32,
+        camera: &Camera,
+        screen_size: winit::dpi::PhysicalSize<u32>,
+    ) {
+        resources
+            .write_resource::<post_process_effect_type::BlindEffect>()
+            .update(dt);
+        let t = self.snapshots.interpolation_factor();
 
         let phase = resources.read_resource::<crate::core::game_phase::GamePhase>();
         match *phase {
@@ -180,6 +193,9 @@ impl InGameScene {
             // MAJ hud
             hud::update(gui, snap, &mut self.hud_buffers, resources);
 
+            let player_entity_id = resources.read_resource::<crate::core::LocalId>().entity_id;
+            let t = self.snapshots.interpolation_factor();
+
             // Particules de déplacement des joueurs
             for entity in &snap.entities {
                 let prev_entity = self
@@ -188,18 +204,12 @@ impl InGameScene {
                     .as_ref()
                     .and_then(|p| p.entities.iter().find(|e| e.entity_id == entity.entity_id));
 
-                let player_entity_id = resources.read_resource::<crate::core::LocalId>().entity_id;
-
                 if entity.entity_id == player_entity_id {
                     resources.insert(utils::math::Vec2::new(
                         entity.position[0],
                         entity.position[1],
                     ));
                 }
-
-                let t = (self.snapshots.last_snap_time.elapsed().as_secs_f32()
-                    / Ticks::TICK_DURATION.as_secs_f32())
-                .clamp(0.0, 1.0);
 
                 let (x, y) = match prev_entity {
                     Some(prev) => (
@@ -214,29 +224,35 @@ impl InGameScene {
                         let dx = entity.position[0] - prev.position[0];
                         let dy = entity.position[1] - prev.position[1];
 
-                        if dx.abs() > 0.05 || dy.abs() > 0.05 {
-                            let lifetime = rand::random_range(0.18..0.32f32);
-                            resources.write_resource::<ParticlePool>().spawn(Particle {
-                                pos: Vec2 {
-                                    x: x + rand::random_range(-20.0..20.0),
-                                    y: y + 20.0,
-                                },
-                                velocity: Vec2 {
-                                    x: (-dx * 4.0) + rand::random_range(-20.0..20.0),
-                                    y: rand::random_range(-50.0..-20.0),
-                                },
-                                friction: 4.5,
-                                lifetime,
-                                lt_max: lifetime,
-                                scale: 0.1,
-                                growth: 3.5,
-                                color: prism::Color::LIGHTGRAY,
-                            });
-                        }
+                        Self::spawn_movement_particle(resources, Vec2::new(x, y), dx, dy);
                     }
                 }
             }
         }
+    }
+
+    fn spawn_movement_particle(resources: &mut Resources, pos: Vec2, dx: f32, dy: f32) {
+        if !(dx.abs() > 0.05 || dy.abs() > 0.05) {
+            return;
+        }
+
+        let lifetime = rand::random_range(0.18..0.32f32);
+        resources.write_resource::<ParticlePool>().spawn(Particle {
+            pos: Vec2 {
+                x: pos.x + rand::random_range(-20.0..20.0),
+                y: pos.y + 20.0,
+            },
+            velocity: Vec2 {
+                x: (-dx * 4.0) + rand::random_range(-20.0..20.0),
+                y: rand::random_range(-50.0..-20.0),
+            },
+            friction: 4.5,
+            lifetime,
+            lt_max: lifetime,
+            scale: 0.1,
+            growth: 3.5,
+            color: prism::Color::LIGHTGRAY,
+        });
     }
 
     fn process_game_event(
@@ -407,9 +423,7 @@ impl InGameScene {
     /// Mise à jour de la position de la caméra
     fn update_camera(&self, cam: &mut Camera) {
         if let Some(curr) = &self.snapshots.last_snapshot {
-            let t = (self.snapshots.last_snap_time.elapsed().as_secs_f32()
-                / Ticks::TICK_DURATION.as_secs_f32())
-            .clamp(0.0, 1.0);
+            let t = self.snapshots.interpolation_factor();
             camera::update(cam, self.snapshots.prev_snapshot.as_ref(), curr, t);
         }
     }
@@ -421,45 +435,42 @@ impl InGameScene {
     ) {
         let mut game_phase = resources.write_resource::<crate::core::game_phase::GamePhase>();
         let ui_state = resources.write_resource::<crate::core::ui_state::UiState>();
-        if let Some(respawn_timer) = ui_state.respawn_timer {
-            if matches!(*game_phase, crate::core::game_phase::GamePhase::Dead)
-                && respawn_timer.round() == 0.0
-            {
-                let client_id = resources.read_resource::<crate::app::ClientId>();
-                let ui_output_event = resources.read_resource::<Vec<nodus::UIOutputEvent>>();
-                let shared_lives_button = gui
-                    .ids
-                    .get::<nodus::NodeId>(crate::key::hud::RESPAWN_SHARED_LIVES_BUTTON)
-                    .unwrap();
-                let gold_button = gui
-                    .ids
-                    .get::<nodus::NodeId>(crate::key::hud::RESPAWN_GOLD_BUTTON)
-                    .unwrap();
+        let Some(respawn_timer) = ui_state.respawn_timer else {
+            return;
+        };
+        if !matches!(*game_phase, crate::core::game_phase::GamePhase::Dead)
+            || respawn_timer.round() != 0.0
+        {
+            return;
+        }
+        let client_id = resources.read_resource::<crate::app::ClientId>();
+        let ui_output_event = resources.read_resource::<Vec<nodus::UIOutputEvent>>();
+        let shared_lives_button = gui
+            .ids
+            .get::<nodus::NodeId>(crate::key::hud::RESPAWN_SHARED_LIVES_BUTTON)
+            .unwrap();
+        let gold_button = gui
+            .ids
+            .get::<nodus::NodeId>(crate::key::hud::RESPAWN_GOLD_BUTTON)
+            .unwrap();
 
-                for event in ui_output_event.iter() {
-                    match event {
-                        nodus::UIOutputEvent::Clicked { id } if *id == shared_lives_button => {
-                            client.send_event(&GameEvent {
-                                kind: GameEventKind::RequestRespawn {
-                                    client_id: client_id.0,
-                                    option: utils::protocol::RespawnOption::UseSharedLife,
-                                },
-                            });
-                            *game_phase = crate::core::game_phase::GamePhase::Respawning;
-                        }
-                        nodus::UIOutputEvent::Clicked { id } if *id == gold_button => {
-                            client.send_event(&GameEvent {
-                                kind: GameEventKind::RequestRespawn {
-                                    client_id: client_id.0,
-                                    option: utils::protocol::RespawnOption::UseGold,
-                                },
-                            });
-                            *game_phase = crate::core::game_phase::GamePhase::Respawning;
-                        }
-                        _ => (),
-                    }
+        for event in ui_output_event.iter() {
+            let option = match event {
+                nodus::UIOutputEvent::Clicked { id } if *id == shared_lives_button => {
+                    utils::protocol::RespawnOption::UseSharedLife
                 }
-            }
+                nodus::UIOutputEvent::Clicked { id } if *id == gold_button => {
+                    utils::protocol::RespawnOption::UseGold
+                }
+                _ => continue,
+            };
+            client.send_event(&GameEvent {
+                kind: GameEventKind::RequestRespawn {
+                    client_id: client_id.0,
+                    option,
+                },
+            });
+            *game_phase = crate::core::game_phase::GamePhase::Respawning;
         }
     }
 }

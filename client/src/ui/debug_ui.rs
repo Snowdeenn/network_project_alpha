@@ -8,6 +8,7 @@ pub struct DebugRenderer {
     ctx: egui::Context,
     state: egui_winit::State,
     renderer: egui_wgpu::Renderer,
+    pointer_position: Option<egui::Pos2>,
 }
 
 impl DebugRenderer {
@@ -36,6 +37,7 @@ impl DebugRenderer {
             ctx,
             state,
             renderer,
+            pointer_position: None,
         }
     }
 
@@ -44,8 +46,25 @@ impl DebugRenderer {
         window: &winit::window::Window,
         event: &winit::event::WindowEvent,
     ) -> bool {
+        match event {
+            winit::event::WindowEvent::CursorMoved { position, .. } => {
+                let scale = self.ctx.pixels_per_point();
+                self.pointer_position = Some(egui::pos2(position.x as f32 / scale, position.y as f32 / scale));
+            }
+            winit::event::WindowEvent::CursorLeft { .. } => self.pointer_position = None,
+            _ => (),
+        }
         let response = self.state.on_window_event(window, event);
-        response.consumed
+        match event {
+            winit::event::WindowEvent::MouseInput { .. } => self.pointer_position
+                .is_some_and(|pos| pointer_over_debug_window(&self.ctx, pos)),
+            winit::event::WindowEvent::KeyboardInput { event, .. } => {
+                // P always remains available to hide/cycle the debug panel.
+                event.physical_key != winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::KeyP)
+                    && response.consumed && self.ctx.egui_wants_keyboard_input()
+            }
+            _ => false,
+        }
     }
 
     pub fn create_widget<'a>(&'a self, title: impl Into<String>) -> WidgetBuilder<'a> {
@@ -125,6 +144,34 @@ impl DebugRenderer {
             self.renderer.free_texture(id);
         }
         full_output.textures_delta.clear();
+    }
+}
+
+fn pointer_over_debug_window(ctx: &egui::Context, position: egui::Pos2) -> bool {
+    ctx.layer_id_at(position).is_some_and(|layer| layer.order != egui::Order::Background)
+}
+
+#[cfg(test)]
+mod input_routing_tests {
+    use super::*;
+
+    #[test]
+    fn background_overlay_does_not_capture_clicks_outside_debug_window() {
+        let ctx = egui::Context::default();
+        // Two passes allow egui to settle the window's area and hit testing.
+        for _ in 0..2 {
+            ctx.begin_pass(egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0))),
+                ..Default::default()
+            });
+            let _ = ctx.layer_painter(egui::LayerId::new(egui::Order::Background, egui::Id::new("debug_overlay")));
+            egui::Window::new("Debug").fixed_pos(egui::pos2(20.0, 20.0))
+                .fixed_size(egui::vec2(200.0, 200.0)).show(&ctx, |ui| { ui.button("Blind").clicked(); });
+            let mut output = ctx.end_pass();
+            output.textures_delta.clear();
+        }
+        assert!(pointer_over_debug_window(&ctx, egui::pos2(60.0, 60.0)));
+        assert!(!pointer_over_debug_window(&ctx, egui::pos2(600.0, 400.0)));
     }
 }
 

@@ -425,7 +425,17 @@ impl winit::application::ApplicationHandler for App {
         event: winit::event::WindowEvent,
     ) {
         if let (Some(window), Some(debug_renderer)) = (&self.window, &mut self.debug_renderer) {
-            let _ = debug_renderer.handle_event(window, &event);
+            let consumed = debug_renderer.handle_event(window, &event);
+            // A debug button must not also trigger an attack or movement input.
+            let interactive = matches!(self.screen, core::screen::AppScreen::InGame)
+                && self.resource.read_resource::<core::debug_state::DebugState>().mode
+                    == core::debug_state::DebugMode::Interactive;
+            if interactive && consumed && matches!(&event,
+                winit::event::WindowEvent::MouseInput { state: winit::event::ElementState::Pressed, .. }
+                | winit::event::WindowEvent::KeyboardInput { event: winit::event::KeyEvent { state: winit::event::ElementState::Pressed, .. }, .. }
+            ) {
+                return;
+            }
         }
         match event {
             winit::event::WindowEvent::CloseRequested => {

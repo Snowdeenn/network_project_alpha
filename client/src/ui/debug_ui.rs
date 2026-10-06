@@ -11,6 +11,18 @@ pub struct DebugRenderer {
     pointer_position: Option<egui::Pos2>,
 }
 
+#[derive(Clone)]
+struct EffectPreviewSettings {
+    duration: f32,
+    shake_strength: f32,
+}
+
+impl Default for EffectPreviewSettings {
+    fn default() -> Self {
+        Self { duration: 3.0, shake_strength: 0.6 }
+    }
+}
+
 impl DebugRenderer {
     pub fn init(window: &winit::window::Window, gpu_ctx: &prism::GpuContext) -> Self {
         let ctx = egui::Context::default();
@@ -415,6 +427,7 @@ pub fn run_debug(
     mode: DebugMode,
     debug_data: &DebugData,
     resources: &Resources,
+    camera: &mut Camera,
 ) {
     if mode == DebugMode::Off {
         return;
@@ -440,6 +453,10 @@ pub fn run_debug(
             .size([360.0, 500.0])
             .show(|w| {
                 w.metric_colored("Mode actif", format!("{:?}", mode), egui::Color32::GREEN);
+
+                w.create_widget("Effets du joueur")
+                    .header(true)
+                    .show(|w| draw_effect_preview(w, resources, camera));
 
                 // Section Combat
                 w.create_widget("Combat & Collisions")
@@ -468,6 +485,51 @@ pub fn run_debug(
                     });
             });
     }
+}
+
+fn draw_effect_preview(w: &mut DebugUi, resources: &Resources, camera: &mut Camera) {
+    use crate::graphic_data::post_process_effect_type::{BlindEffect, HitFlashEffect};
+    use crate::rendering::vfx::vfx_manager::VfxManager;
+
+    let settings_id = w.ui.make_persistent_id("effect_preview_settings");
+    let mut settings = w.ui.ctx().data_mut(|data| {
+        data.get_temp::<EffectPreviewSettings>(settings_id).unwrap_or_default()
+    });
+    w.ui.label("Aperçu local sur le joueur, sans dégâts.");
+    w.slider("Durée (s)", &mut settings.duration, 0.1..=10.0);
+    if w.button("Appliquer le blind").clicked() {
+        let mut blind = resources.write_resource::<BlindEffect>();
+        blind.timer = settings.duration;
+        blind.total_duration = settings.duration;
+    }
+    {
+        let blind = resources.read_resource::<BlindEffect>();
+        w.metric("Blind restant", format!("{:.2} s", blind.timer));
+        w.metric("Intensité blind", format!("{:.0} %", 100.0 * blind.intensity()));
+    }
+    if w.button("Appliquer le flash de dégâts").clicked() {
+        let mut flash = resources.write_resource::<HitFlashEffect>();
+        flash.total_duration = settings.duration;
+        flash.timer = settings.duration;
+        flash.intensity = 1.0;
+    }
+    if w.button("Créer un fantôme de dash").clicked() {
+        let position = *resources.read_resource::<utils::math::Vec2>();
+        resources.write_resource::<VfxManager>().spawn_dash_ghost(position, settings.duration, prism::Color::WHITE);
+    }
+    w.slider("Force de secousse", &mut settings.shake_strength, 0.0..=1.0);
+    if w.button("Secouer la caméra").clicked() {
+        camera.shake.add_trauma(settings.shake_strength);
+    }
+    if w.button("Arrêter les post-process").clicked() {
+        let mut blind = resources.write_resource::<BlindEffect>();
+        blind.timer = 0.0;
+        blind.amount = 0.0;
+        let mut flash = resources.write_resource::<HitFlashEffect>();
+        flash.timer = 0.0;
+        flash.intensity = 0.0;
+    }
+    w.ui.ctx().data_mut(|data| data.insert_temp(settings_id, settings));
 }
 
 fn draw_attack_boxes(

@@ -131,7 +131,9 @@ impl InGameScene {
         Self::send_respawn_request(client, gui, resources);
     }
 
-    pub fn render(&mut self, frame: &mut prism::Frame, resources: &mut Resources, dt: f32) {
+    pub fn render(&mut self, frame: &mut prism::Frame, resources: &mut Resources, dt: f32,
+        camera: &Camera, screen_size: winit::dpi::PhysicalSize<u32>) {
+        resources.write_resource::<post_process_effect_type::BlindEffect>().update(dt);
         let t = (self.snapshots.last_snap_time.elapsed().as_secs_f32()
             / Ticks::TICK_DURATION.as_secs_f32())
         .clamp(0.0, 1.0);
@@ -149,6 +151,8 @@ impl InGameScene {
                         curr,
                         t,
                         dt,
+                        camera,
+                        screen_size,
                     );
                     let vfx = resources.read_resource::<VfxManager>();
                     vfx.push_draw_commands(frame);

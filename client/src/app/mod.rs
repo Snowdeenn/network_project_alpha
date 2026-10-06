@@ -255,6 +255,19 @@ impl winit::application::ApplicationHandler for App {
                 return;
             }
         }
+        match gpu_resources.load_shader(
+            &gpu_ctx,
+            "client/src/graphic_data/shader/blind_effect.frag.wgsl",
+        ) {
+            Ok(id) => {
+                self.id_register.insert(crate::key::post::BLIND_FRAG, id);
+            }
+            Err(e) => {
+                tracing::error!("Erreur lors du chargement du shader : {e}");
+                event_loop.exit();
+                return;
+            }
+        }
         let text_vert_id = self
             .id_register
             .get::<prism::ids::ShaderId>(crate::key::shader::TEXTURED_VERTEX)
@@ -325,6 +338,40 @@ impl winit::application::ApplicationHandler for App {
                 intensity: uniform.intensity,
             };
             self.resource.insert(hit_flash);
+
+            let blind_shader_id = self
+                .id_register
+                .get::<prism::ids::ShaderId>(crate::key::post::BLIND_FRAG)
+                .expect("Le blind id devrait être la");
+
+            let blind_uniform = post_process_effect_type::BlindUniform {
+                amount: 1.0,
+                aspect_ratio: gpu_ctx.size.width as f32 / gpu_ctx.size.height as f32,
+            };
+
+            let blind_id = match renderer.add_post_process_pass(
+                &gpu_ctx,
+                &gpu_resources,
+                post_vert_id,
+                blind_shader_id,
+                Some(blind_uniform),
+            ) {
+                Ok(id) => id,
+                Err(e) => {
+                    tracing::error!("Erreur lors de la création de la Post Process Pass: {e}");
+                    event_loop.exit();
+                    return;
+                }
+            };
+            renderer.disable_post_process_pass(blind_id);
+            let blind = post_process_effect_type::BlindEffect {
+                id: blind_id,
+                timer: 0.0,
+                total_duration: 0.0,
+                aspect_ratio: gpu_ctx.size.width as f32 / gpu_ctx.size.height as f32,
+                amount: 0.0,
+            };
+            self.resource.insert(blind);
         }
 
         let size = window.inner_size();
@@ -498,6 +545,7 @@ impl winit::application::ApplicationHandler for App {
                                             mode,
                                             &self.debug_data,
                                             &self.resource,
+                                            &mut self.cam,
                                         );
                                         debug_renderer.flush_into(window, &mut frame_ctx, gpu_ctx);
                                     }
@@ -632,6 +680,11 @@ impl winit::application::ApplicationHandler for App {
                         .resource
                         .read_resource::<post_process_effect_type::HitFlashEffect>();
                     renderer.enable_post_process_pass(hit_flash.id);
+
+                    let blind = self
+                        .resource
+                        .read_resource::<post_process_effect_type::BlindEffect>();
+                    renderer.enable_post_process_pass(blind.id);
                 }
 
                 match (client_ok, ui_ok, gpu_resources_ok) {
@@ -655,7 +708,7 @@ impl winit::application::ApplicationHandler for App {
                         );
                         // Rendu de la scène InGame
                         self.in_game_scene
-                            .render(&mut frame, &mut self.resource, dt);
+                            .render(&mut frame, &mut self.resource, dt, &self.cam, screen_size);
 
                         if let Some(map) = &self.map {
                             map.draw(
@@ -693,6 +746,7 @@ impl winit::application::ApplicationHandler for App {
                             }
                         }
 
+                        // MAJ hit flash effect
                         {
                             let hit_flash = self
                                 .resource
@@ -702,6 +756,20 @@ impl winit::application::ApplicationHandler for App {
                                 *hit_flash.id,
                                 hit_flash.intensity,
                             );
+                        }
+
+                        // MAJ blind Effect
+                        {
+                            let mut blind = self
+                                .resource
+                                .write_resource::<post_process_effect_type::BlindEffect>();
+
+                            blind.aspect_ratio = screen_size.width as f32 / screen_size.height.max(1) as f32;
+                            let blind_uniform = post_process_effect_type::BlindUniform {
+                                amount: blind.amount,
+                                aspect_ratio: blind.aspect_ratio,
+                            };
+                            renderer.write_post_process_uniform(gpu_ctx, *blind.id, blind_uniform);
                         }
                     }
                     _ => {

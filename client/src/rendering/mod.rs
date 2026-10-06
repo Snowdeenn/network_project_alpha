@@ -49,9 +49,15 @@ pub(crate) fn render_world(
     curr: &utils::protocol::StateSnapshot,
     t: f32,
     dt: f32,
+    camera: &camera::Camera,
+    screen_size: winit::dpi::PhysicalSize<u32>,
 ) {
     let assets = resources.read_resource::<crate::graphic_data::asset_manager::AssetManager>();
     anim_entities.tick_all(dt, assets.anims());
+    let blind = resources.read_resource::<crate::graphic_data::post_process_effect_type::BlindEffect>();
+    let vision_radius = crate::graphic_data::post_process_effect_type::blind_vision_radius(
+        blind.amount, screen_size.width as f32, screen_size.height as f32);
+    let view_center = camera.pos() - camera.shake.offset();
 
     for entity in &curr.entities {
         let prev_entity =
@@ -64,6 +70,12 @@ pub(crate) fn render_world(
             ),
             None => (entity.position[0], entity.position[1]),
         };
+
+        if !is_entity_visible_during_blind(
+            &entity.entity_kind, [x, y], view_center, vision_radius, blind.amount,
+        ) {
+            continue;
+        }
 
         let anim_key = resolve_anim(&entity.entity_kind, prev_entity, entity);
 
@@ -98,6 +110,24 @@ pub(crate) fn render_world(
     // Particules
     let particles = resources.read_resource::<crate::rendering::vfx::particle::ParticlePool>();
     particles.push_draw_commands(frame);
+}
+
+fn is_entity_visible_during_blind(
+    kind: &utils::protocol::EntityKind,
+    position: [f32; 2],
+    view_center: utils::math::Vec2,
+    vision_radius: f32,
+    blind_amount: f32,
+) -> bool {
+    if blind_amount <= 0.0
+        || !matches!(kind, utils::protocol::EntityKind::Enemy | utils::protocol::EntityKind::Boss(_))
+    {
+        return true;
+    }
+
+    let distance_squared = (position[0] - view_center.x).powi(2)
+        + (position[1] - view_center.y).powi(2);
+    distance_squared <= vision_radius.powi(2)
 }
 
 fn draw_fallback(

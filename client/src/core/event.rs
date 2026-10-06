@@ -1,3 +1,5 @@
+use crate::graphic_data::post_process_effect_type::BlindEffect;
+
 pub struct SpellUseEvent(pub Option<utils::protocol::SpellSlot>);
 
 pub fn handle_event(
@@ -5,8 +7,6 @@ pub fn handle_event(
     app_resource: &mut crate::app::resources::Resources,
 ) {
     match event.kind {
-        // L'effet visuel d'aveuglement sera implémenté séparément.
-        utils::protocol::GameEventKind::PlayerBlind { .. } => (),
         utils::protocol::GameEventKind::ShopOpened { inventory } => {
             let mut shop_ui = app_resource.write_resource::<crate::core::shop_state::ShopUiState>();
             shop_ui.open(inventory);
@@ -115,7 +115,6 @@ pub fn handle_event(
                 .write_resource::<crate::core::ui_state::UiState>()
                 .respawn_timer = None;
         }
-        // utils::protocol::GameEventKind::SpellCast { .. } => (), // Event qu'on utilise pour avertir le serveur qu'on utilise un spell
         utils::protocol::GameEventKind::SpellCastError { reason } => {
             tracing::error!("Impossible d'utiliser le spell : reason => {reason:?}")
         }
@@ -139,6 +138,11 @@ pub fn handle_event(
         utils::protocol::GameEventKind::SpellUsed { slot } => {
             app_resource.write_resource::<SpellUseEvent>().0 = Some(slot);
         }
+        utils::protocol::GameEventKind::PlayerBlind { duration } => {
+            let mut effect = app_resource.write_resource::<BlindEffect>();
+            effect.timer = duration;
+            effect.total_duration = duration;
+        },
     }
 }
 

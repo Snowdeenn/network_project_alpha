@@ -1,0 +1,126 @@
+{
+  "version": 1,
+  "name": "impact_shockwave",
+  "family": "mesh",
+
+  "logical": {
+    "emission": {
+      "mode": "burst",
+      "count": 1,
+      "delay_seconds": 0.0
+    },
+    "initialization": {
+      "space": "world",
+      "position": {
+        "shape": "point",
+        "value": [
+          0.0,
+          0.0
+        ]
+      },
+      "lifetime_seconds": {
+        "min": 0.5,
+        "max": 0.5
+      }
+    },
+    "logical_death": {
+      "when": [
+        "lifetime_expired",
+        "death_requested"
+      ],
+      "on_death": {
+        "stop_simulation": true
+      }
+    }
+  },
+  "visual": {
+    "representations": [
+      {
+        "name": "shockwave",
+        "type": "mesh",
+        "mesh": "meshes/vfx/shockwave_ring.mesh",
+        "material": "materials/vfx/shockwave.material"
+      }
+    ],
+    "appearance": {
+      "representation": "shockwave",
+      "blend": "additive",
+      "size": [
+        24.0,
+        24.0
+      ],
+      "color": [
+        0.6,
+        0.85,
+        1.0,
+        1.0
+      ],
+      "orientation": "fixed",
+      "rotation_degrees": 0.0,
+      "initial_state": "expanding"
+    },
+    "states": {
+      "expanding": {},
+      "expanded": {},
+      "fading": {}
+    },
+    "transitions": [
+      {
+        "from": "expanding",
+        "to": "expanded",
+        "when": {
+          "type": "normalized_age",
+          "at_least": 0.0
+        },
+        "duration_seconds": 0.25,
+        "target": {
+          "size": [
+            96.0,
+            96.0
+          ],
+          "color": [
+            0.6,
+            0.85,
+            1.0,
+            0.7
+          ]
+        }
+      },
+      {
+        "from": "expanded",
+        "to": "fading",
+        "when": {
+          "type": "normalized_age",
+          "at_least": 0.6
+        },
+        "duration_seconds": 0.15,
+        "target": {
+          "size": [
+            112.0,
+            112.0
+          ],
+          "color": [
+            0.3,
+            0.55,
+            1.0,
+            0.2
+          ]
+        }
+      }
+    ],
+    "visual_disappearance": {
+      "trigger": "logical_death",
+      "duration_seconds": 0.1,
+      "orientation": "freeze",
+      "alpha": {
+        "from": "current",
+        "to": 0.0
+      },
+      "size_multiplier": {
+        "from": 1.0,
+        "to": 1.1
+      },
+      "on_complete": "release_mesh"
+    }
+  }
+}

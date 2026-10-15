@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "name": "impact_scorch",
+  "family": "decal",
+  "logical": {
+    "emission": {
+      "mode": "burst",
+      "count": 1,
+      "delay_seconds": 0.0
+    },
+    "initialization": {
+      "space": "world",
+      "position": {
+        "shape": "point",
+        "value": [
+          0.0,
+          0.0
+        ]
+      },
+      "lifetime_seconds": {
+        "min": 3.0,
+        "max": 3.0
+      }
+    },
+    "logical_death": {
+      "when": [
+        "lifetime_expired",
+        "death_requested"
+      ],
+      "on_death": {
+        "stop_simulation": true
+      }
+    }
+  },
+  "visual": {
+    "representations": [
+      {
+        "name": "scorch",
+        "type": "decal",
+        "texture": "textures/vfx/scorch.png"
+      }
+    ],
+    "appearance": {
+      "representation": "scorch",
+      "blend": "alpha",
+      "size": [
+        48.0,
+        48.0
+      ],
+      "color": [
+        0.12,
+        0.08,
+        0.05,
+        0.9
+      ],
+      "orientation": "fixed",
+      "rotation_degrees": 12.0,
+      "initial_state": "visible"
+    },
+    "states": {
+      "visible": {},
+      "faded": {}
+    },
+    "transitions": [
+      {
+        "from": "visible",
+        "to": "faded",
+        "when": {
+          "type": "normalized_age",
+          "at_least": 0.75
+        },
+        "duration_seconds": 0.5,
+        "target": {
+          "color": [
+            0.12,
+            0.08,
+            0.05,
+            0.3
+          ]
+        }
+      }
+    ],
+    "visual_disappearance": {
+      "trigger": "logical_death",
+      "duration_seconds": 0.4,
+      "orientation": "freeze",
+      "alpha": {
+        "from": "current",
+        "to": 0.0
+      },
+      "on_complete": "release_decal"
+    }
+  }
+}

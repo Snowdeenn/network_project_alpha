@@ -4,5 +4,6 @@ pub mod graphic_data;
 pub mod key;
 pub mod rendering;
 pub mod ui;
+pub mod vfx;
 
 pub use app::App;

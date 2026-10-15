@@ -26,3 +26,4 @@ weave = { git = "https://github.com/Snowdeenn/weave.git" }
 egui = "0.36.1"
 egui-wgpu = "0.36.1"
 egui-winit = "0.36.1"
+tokio = { version = "1.53.2", features = [ "fs" ] }

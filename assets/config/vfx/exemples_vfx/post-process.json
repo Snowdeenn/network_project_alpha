@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "name": "impact_screen_pulse",
+  "family": "post-process",
+  "logical": {
+    "initialization": {
+      "lifetime_seconds": {
+        "min": 0.35,
+        "max": 0.35
+      }
+    },
+    "logical_death": {
+      "when": [
+        "lifetime_expired",
+        "death_requested"
+      ],
+      "on_death": {
+        "stop_simulation": true
+      }
+    }
+  },
+  "visual": {
+    "representations": [
+      {
+        "name": "impact_pass",
+        "type": "post_process_pass",
+        "material": "materials/vfx/impact_post_process.material"
+      }
+    ],
+    "appearance": {
+      "representation": "impact_pass",
+      "weight": 1.0,
+      "parameters": {
+        "bloom_strength": 0.8,
+        "vignette_strength": 0.25,
+        "chromatic_offset_pixels": [
+          2.0,
+          0.0
+        ]
+      },
+      "initial_state": "impact"
+    },
+    "states": {
+      "impact": {},
+      "recovery": {}
+    },
+    "transitions": [
+      {
+        "from": "impact",
+        "to": "recovery",
+        "when": {
+          "type": "normalized_age",
+          "at_least": 0.15
+        },
+        "duration_seconds": 0.2,
+        "target": {
+          "parameters": {
+            "bloom_strength": 0.0,
+            "vignette_strength": 0.0,
+            "chromatic_offset_pixels": [
+              0.0,
+              0.0
+            ]
+          }
+        }
+      }
+    ],
+    "visual_disappearance": {
+      "trigger": "logical_death",
+      "duration_seconds": 0.1,
+      "weight": {
+        "from": "current",
+        "to": 0.0
+      },
+      "on_complete": "release_post_process"
+    }
+  }
+}

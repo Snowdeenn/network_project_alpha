@@ -1,0 +1,123 @@
+{
+  "version": 1,
+  "name": "impact_embers",
+  "family": "particle",
+
+  "logical": {
+    "emission": {
+      "mode": "burst",
+      "count": 24,
+      "delay_seconds": 0.0
+    },
+
+    "initialization": {
+      "space": "world",
+      "position": {
+        "shape": "disk",
+        "radius": 4.0,
+        "spawn_location": "interior"
+      },
+      "velocity": {
+        "angle_degrees": { "min": 200.0, "max": 340.0 },
+        "speed": { "min": 80.0, "max": 160.0 }
+      },
+      "lifetime_seconds": { "min": 0.6, "max": 1.2 }
+    },
+
+    "evolution": {
+      "acceleration": [0.0, 200.0],
+      "linear_drag": 1.5
+    },
+
+    "reactions": [
+      {
+        "on": "collision",
+        "actions": [
+          { "type": "set_velocity", "value": [0.0, 0.0] },
+          { "type": "request_death", "reason": "ground_contact" }
+        ]
+      }
+    ],
+
+    "logical_death": {
+      "when": ["lifetime_expired", "death_requested"],
+      "on_death": {
+        "stop_simulation": true,
+        "disable_collisions": true
+      }
+    }
+  },
+
+  "visual": {
+    "representations": [
+      {
+        "name": "ember",
+        "type": "sprite",
+        "texture": "textures/vfx/ember_atlas.png",
+        "atlas": {
+          "columns": 4,
+          "rows": 1
+        }
+      }
+    ],
+
+    "appearance": {
+      "representation": "ember",
+      "blend": "additive",
+      "size": [6.0, 6.0],
+      "color": [1.0, 0.8, 0.3, 1.0],
+      "orientation": "velocity",
+      "initial_state": "hot"
+    },
+
+    "animations": {
+      "flicker": {
+        "type": "flipbook",
+        "frames": [0, 1, 2, 3],
+        "fps": 16,
+        "loop": true
+      }
+    },
+
+    "transitions": [
+      {
+        "from": "hot",
+        "to": "cooling",
+        "when": {
+          "type": "normalized_age",
+          "at_least": 0.5
+        },
+        "duration_seconds": 0.15,
+        "target": {
+          "color": [0.8, 0.15, 0.02, 1.0],
+          "size": [3.0, 3.0]
+        }
+      }
+    ],
+
+    "states": {
+      "hot": {
+        "animation": "flicker"
+      },
+      "cooling": {
+        "animation": "flicker"
+      }
+    },
+
+    "visual_disappearance": {
+      "trigger": "logical_death",
+      "duration_seconds": 0.2,
+      "animation": "freeze_current_frame",
+      "orientation": "freeze",
+      "alpha": {
+        "from": "current",
+        "to": 0.0
+      },
+      "size_multiplier": {
+        "from": 1.0,
+        "to": 0.0
+      },
+      "on_complete": "release_particle"
+    }
+  }
+}

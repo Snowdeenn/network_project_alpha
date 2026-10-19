@@ -2,6 +2,7 @@
   "version": 1,
   "name": "weapon_energy_trail",
   "family": "trail",
+
   "logical": {
     "emission": {
       "mode": "continuous",
@@ -35,6 +36,7 @@
       }
     }
   },
+
   "visual": {
     "representations": [
       {

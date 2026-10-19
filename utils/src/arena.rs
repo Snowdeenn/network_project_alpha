@@ -26,6 +26,16 @@ pub struct Id<Tag> {
     _phantom: PhantomData<Tag>,
 }
 
+impl<Tag> Id<Tag> {
+    pub fn zero() -> Self {
+        Id {
+            index: 0,
+            generation: 0,
+            _phantom: PhantomData,
+        }
+    }
+}
+
 impl<T> std::fmt::Display for Id<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "idx: {} gen: {}", self.index, self.generation)
@@ -98,7 +108,9 @@ pub struct Arena<Data, Tag = Data> {
 }
 
 impl<Data, Tag> Arena<Data, Tag> {
-    pub fn allocated_slots(&self) -> usize { self.nodes.len() }
+    pub fn allocated_slots(&self) -> usize {
+        self.nodes.len()
+    }
     /// Crée une nouvelle arène vide sans allocation initiale.
     pub fn new() -> Self {
         Arena {

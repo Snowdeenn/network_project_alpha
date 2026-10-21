@@ -44,7 +44,7 @@ Le client utilise Winit/WGPU, Prism, Nodus, des shaders WGSL et Egui pour le deb
 - [x] Animations, tile map, caméra et HUD.
 - [x] Pool fixe de particules, poussière de déplacement et impacts.
 - [x] Slash sur SpawnRect, camera shake sur EntityHit et post-process de flash sur PlayerHit.
-- [x] Primitives de flash d'entité, trail d'épée et fantômes de dash dans VfxManager.
+- [x] Flash d'entité, trail d'épée et fantômes de dash dans le runtime VFX unifié.
 - [ ] Brancher les primitives VFX restantes au gameplay.
 - [ ] Ajouter effets de mort, respiration, glow et bloom.
 - [ ] Compléter les assets et polir les transitions UI.

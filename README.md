@@ -105,6 +105,7 @@ Ces commandes sont des instructions, pas un compte rendu de tests exécutés lor
 
 - [Roadmap du jeu](doc/ROADMAP.md)
 - [Roadmap du rendu et des VFX](doc/roadmap-renderer-vfx.md)
+- [Intégration du renderer Prism V2](doc/renderer-prism-v2.md)
 - [Système VFX client : architecture et utilisation](doc/client-vfx-system.md)
 - [Cahier des charges UI](doc/Cahier_des_charge_framework_ui_embarquer.md) : objectifs de conception et intégration actuelle, sans garantie de performance mesurée.
 

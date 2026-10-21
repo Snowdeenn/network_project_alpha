@@ -10,6 +10,9 @@ use crate::vfx::parser::r#struct::VfxEffectDescriptor;
 
 type LoadHandle = JoinHandle<std::io::Result<VfxEffectDescriptor>>;
 
+/// Identifiant à conserver jusqu'à publication du résultat ou annulation.
+pub type LoadRequestId = Id<Loader>;
+
 #[derive(Default)]
 pub enum LoadingState {
     #[default]
@@ -56,8 +59,10 @@ impl Loader {
         self.context.state = LoadingState::Loading;
         // Lecture et parsing restent hors de la boucle qui collecte les résultats.
         tokio::task::spawn_blocking(move || {
-            let content = std::fs::read_to_string(path)?;
-            parse_effect(&content)
+            let result = std::fs::read_to_string(&path).and_then(|content| parse_effect(&content));
+            result.map_err(|error| {
+                std::io::Error::new(error.kind(), format!("{}: {error}", path.display()))
+            })
         })
     }
 }
@@ -75,7 +80,7 @@ impl AssetLoader {
     }
 
     /// Doit être appelé dans un runtime Tokio actif.
-    pub fn request_load(&mut self, context: AssetLoadContext) -> Id<Loader> {
+    pub fn request_load(&mut self, context: AssetLoadContext) -> LoadRequestId {
         let mut loader = Loader::new(context);
         let handle = loader.load();
         let id = self.loaders.insert(loader);
@@ -169,7 +174,7 @@ mod test {
 
     const PARTICLE_PATH: &str = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../assets/config/vfx/exemples_vfx/particle.json"
+        "/../assets/vfx/exemples_vfx/particle.json"
     );
 
     fn runtime() -> tokio::runtime::Runtime {
@@ -202,7 +207,7 @@ mod test {
             settle(&mut loader).await;
             let expected = parse_effect(include_str!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                "/../assets/config/vfx/exemples_vfx/particle.json"
+                "/../assets/vfx/exemples_vfx/particle.json"
             )))
             .unwrap();
             assert_eq!(loader.take_loaded_asset(id).unwrap(), expected);
@@ -223,7 +228,7 @@ mod test {
                 let handle = tokio::spawn(async {
                     parse_effect(include_str!(concat!(
                         env!("CARGO_MANIFEST_DIR"),
-                        "/../assets/config/vfx/exemples_vfx/particle.json"
+                        "/../assets/vfx/exemples_vfx/particle.json"
                     )))
                 });
                 ids.push(id);

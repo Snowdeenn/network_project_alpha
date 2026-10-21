@@ -1,7 +1,7 @@
 use super::*;
 
-const PARTICLE: &str = include_str!("../../../assets/config/vfx/exemples_vfx/particle.json");
-const MESH: &str = include_str!("../../../assets/config/vfx/exemples_vfx/mesh.json");
+const PARTICLE: &str = include_str!("../../../assets/vfx/exemples_vfx/particle.json");
+const MESH: &str = include_str!("../../../assets/vfx/exemples_vfx/mesh.json");
 
 fn system() -> VfxSystem {
     let mut system = VfxSystem::default();
@@ -276,7 +276,7 @@ fn delayed_composite_uses_existing_dag_and_rejects_cycles() {
 
 #[test]
 fn json_composite_loads_after_its_children_and_keeps_them_until_end() {
-    let source = include_str!("../../../assets/config/vfx/exemples_vfx/composite.json");
+    let source = include_str!("../../../assets/vfx/exemples_vfx/composite.json");
     let mut empty = VfxRegistry::default();
     assert!(empty.register_json(source, Priority::Normal).is_err());
     let mut system = system();
@@ -466,10 +466,10 @@ fn every_existing_family_loads_and_invalid_numbers_are_rejected() {
     for source in [
         PARTICLE,
         MESH,
-        include_str!("../../../assets/config/vfx/exemples_vfx/trail.json"),
-        include_str!("../../../assets/config/vfx/exemples_vfx/decal.json"),
-        include_str!("../../../assets/config/vfx/exemples_vfx/light.json"),
-        include_str!("../../../assets/config/vfx/exemples_vfx/post-process.json"),
+        include_str!("../../../assets/vfx/exemples_vfx/trail.json"),
+        include_str!("../../../assets/vfx/exemples_vfx/decal.json"),
+        include_str!("../../../assets/vfx/exemples_vfx/light.json"),
+        include_str!("../../../assets/vfx/exemples_vfx/post-process.json"),
     ] {
         registry.register_json(source, Priority::Normal).unwrap();
     }

@@ -1,0 +1,9 @@
+{
+  "family": "feedback",
+  "feedback": {
+    "type": "camera_shake",
+    "trauma": 1.0
+  },
+  "name": "gameplay/camera_shake",
+  "version": 1
+}

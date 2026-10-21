@@ -12,6 +12,8 @@ use super::{
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub(crate) struct TrailEmission {
+    #[serde(default)]
+    pub manual: bool,
     pub mode: VfxEmissionMode,
     pub rate_per_second: f32,
     pub delay_seconds: f32,
@@ -70,6 +72,8 @@ pub(crate) struct TrailRepresentation {
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub(crate) struct TrailAppearance {
+    #[serde(default)]
+    pub fade_points: bool,
     pub representation: String,
     pub blend: VfxBlend,
     pub width: f32,

@@ -2,7 +2,7 @@ use crate::app::resources::Resources;
 use crate::app::states::in_game::{GuiContext, HudBuffers};
 use crate::core::config::*;
 use nodus::VisualProps;
-use prism::ids::MaterialId;
+use prism_legacy::ids::MaterialId;
 use std::fmt::Write;
 use utils::protocol::StateSnapshot;
 
@@ -23,7 +23,7 @@ pub fn init_hud(
         ),
         nodus::VisualProps {
             kind: nodus::VisualKind::None, // Node qui contient tout le hud
-            color: prism::Color::TRANSPARENT,
+            color: crate::rendering::Color::TRANSPARENT,
             visible: false, // caché par défaut
             opacity: 1.0,
         },
@@ -55,7 +55,7 @@ fn init_wave_label(
         size: nodus::UiVec2::screen(0.2, 0.05),
         content: "Vague 0 | 0 ennemis",
         font_size: 24.0,
-        color: prism::Color::WHITE,
+        color: crate::rendering::Color::WHITE,
     };
     register.insert(crate::key::hud::WAVE_LABEL, wave_label_id);
 }
@@ -72,8 +72,8 @@ fn init_health_bar(
         anchor: nodus::Anchor::TopLeft,
         offset: nodus::UiVec2::screen(HUD_PADDING_X, HUD_BAR_Y),
         size: nodus::UiVec2::screen(HUD_BAR_W, HUD_BAR_H),
-        bg: prism::Color::DARKGRAY,
-        fill_color: prism::Color::WHITE,
+        bg: crate::rendering::Color::DARKGRAY,
+        fill_color: crate::rendering::Color::WHITE,
         material: hp_material_id,
         // ratio initial à 1.0 (barre pleine) encodé en f32 little-endian
         uniform_data: bytemuck::cast_slice(&[1.0f32]).to_vec(),
@@ -89,7 +89,7 @@ fn init_health_bar(
         size: nodus::UiVec2::new(nodus::UiUnit::ParentPercent(1.0), nodus::UiUnit::ParentPercent(1.0)),
         content: "100/100",
         font_size: 16.0,
-        color: prism::Color::WHITE,
+        color: crate::rendering::Color::WHITE,
     };
     register.insert(crate::key::hud::HP_TEXT, hp_text_id);
 }
@@ -107,7 +107,7 @@ fn init_gold_label(
         size: nodus::UiVec2::screen(0.1, 0.03),
         content: "Or : 0",
         font_size: 24.0,
-        color: prism::Color::GOLD,
+        color: crate::rendering::Color::GOLD,
     };
     register.insert(crate::key::hud::GOLD_LABEL, gold_label_id);
 }
@@ -129,7 +129,7 @@ fn init_respawn_menu(
                 content: "".to_string(),
                 font_size: 40.0,
             },
-            color: prism::Color::RED,
+            color: crate::rendering::Color::RED,
             visible: false,
             opacity: 1.0,
         },
@@ -160,7 +160,7 @@ fn create_respawn_button(
         ),
         VisualProps {
             kind: nodus::VisualKind::Rect,
-            color: prism::Color::BLACK,
+            color: crate::rendering::Color::BLACK,
             opacity: 1.0,
             visible: false,
         },
@@ -170,9 +170,9 @@ fn create_respawn_button(
         nodus::Interact {
             state: nodus::InteractState::Normal,
             style: nodus::ButtonStyle {
-                normal: prism::Color::BLACK,
-                hover: prism::Color::GRAY,
-                pressed: prism::Color::LIGHTGRAY,
+                normal: crate::rendering::Color::BLACK,
+                hover: crate::rendering::Color::GRAY,
+                pressed: crate::rendering::Color::LIGHTGRAY,
             },
         },
     );
@@ -190,7 +190,7 @@ fn create_respawn_button(
         ),
         content: text.to_string(),
         font_size: 15.0,
-        color: prism::Color::WHITE,
+        color: crate::rendering::Color::WHITE,
     );
     (button, label)
 }
@@ -214,7 +214,7 @@ fn init_shared_lives_label(
                 content: "Shared_live".to_string(),
                 font_size: 20.0,
             },
-            color: prism::Color::WHITE,
+            color: crate::rendering::Color::WHITE,
             visible: true,
             opacity: 1.0,
         };
@@ -254,7 +254,7 @@ fn init_spell_slots(
             ),
             nodus::VisualProps {
                 kind: nodus::VisualKind::Rect,
-                color: prism::Color::GOLD,
+                color: crate::rendering::Color::GOLD,
                 visible: true,
                 opacity: 1.0,
             },
@@ -271,7 +271,7 @@ fn init_spell_slots(
             ),
             nodus::VisualProps {
                 kind: nodus::VisualKind::Rect,
-                color: prism::Color::BLACK,
+                color: crate::rendering::Color::BLACK,
                 visible: true,
                 opacity: 1.0,
             },
@@ -288,7 +288,7 @@ fn init_spell_slots(
             ),
             nodus::VisualProps {
                 kind: nodus::VisualKind::Rect,
-                color: prism::Color::GRAY,
+                color: crate::rendering::Color::GRAY,
                 visible: false,
                 opacity: 0.5,
             },
@@ -335,7 +335,7 @@ pub fn init_shop(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regis
         ),
         nodus::VisualProps {
             kind: nodus::VisualKind::None,
-            color: prism::Color::new(0, 0, 0, 150),
+            color: crate::rendering::Color::new(0, 0, 0, 150),
             visible: false,
             opacity: 1.0,
         },
@@ -350,7 +350,7 @@ pub fn init_shop(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regis
         size: nodus::UiVec2::screen(0.3, SHOP_TITLE_FONT_SIZE),
         content: SHOP_TITLE_TEXT,
         font_size: SHOP_TITLE_FONT_SIZE * REFERENCE_H,
-        color: prism::Color::GOLD,
+        color: crate::rendering::Color::GOLD,
     };
     register.insert(crate::key::shop::TITLE, title_id);
 
@@ -372,7 +372,7 @@ pub fn init_shop(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regis
         size: nodus::UiVec2::screen(0.2, CLOSE_SHOP_FONT),
         content: "G — Fermer",
         font_size: CLOSE_SHOP_FONT,
-        color: prism::Color::GRAY,
+        color: crate::rendering::Color::GRAY,
     };
     register.insert(crate::key::shop::CLOSE, close_id);
 }
@@ -394,7 +394,7 @@ fn create_shop_card(
         ),
         nodus::VisualProps {
             kind: nodus::VisualKind::Rect,
-            color: prism::Color::DARKGRAY,
+            color: crate::rendering::Color::DARKGRAY,
             visible: true,
             opacity: 1.0,
         },
@@ -413,7 +413,7 @@ fn create_shop_card(
         ),
         nodus::VisualProps {
             kind: nodus::VisualKind::Rect,
-            color: prism::Color::BLACK,
+            color: crate::rendering::Color::BLACK,
             visible: true,
             opacity: 1.0,
         },
@@ -428,7 +428,7 @@ fn create_shop_card(
         ),
         nodus::VisualProps {
             kind: nodus::VisualKind::Rect,
-            color: prism::Color::DARKGRAY,
+            color: crate::rendering::Color::DARKGRAY,
             visible: true,
             opacity: 1.0,
         },
@@ -442,7 +442,7 @@ fn create_shop_card(
         size: nodus::UiVec2::screen(SHOP_ART_W, SHOP_NAME_FONT_SIZE),
         content: "",
         font_size: SHOP_NAME_FONT_SIZE * REFERENCE_H,
-        color: prism::Color::WHITE,
+        color: crate::rendering::Color::WHITE,
     };
 
     let desc_id = nodus::text_label! {
@@ -456,7 +456,7 @@ fn create_shop_card(
         size: nodus::UiVec2::screen(SHOP_ART_W, 0.05),
         content: "",
         font_size: 0.018 * REFERENCE_H,
-        color: prism::Color::LIGHTGRAY,
+        color: crate::rendering::Color::LIGHTGRAY,
     };
 
     let price_id = nodus::text_label! {
@@ -467,7 +467,7 @@ fn create_shop_card(
         size: nodus::UiVec2::screen(SHOP_ART_W, SHOP_PRICE_FONT_SIZE),
         content: "",
         font_size: SHOP_PRICE_FONT_SIZE * REFERENCE_H,
-        color: prism::Color::GOLD,
+        color: crate::rendering::Color::GOLD,
     };
 
     let sold_overlay_id = ui_ctx.add_node(
@@ -482,7 +482,7 @@ fn create_shop_card(
         ),
         nodus::VisualProps {
             kind: nodus::VisualKind::Rect,
-            color: prism::Color::new(20, 220, 60, 255),
+            color: crate::rendering::Color::new(20, 220, 60, 255),
             visible: false,
             opacity: 0.0,
         },
@@ -496,7 +496,7 @@ fn create_shop_card(
         size: nodus::UiVec2::screen(0.1, 0.03),
         content: "",
         font_size: 35.0,
-        color: prism::Color::WHITE,
+        color: crate::rendering::Color::WHITE,
     };
 
     let error_overlay_id = ui_ctx.add_node(
@@ -511,7 +511,7 @@ fn create_shop_card(
         ),
         nodus::VisualProps {
             kind: nodus::VisualKind::Rect,
-            color: prism::Color::new(220, 20, 60, 255),
+            color: crate::rendering::Color::new(220, 20, 60, 255),
             visible: false,
             opacity: 0.0,
         },
@@ -555,7 +555,7 @@ pub fn update(
 
         let hp_material_id = match gui
             .ids
-            .get::<prism::ids::MaterialId>(crate::key::material::HP_MATERIAL)
+            .get::<prism_legacy::ids::MaterialId>(crate::key::material::HP_MATERIAL)
         {
             Some(id) => id,
             None => {
@@ -765,12 +765,13 @@ fn update_respawn_menu(gui: &mut GuiContext, resources: &Resources) {
 }
 
 pub fn prepare_hud(
-    frame: &mut prism::Frame,
+    frame: &mut crate::rendering::SceneFrame,
     ui_ctx: &mut nodus::UiContext,
     buf: &mut nodus::DrawCommandBuffer,
+    assets: &crate::rendering::RenderAssets,
 ) {
     ui_ctx.collect(buf);
     buf.sort();
-    buf.collect_into(frame);
+    crate::rendering::nodus_bridge::collect(buf, assets, frame);
     buf.clear();
 }

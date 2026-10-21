@@ -25,6 +25,8 @@ pub(crate) struct ParticleInit {
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub(crate) struct ParticleEvolution {
+    #[serde(default)]
+    pub growth: f32,
     #[serde(rename = "acceleration")]
     pub accel: [f32; 2],
     #[serde(rename = "linear_drag")]
@@ -108,6 +110,10 @@ pub(crate) struct ParticleRepresentation {
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub(crate) struct ParticleAppearance {
+    #[serde(default)]
+    pub fade_lifetime: bool,
+    #[serde(default = "super::one")]
+    pub scale: f32,
     pub representation: String,
     pub blend: VfxBlend,
     pub size: [f32; 2],
@@ -160,9 +166,18 @@ pub(crate) struct ParticleVisualDescriptor {
 // ====================================================================================================
 
 #[derive(Debug, Deserialize, PartialEq)]
-pub(crate) struct ParticleVelocity {
-    #[serde(deserialize_with = "super::deserialize_range")]
-    pub angle_degrees: [f32; 2],
-    #[serde(deserialize_with = "super::deserialize_range")]
-    pub speed: [f32; 2],
+#[serde(untagged)]
+pub(crate) enum ParticleVelocity {
+    Polar {
+        #[serde(deserialize_with = "super::deserialize_range")]
+        angle_degrees: [f32; 2],
+        #[serde(deserialize_with = "super::deserialize_range")]
+        speed: [f32; 2],
+    },
+    Cartesian {
+        #[serde(deserialize_with = "super::deserialize_range")]
+        x: [f32; 2],
+        #[serde(deserialize_with = "super::deserialize_range")]
+        y: [f32; 2],
+    },
 }

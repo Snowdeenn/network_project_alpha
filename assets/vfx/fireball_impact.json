@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "name": "fireball_impact",
+  "family": "composite",
+  "components": [
+    {
+      "effect": "fireball_impact_particles",
+      "delay_seconds": 0
+    }
+  ]
+}

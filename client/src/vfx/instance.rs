@@ -1,5 +1,5 @@
 use crate::vfx::parser::r#struct::{
-    ParticleLogicalDescriptor, ParticleVisualDescriptor, VfxEmission, VfxEmissionMode, VfxShape,
+    ParticleLogicalDescriptor, ParticleVisualDescriptor, VfxEmission, VfxEmissionMode,
     VfxSpawnLocation,
 };
 
@@ -13,7 +13,7 @@ use super::dag::VfxGraph;
 use super::parser::r#struct::VfxEffectDescriptor;
 use super::particle::*;
 use super::simulation::{self, VfxSimulation};
-use prism::ids::MaterialId;
+use prism::ids::MaterialHandle as MaterialId;
 use utils::{Arena, Id};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,6 +26,13 @@ pub enum VfxInstanceState {
 
 #[derive(Clone, Copy)]
 pub struct VfxSpawnParams {
+    pub tint: [f32; 4],
+    /// Optional surface size; ring sizes are [inner radius, outer radius].
+    pub size: Option<[f32; 2]>,
+    /// Optional mesh, post-process or feedback lifetime, independent of emission duration.
+    pub duration: Option<f32>,
+    pub velocity: Vec2,
+    pub entity: Option<u64>,
     pub pos: Vec2,
     pub scale: f32,
     pub direction: Vec2,
@@ -44,6 +51,7 @@ pub struct VfxInstance {
     pub(super) simulation: Option<VfxSimulation>,
     pub(super) emission: EmissionState,
     pub(super) random: StdRng,
+    pub(super) trail_samples: Vec<Vec2>,
 }
 
 impl VfxInstance {
@@ -107,6 +115,7 @@ pub type VfxInstanceId = Id<VfxInstance>;
 pub struct VfxInstanceManager {
     instances: Arena<VfxInstance>,
     particles: ParticlePool,
+    camera_trauma: f32,
 }
 
 impl VfxInstanceManager {
@@ -122,6 +131,7 @@ impl VfxInstanceManager {
         VfxInstanceManager {
             instances: Arena::new(),
             particles: ParticlePool::new(),
+            camera_trauma: 0.0,
         }
     }
 
@@ -138,6 +148,7 @@ impl VfxInstanceManager {
             state: VfxInstanceState::Waiting,
             materials,
             simulation: None,
+            trail_samples: vec![params.pos],
             emission: EmissionState::default(),
             random: StdRng::seed_from_u64(rand::random()),
         })
@@ -181,6 +192,7 @@ impl VfxInstanceManager {
             if instance.simulation.is_none() {
                 instance.simulation = Some(VfxSimulation::new(
                     &description.family,
+                    &instance.params,
                     &mut instance.random,
                 ));
             }
@@ -204,12 +216,19 @@ impl VfxInstanceManager {
                 VfxFamily::PostProcess { visual, .. } => {
                     simulation::update_post_process(instance, visual, dt)
                 }
+                VfxFamily::Feedback { feedback } => {
+                    self.camera_trauma += simulation::update_feedback(instance, feedback);
+                }
             }
         }
     }
 
     pub fn run(&mut self, graph: &mut VfxGraph, dt: f32) {
         graph.update(dt, &mut self.instances);
+    }
+
+    pub(super) fn take_camera_trauma(&mut self) -> f32 {
+        std::mem::take(&mut self.camera_trauma)
     }
 }
 
@@ -232,21 +251,18 @@ fn update_particles(
         .advance(&logical.emission, dt, instance.params.lifetime);
     let rng = &mut instance.random;
     for _ in 0..count {
-        let offset = match &logical.init.shape {
-            VfxShape::Disk {
-                radius,
-                spawn_location,
-            } => sample_disk(rng, *radius, spawn_location),
-            VfxShape::Point { coord } => Vec2::new(coord[0], coord[1]),
-            // La façade résout l'attachement dans params.pos avant simulation.
-            VfxShape::Attachement { .. } => Vec2::zero(),
-        };
+        let offset = simulation::sample_offset(&logical.init.shape, rng);
         let spawn_pos = instance.params.pos + offset * instance.params.scale;
-        let velocity = sample_velocity(
-            rng,
-            logical.init.velocity.angle_degrees,
-            logical.init.velocity.speed,
-        );
+        use super::parser::r#struct::particle::ParticleVelocity;
+        let velocity = match logical.init.velocity {
+            ParticleVelocity::Polar {
+                angle_degrees,
+                speed,
+            } => sample_velocity(rng, angle_degrees, speed),
+            ParticleVelocity::Cartesian { x, y } => {
+                Vec2::new(rng.random_range(x[0]..=x[1]), rng.random_range(y[0]..=y[1]))
+            }
+        } + instance.params.velocity;
         let lifetime =
             rng.random_range(logical.init.life_time_seconds[0]..=logical.init.life_time_seconds[1]);
         particles.spawn(
@@ -259,9 +275,9 @@ fn update_particles(
                 lifetime,
                 lt_max: lifetime,
                 disappearance_seconds: visual.visual_disappearance.duration_seconds,
-                scale: instance.params.scale,
-                growth: 0.0,
-                color: prism::Color::WHITE,
+                scale: instance.params.scale * visual.appearance.scale,
+                growth: logical.evolution.growth * instance.params.scale,
+                color: crate::rendering::Color::WHITE,
             },
         );
     }
@@ -302,7 +318,7 @@ mod tests {
         count: u32,
     ) -> (AssetRegister, VfxInstanceManager, VfxInstanceId) {
         let mut description = crate::vfx::parser::parse_effect(include_str!(
-            "../../../assets/config/vfx/exemples_vfx/particle.json"
+            "../../../assets/vfx/exemples_vfx/particle.json"
         ))
         .unwrap();
         if let VfxFamily::Particle { logical, visual } = &mut description.family {
@@ -324,6 +340,7 @@ mod tests {
                 scale: 1.0,
                 direction: Vec2::new(1.0, 0.0),
                 lifetime: 1.0,
+                ..Default::default()
             },
             Vec::new(),
         );
@@ -372,6 +389,7 @@ mod tests {
                 scale: 1.0,
                 direction: Vec2::new(1.0, 0.0),
                 lifetime: 1.0,
+                ..Default::default()
             },
             Vec::new(),
         );
@@ -404,6 +422,7 @@ mod tests {
                 scale: 1.0,
                 direction: Vec2::new(1.0, 0.0),
                 lifetime: 1.0,
+                ..Default::default()
             },
             Vec::new(),
         );
@@ -486,7 +505,7 @@ mod tests {
     #[test]
     fn waiting_and_finishing_instances_do_not_emit() {
         let description = crate::vfx::parser::parse_effect(include_str!(
-            "../../../assets/config/vfx/exemples_vfx/particle.json"
+            "../../../assets/vfx/exemples_vfx/particle.json"
         ))
         .unwrap();
         let mut descriptions = AssetRegister::new();
@@ -499,6 +518,7 @@ mod tests {
                 scale: 1.0,
                 direction: Vec2::new(1.0, 0.0),
                 lifetime: 1.0,
+                ..Default::default()
             },
             Vec::new(),
         );

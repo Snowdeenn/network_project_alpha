@@ -2,12 +2,11 @@ use super::*;
 use crate::vfx::instance::{VfxInstanceId, VfxInstanceManager};
 use crate::vfx::storage::AssetRegister;
 
-const MESH: &str = include_str!("../../../assets/config/vfx/exemples_vfx/mesh.json");
-const DECAL: &str = include_str!("../../../assets/config/vfx/exemples_vfx/decal.json");
-const LIGHT: &str = include_str!("../../../assets/config/vfx/exemples_vfx/light.json");
-const TRAIL: &str = include_str!("../../../assets/config/vfx/exemples_vfx/trail.json");
-const POST_PROCESS: &str =
-    include_str!("../../../assets/config/vfx/exemples_vfx/post-process.json");
+const MESH: &str = include_str!("../../../assets/vfx/exemples_vfx/mesh.json");
+const DECAL: &str = include_str!("../../../assets/vfx/exemples_vfx/decal.json");
+const LIGHT: &str = include_str!("../../../assets/vfx/exemples_vfx/light.json");
+const TRAIL: &str = include_str!("../../../assets/vfx/exemples_vfx/trail.json");
+const POST_PROCESS: &str = include_str!("../../../assets/vfx/exemples_vfx/post-process.json");
 
 fn effect(source: &str) -> (AssetRegister, VfxInstanceManager, VfxInstanceId) {
     let description = crate::vfx::parser::parse_effect(source).unwrap();
@@ -25,6 +24,7 @@ fn params() -> VfxSpawnParams {
         scale: 1.0,
         direction: Vec2::new(1.0, 0.0),
         lifetime: 0.5,
+        ..Default::default()
     }
 }
 

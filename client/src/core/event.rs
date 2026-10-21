@@ -1,5 +1,3 @@
-use crate::graphic_data::post_process_effect_type::BlindEffect;
-
 pub struct SpellUseEvent(pub Option<utils::protocol::SpellSlot>);
 
 pub fn handle_event(
@@ -139,10 +137,13 @@ pub fn handle_event(
             app_resource.write_resource::<SpellUseEvent>().0 = Some(slot);
         }
         utils::protocol::GameEventKind::PlayerBlind { duration } => {
-            let mut effect = app_resource.write_resource::<BlindEffect>();
-            effect.timer = duration;
-            effect.total_duration = duration;
-        },
+            if let Err(error) = app_resource
+                .read_resource::<crate::vfx::VfxApi>()
+                .blind(duration)
+            {
+                tracing::warn!(%error, "Blind VFX refusé");
+            }
+        }
     }
 }
 
@@ -182,7 +183,7 @@ pub fn handle_shop_ui_event(
                 };
                 // TODO: afficher le bg en fonction de l'élément du sort
                 if item_opt.is_some() {
-                    let border_color = prism::Color::GREEN;
+                    let border_color = crate::rendering::Color::GREEN;
                     ui_ctx.send_event(nodus::UIEvent::SetColor {
                         target: card.root,
                         color: border_color,
@@ -248,7 +249,7 @@ pub fn handle_shop_ui_event(
                 on_complete: vec![
                     nodus::UIEvent::SetColor {
                         target: card.sold_overlay,
-                        color: prism::Color::new(40, 40, 40, 255),
+                        color: crate::rendering::Color::new(40, 40, 40, 255),
                     },
                     nodus::UIEvent::SetOpacity {
                         target: card.sold_overlay,

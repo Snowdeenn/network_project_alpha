@@ -1,0 +1,109 @@
+{
+  "version": 1,
+  "name": "gameplay/movement_dust",
+  "family": "particle",
+  "logical": {
+    "emission": {
+      "mode": "burst",
+      "count": 1,
+      "delay_seconds": 0.0
+    },
+    "initialization": {
+      "space": "world",
+      "position": {
+        "min": [
+          -20.0,
+          20.0
+        ],
+        "shape": "box",
+        "max": [
+          20.0,
+          20.0
+        ]
+      },
+      "velocity": {
+        "y": {
+          "min": -50.0,
+          "max": -20.0
+        },
+        "x": {
+          "min": -20.0,
+          "max": 20.0
+        }
+      },
+      "lifetime_seconds": {
+        "min": 0.18,
+        "max": 0.32
+      }
+    },
+    "evolution": {
+      "growth": 3.5,
+      "acceleration": [
+        0.0,
+        0.0
+      ],
+      "linear_drag": 4.5
+    },
+    "reactions": [],
+    "logical_death": {
+      "when": [
+        "lifetime_expired",
+        "death_requested"
+      ],
+      "on_death": {
+        "stop_simulation": true,
+        "disable_collisions": true
+      }
+    }
+  },
+  "visual": {
+    "representations": [
+      {
+        "atlas": null,
+        "texture": "",
+        "name": "dust",
+        "type": "sprite"
+      }
+    ],
+    "appearance": {
+      "initial_state": "active",
+      "orientation": "fixed",
+      "blend": "alpha",
+      "fade_lifetime": true,
+      "representation": "dust",
+      "color": [
+        0.827451,
+        0.827451,
+        0.827451,
+        1.0
+      ],
+      "size": [
+        16.0,
+        16.0
+      ],
+      "scale": 0.1
+    },
+    "animations": {},
+    "transitions": [],
+    "states": {
+      "active": {
+        "animation": null
+      }
+    },
+    "visual_disappearance": {
+      "trigger": "logical_death",
+      "duration_seconds": 0.0,
+      "animation": "freeze_current_frame",
+      "orientation": "freeze",
+      "alpha": {
+        "from": "current",
+        "to": 0.0
+      },
+      "size_multiplier": {
+        "from": 1.0,
+        "to": 0.0
+      },
+      "on_complete": "release_particle"
+    }
+  }
+}

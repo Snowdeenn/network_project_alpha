@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "name": "fireball_flames",
+  "family": "particle",
+  "logical": {
+    "emission": {
+      "mode": "continuous",
+      "count": 24,
+      "delay_seconds": 0
+    },
+    "initialization": {
+      "space": "world",
+      "position": {
+        "shape": "disk",
+        "radius": 6,
+        "spawn_location": "interior"
+      },
+      "velocity": {
+        "angle_degrees": {
+          "min": 0,
+          "max": 360
+        },
+        "speed": {
+          "min": 4,
+          "max": 24
+        }
+      },
+      "lifetime_seconds": {
+        "min": 0.16,
+        "max": 0.28
+      }
+    },
+    "evolution": {
+      "acceleration": [
+        0,
+        -12
+      ],
+      "linear_drag": 2
+    },
+    "reactions": [],
+    "logical_death": {
+      "when": [
+        "lifetime_expired",
+        "death_requested"
+      ],
+      "on_death": {
+        "stop_simulation": true,
+        "disable_collisions": true
+      }
+    }
+  },
+  "visual": {
+    "representations": [
+      {
+        "name": "flame",
+        "type": "sprite",
+        "texture": "textures/vfx/fireball_flame.png"
+      }
+    ],
+    "appearance": {
+      "representation": "flame",
+      "blend": "additive",
+      "size": [
+        10,
+        10
+      ],
+      "color": [
+        1,
+        0.5,
+        0.08,
+        0.9
+      ],
+      "orientation": "velocity",
+      "initial_state": "hot"
+    },
+    "animations": {},
+    "states": {
+      "hot": {},
+      "cooling": {}
+    },
+    "transitions": [
+      {
+        "from": "hot",
+        "to": "cooling",
+        "when": {
+          "type": "normalized_age",
+          "at_least": 0.25
+        },
+        "duration_seconds": 0.1,
+        "target": {
+          "size": [
+            4,
+            4
+          ],
+          "color": [
+            1,
+            0.12,
+            0.01,
+            0.5
+          ]
+        }
+      }
+    ],
+    "visual_disappearance": {
+      "trigger": "logical_death",
+      "duration_seconds": 0.12,
+      "animation": "freeze_current_frame",
+      "orientation": "freeze",
+      "alpha": {
+        "from": "current",
+        "to": 0
+      },
+      "size_multiplier": {
+        "from": 1,
+        "to": 0
+      },
+      "on_complete": "release_particle"
+    }
+  }
+}

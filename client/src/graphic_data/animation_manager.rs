@@ -140,7 +140,7 @@ impl AnimationManager {
     pub fn load_from_config(
         &mut self,
         ctx: &prism::GpuContext,
-        gpu_resources: &mut prism::GpuResources,
+        gpu_resources: &mut crate::rendering::RenderAssets,
         config_path: impl AsRef<Path>,
     ) -> Result<(), AnimationError> {
         let path = config_path.as_ref();

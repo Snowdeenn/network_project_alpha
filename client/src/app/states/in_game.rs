@@ -10,11 +10,8 @@ use crate::core::client::GameNetClient;
 use crate::core::config;
 use crate::core::event::handle_shop_ui_event;
 use crate::graphic_data::animation::AnimEntityManager;
-use crate::graphic_data::post_process_effect_type;
 use crate::rendering::ScreenScale;
 use crate::rendering::camera::{self, Camera};
-use crate::rendering::vfx::particle::ParticlePool;
-use crate::rendering::vfx::vfx_manager::VfxManager;
 use crate::ui::hud;
 use crate::vfx::{VfxApi, VfxSystem};
 
@@ -77,7 +74,7 @@ impl HudBuffers {
 
 pub struct GuiContext<'a> {
     pub ui_ctx: &'a mut nodus::UiContext,
-    pub gpu_resources: &'a mut prism::GpuResources,
+    pub gpu_resources: &'a mut crate::rendering::RenderAssets,
     pub ids: &'a utils::ids::Register,
 }
 
@@ -143,27 +140,11 @@ impl InGameScene {
                 });
                 Some(Vec2::new(pos[0], pos[1]))
             });
-            vfx.apply_existing(
-                &mut resources.write_resource::<ParticlePool>(),
-                &mut resources.write_resource::<VfxManager>(),
-                cam,
-                &mut resources.write_resource::<post_process_effect_type::HitFlashEffect>(),
-            );
-        }
-        {
-            resources.write_resource::<ParticlePool>().update(dt);
-            resources.write_resource::<VfxManager>().update(dt);
-        }
-
-        // Maj Post process effect
-        // Hit Flash
-        {
-            let mut hit_flash =
-                resources.write_resource::<post_process_effect_type::HitFlashEffect>();
-            post_process_effect_type::update_hit_flash(&mut hit_flash, dt);
+            cam.shake.add_trauma(vfx.take_camera_trauma());
         }
 
         // Caméra & UI
+        cam.shake.update(dt);
         self.update_camera(cam);
 
         // Envoi de la demande de respawn au server
@@ -172,15 +153,12 @@ impl InGameScene {
 
     pub fn render(
         &mut self,
-        frame: &mut prism::Frame,
+        frame: &mut crate::rendering::SceneFrame,
         resources: &mut Resources,
         dt: f32,
         camera: &Camera,
         screen_size: winit::dpi::PhysicalSize<u32>,
     ) {
-        resources
-            .write_resource::<post_process_effect_type::BlindEffect>()
-            .update(dt);
         let t = self.snapshots.interpolation_factor();
 
         let phase = resources.read_resource::<crate::core::game_phase::GamePhase>();
@@ -199,14 +177,12 @@ impl InGameScene {
                         camera,
                         screen_size,
                     );
-                    let vfx = resources.read_resource::<VfxManager>();
-                    vfx.push_draw_commands(frame);
-                    let snapshot = resources.read_resource::<VfxSystem>().extract();
-                    crate::vfx::render_bridge::append_to_frame(&snapshot, frame);
                 }
             }
             _ => (), // On va gérer le game Over autre part
         }
+        let snapshot = resources.read_resource::<VfxSystem>().extract();
+        crate::vfx::render_bridge::append_to_frame(&snapshot, frame);
         crate::rendering::render_hud(frame, resources);
     }
 

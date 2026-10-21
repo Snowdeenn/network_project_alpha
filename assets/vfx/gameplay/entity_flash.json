@@ -1,0 +1,14 @@
+{
+  "family": "feedback",
+  "feedback": {
+    "type": "entity_tint",
+    "color": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  "name": "gameplay/entity_flash",
+  "version": 1
+}

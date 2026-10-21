@@ -15,7 +15,7 @@ impl AssetManager {
     pub fn load_animations(
         &mut self,
         ctx: &prism::GpuContext,
-        gpu_resources: &mut prism::GpuResources,
+        gpu_resources: &mut crate::rendering::RenderAssets,
         config_path: &str,
     ) -> Result<(), AnimationError> {
         self.anims

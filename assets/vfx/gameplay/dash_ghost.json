@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "name": "gameplay/dash_ghost",
+  "family": "mesh",
+  "logical": {
+    "emission": {
+      "mode": "burst",
+      "count": 1,
+      "delay_seconds": 0.0
+    },
+    "initialization": {
+      "space": "world",
+      "position": {
+        "value": [
+          20.0,
+          20.0
+        ],
+        "shape": "point"
+      },
+      "lifetime_seconds": {
+        "min": 0.2,
+        "max": 0.2
+      }
+    },
+    "logical_death": {
+      "when": [
+        "lifetime_expired",
+        "death_requested"
+      ],
+      "on_death": {
+        "stop_simulation": true
+      }
+    }
+  },
+  "visual": {
+    "representations": [
+      {
+        "type": "quad",
+        "name": "ghost"
+      }
+    ],
+    "appearance": {
+      "initial_state": "active",
+      "orientation": "fixed",
+      "blend": "alpha",
+      "fade_lifetime": true,
+      "representation": "ghost",
+      "color": [
+        1.0,
+        1.0,
+        1.0,
+        0.5
+      ],
+      "rotation_degrees": 0.0,
+      "size": [
+        40.0,
+        40.0
+      ]
+    },
+    "states": {
+      "active": {}
+    },
+    "transitions": [],
+    "visual_disappearance": {
+      "trigger": "logical_death",
+      "duration_seconds": 0.0,
+      "orientation": "freeze",
+      "alpha": {
+        "from": "current",
+        "to": 0.0
+      },
+      "size_multiplier": {
+        "from": 1.0,
+        "to": 1.1
+      },
+      "on_complete": "release_mesh"
+    }
+  }
+}

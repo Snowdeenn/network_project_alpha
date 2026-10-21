@@ -14,7 +14,7 @@ pub struct Particle {
     pub disappearance_seconds: f32,
     pub scale: f32,
     pub growth: f32,
-    pub color: prism::Color,
+    pub color: crate::rendering::Color,
 }
 
 #[cfg(test)]
@@ -72,7 +72,7 @@ impl ParticlePool {
             disappearance_seconds: 0.0,
             scale: 0.0,
             growth: 0.0,
-            color: prism::Color::WHITE,
+            color: crate::rendering::Color::WHITE,
         };
 
         Self {

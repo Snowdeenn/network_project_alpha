@@ -41,7 +41,15 @@ pub(crate) struct MeshLogicalDescriptor {
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub(crate) enum MeshRepresentationType {
-    Mesh { mesh: String, material: String },
+    Mesh {
+        mesh: String,
+        material: String,
+    },
+    Quad,
+    Ring {
+        half_arc_degrees: f32,
+        resolution: u32,
+    },
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -53,6 +61,8 @@ pub(crate) struct MeshRepresentation {
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub(crate) struct MeshAppearance {
+    #[serde(default)]
+    pub fade_lifetime: bool,
     pub representation: String,
     pub blend: VfxBlend,
     pub size: [f32; 2],

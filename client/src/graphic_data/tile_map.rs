@@ -101,7 +101,7 @@ pub struct TileMap {
 
 impl TileMap {
     pub fn new(
-        gpu_resource: &mut prism::GpuResources,
+        gpu_resource: &mut crate::rendering::RenderAssets,
         ctx: &prism::GpuContext,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let atlas_info_str = include_str!("../../../assets/map_texture/map_sprite_sheet.json");
@@ -118,14 +118,15 @@ impl TileMap {
     pub fn draw(
         &self,
         app_resources: &Resources,
-        gpu_resources: &prism::GpuResources,
-        frame: &mut prism::Frame,
+        gpu_resources: &crate::rendering::RenderAssets,
+        frame: &mut crate::rendering::SceneFrame,
         screen_w: f32,
         screen_h: f32,
     ) {
         let grid = app_resources.read_resource::<utils::map::grid::Grid>();
-        let texture_atlas = gpu_resources.get_texture(self.texture_atlas).unwrap();
-        let (atlas_w, atlas_h) = texture_atlas.size;
+        let Ok((atlas_w, atlas_h)) = gpu_resources.texture_size(self.texture_atlas) else {
+            return;
+        };
         let tile = self.tile_size as f32;
 
         // Cellules visibles à l'écran
@@ -157,14 +158,15 @@ impl TileMap {
                 };
 
                 let bounds = self.atlas_info.get(tile_kind);
-                frame.push_world(prism::DrawCommand::Texture {
+                frame.push_world(crate::rendering::Primitive::Texture {
+                    flash: false,
                     id: self.texture_atlas,
                     pos: [world_x, world_y],
                     size: [tile, tile],
                     rotation: 0.0,
                     uv: Some(bounds.to_uv(atlas_w as f32, atlas_h as f32)),
                     tint: [1.0, 1.0, 1.0, 1.0],
-                    blend: prism::BlendMode::Alpha,
+                    blend: crate::rendering::BlendMode::Alpha,
                     layer: 0,
                 });
             }

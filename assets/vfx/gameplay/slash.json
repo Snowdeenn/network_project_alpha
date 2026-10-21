@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "name": "gameplay/slash",
+  "family": "mesh",
+  "logical": {
+    "emission": {
+      "mode": "burst",
+      "count": 1,
+      "delay_seconds": 0.0
+    },
+    "initialization": {
+      "space": "world",
+      "position": {
+        "value": [
+          0.0,
+          0.0
+        ],
+        "shape": "point"
+      },
+      "lifetime_seconds": {
+        "min": 0.15,
+        "max": 0.15
+      }
+    },
+    "logical_death": {
+      "when": [
+        "lifetime_expired",
+        "death_requested"
+      ],
+      "on_death": {
+        "stop_simulation": true
+      }
+    }
+  },
+  "visual": {
+    "representations": [
+      {
+        "resolution": 16,
+        "name": "slash",
+        "type": "ring",
+        "half_arc_degrees": 60.0
+      }
+    ],
+    "appearance": {
+      "initial_state": "active",
+      "orientation": "velocity",
+      "blend": "alpha",
+      "fade_lifetime": true,
+      "representation": "slash",
+      "color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "rotation_degrees": 0.0,
+      "size": [
+        10.0,
+        20.0
+      ]
+    },
+    "states": {
+      "active": {}
+    },
+    "transitions": [],
+    "visual_disappearance": {
+      "trigger": "logical_death",
+      "duration_seconds": 0.0,
+      "orientation": "freeze",
+      "alpha": {
+        "from": "current",
+        "to": 0.0
+      },
+      "size_multiplier": {
+        "from": 1.0,
+        "to": 1.1
+      },
+      "on_complete": "release_mesh"
+    }
+  }
+}

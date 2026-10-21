@@ -19,7 +19,10 @@ struct EffectPreviewSettings {
 
 impl Default for EffectPreviewSettings {
     fn default() -> Self {
-        Self { duration: 3.0, shake_strength: 0.6 }
+        Self {
+            duration: 3.0,
+            shake_strength: 0.6,
+        }
     }
 }
 
@@ -61,19 +64,25 @@ impl DebugRenderer {
         match event {
             winit::event::WindowEvent::CursorMoved { position, .. } => {
                 let scale = self.ctx.pixels_per_point();
-                self.pointer_position = Some(egui::pos2(position.x as f32 / scale, position.y as f32 / scale));
+                self.pointer_position = Some(egui::pos2(
+                    position.x as f32 / scale,
+                    position.y as f32 / scale,
+                ));
             }
             winit::event::WindowEvent::CursorLeft { .. } => self.pointer_position = None,
             _ => (),
         }
         let response = self.state.on_window_event(window, event);
         match event {
-            winit::event::WindowEvent::MouseInput { .. } => self.pointer_position
+            winit::event::WindowEvent::MouseInput { .. } => self
+                .pointer_position
                 .is_some_and(|pos| pointer_over_debug_window(&self.ctx, pos)),
             winit::event::WindowEvent::KeyboardInput { event, .. } => {
                 // P always remains available to hide/cycle the debug panel.
-                event.physical_key != winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::KeyP)
-                    && response.consumed && self.ctx.egui_wants_keyboard_input()
+                event.physical_key
+                    != winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::KeyP)
+                    && response.consumed
+                    && self.ctx.egui_wants_keyboard_input()
             }
             _ => false,
         }
@@ -95,7 +104,7 @@ impl DebugRenderer {
     pub fn flush_into(
         &mut self,
         window: &winit::window::Window,
-        frame_context: &mut prism::FrameContext,
+        frame_context: &mut crate::rendering::OverlayContext,
         gpu_ctx: &prism::GpuContext,
     ) {
         let mut full_output = self.end_frame();
@@ -160,7 +169,8 @@ impl DebugRenderer {
 }
 
 fn pointer_over_debug_window(ctx: &egui::Context, position: egui::Pos2) -> bool {
-    ctx.layer_id_at(position).is_some_and(|layer| layer.order != egui::Order::Background)
+    ctx.layer_id_at(position)
+        .is_some_and(|layer| layer.order != egui::Order::Background)
 }
 
 #[cfg(test)]
@@ -173,12 +183,22 @@ mod input_routing_tests {
         // Two passes allow egui to settle the window's area and hit testing.
         for _ in 0..2 {
             ctx.begin_pass(egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0))),
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(800.0, 600.0),
+                )),
                 ..Default::default()
             });
-            let _ = ctx.layer_painter(egui::LayerId::new(egui::Order::Background, egui::Id::new("debug_overlay")));
-            egui::Window::new("Debug").fixed_pos(egui::pos2(20.0, 20.0))
-                .fixed_size(egui::vec2(200.0, 200.0)).show(&ctx, |ui| { ui.button("Blind").clicked(); });
+            let _ = ctx.layer_painter(egui::LayerId::new(
+                egui::Order::Background,
+                egui::Id::new("debug_overlay"),
+            ));
+            egui::Window::new("Debug")
+                .fixed_pos(egui::pos2(20.0, 20.0))
+                .fixed_size(egui::vec2(200.0, 200.0))
+                .show(&ctx, |ui| {
+                    ui.button("Blind").clicked();
+                });
             let mut output = ctx.end_pass();
             output.textures_delta.clear();
         }
@@ -487,49 +507,47 @@ pub fn run_debug(
     }
 }
 
-fn draw_effect_preview(w: &mut DebugUi, resources: &Resources, camera: &mut Camera) {
-    use crate::graphic_data::post_process_effect_type::{BlindEffect, HitFlashEffect};
-    use crate::rendering::vfx::vfx_manager::VfxManager;
+fn draw_effect_preview(w: &mut DebugUi, resources: &Resources, _camera: &mut Camera) {
+    use crate::vfx::{VfxApi, VfxSystem, gameplay};
+    let api = resources.read_resource::<VfxApi>();
+    let submit = |result: Result<(), crate::vfx::QueueFull>| {
+        if let Err(error) = result {
+            tracing::warn!(%error, "Aperçu VFX refusé");
+        }
+    };
 
     let settings_id = w.ui.make_persistent_id("effect_preview_settings");
     let mut settings = w.ui.ctx().data_mut(|data| {
-        data.get_temp::<EffectPreviewSettings>(settings_id).unwrap_or_default()
+        data.get_temp::<EffectPreviewSettings>(settings_id)
+            .unwrap_or_default()
     });
     w.ui.label("Aperçu local sur le joueur, sans dégâts.");
     w.slider("Durée (s)", &mut settings.duration, 0.1..=10.0);
     if w.button("Appliquer le blind").clicked() {
-        let mut blind = resources.write_resource::<BlindEffect>();
-        blind.timer = settings.duration;
-        blind.total_duration = settings.duration;
+        submit(api.blind(settings.duration));
     }
     {
-        let blind = resources.read_resource::<BlindEffect>();
-        w.metric("Blind restant", format!("{:.2} s", blind.timer));
-        w.metric("Intensité blind", format!("{:.0} %", 100.0 * blind.intensity()));
+        let state = resources.read_resource::<VfxSystem>().post_process("blind");
+        w.metric("Blind restant", format!("{:.2} s", state.remaining_seconds));
+        w.metric("Intensité blind", format!("{:.0} %", 100.0 * state.weight));
     }
     if w.button("Appliquer le flash de dégâts").clicked() {
-        let mut flash = resources.write_resource::<HitFlashEffect>();
-        flash.total_duration = settings.duration;
-        flash.timer = settings.duration;
-        flash.intensity = 1.0;
+        submit(api.screen_flash(settings.duration));
     }
     if w.button("Créer un fantôme de dash").clicked() {
         let position = *resources.read_resource::<utils::math::Vec2>();
-        resources.write_resource::<VfxManager>().spawn_dash_ghost(position, settings.duration, prism::Color::WHITE);
+        submit(api.dash_ghost(position, settings.duration, crate::rendering::Color::WHITE));
     }
     w.slider("Force de secousse", &mut settings.shake_strength, 0.0..=1.0);
     if w.button("Secouer la caméra").clicked() {
-        camera.shake.add_trauma(settings.shake_strength);
+        submit(api.camera_shake(settings.shake_strength));
     }
     if w.button("Arrêter les post-process").clicked() {
-        let mut blind = resources.write_resource::<BlindEffect>();
-        blind.timer = 0.0;
-        blind.amount = 0.0;
-        let mut flash = resources.write_resource::<HitFlashEffect>();
-        flash.timer = 0.0;
-        flash.intensity = 0.0;
+        submit(api.stop_named(gameplay::BLIND));
+        submit(api.stop_named(gameplay::PLAYER_HIT));
     }
-    w.ui.ctx().data_mut(|data| data.insert_temp(settings_id, settings));
+    w.ui.ctx()
+        .data_mut(|data| data.insert_temp(settings_id, settings));
 }
 
 fn draw_attack_boxes(

@@ -143,7 +143,6 @@ pub fn update(cam: &mut Camera, prev: Option<&StateSnapshot>, current: &StateSna
             utils::math::lerp(prev_pos[1], curr.position[1], t),
         );
         cam.set_pos(base_target.x, base_target.y);
-        cam.shake.update(t);
     }
 }
 

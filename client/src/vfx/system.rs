@@ -6,7 +6,6 @@ use rand::{RngExt, SeedableRng, rngs::StdRng};
 use utils::{Arena, Id};
 
 use super::api::VfxApi;
-use super::compatibility::ExistingEffect;
 use super::dag::{VfxGraph, VfxNodeEffect};
 use super::instance::{VfxInstanceId, VfxInstanceManager, VfxInstanceState, VfxSpawnParams};
 use super::parser::r#struct::{VfxEffectDescriptor, VfxEmissionMode, VfxFamily};
@@ -86,7 +85,6 @@ pub struct VfxSystem {
     time: f64,
     events: HashMap<VisualEventKey, (f64, SpawnResult)>,
     predictions: HashMap<PredictionKey, (f64, SpawnResult)>,
-    existing: Vec<ExistingEffect>,
     random: StdRng,
 }
 
@@ -116,7 +114,6 @@ impl VfxSystem {
             time: 0.0,
             events: HashMap::new(),
             predictions: HashMap::new(),
-            existing: Vec::new(),
             random: StdRng::seed_from_u64(seed),
         }
     }
@@ -184,11 +181,13 @@ impl VfxSystem {
                 options,
             } => {
                 let result = self.spawn(&effect, params, options);
-                self.api
-                    .requests
-                    .borrow_mut()
-                    .results
-                    .insert(ticket, Some(result));
+                if let Some(ticket) = ticket {
+                    self.api
+                        .requests
+                        .borrow_mut()
+                        .results
+                        .insert(ticket, Some(result));
+                }
             }
             VfxRequest::Update(ticket, handle, change) => {
                 let result = self.change(handle, change);
@@ -228,11 +227,16 @@ impl VfxSystem {
                 // Confirmer conserve simplement l'association existante. Un
                 // spawn autoritaire portant la même clé résout le même handle.
             }
-            VfxRequest::Existing(effect) => {
-                if self.existing.len() < self.budgets.queued_requests {
-                    self.existing.push(effect);
-                } else {
-                    self.diagnostics.rejected += 1;
+            VfxRequest::StopNamed(name) => {
+                let handles: Vec<_> = self
+                    .running
+                    .iter_with_ids()
+                    .filter_map(|(handle, effect)| {
+                        (effect.definition.name == name).then_some(handle)
+                    })
+                    .collect();
+                for handle in handles {
+                    self.stop(handle, StopMode::Immediate);
                 }
             }
         }
@@ -263,6 +267,14 @@ impl VfxSystem {
     }
 
     fn spawn(&mut self, name: &str, params: VfxSpawnParams, options: SpawnOptions) -> SpawnResult {
+        if !valid_params(&params)
+            || options
+                .attachment
+                .is_some_and(|attachment| !valid_position(attachment.offset))
+        {
+            self.diagnostics.rejected += 1;
+            return SpawnResult::Rejected(VfxRejection::InvalidParams);
+        }
         let previous = options
             .prediction
             .and_then(|key| self.predictions.get(&key))
@@ -277,6 +289,56 @@ impl VfxSystem {
                 self.remember_prediction(key, result);
             }
             return result;
+        }
+        if options.refresh {
+            let previous = self.running.iter_with_ids().find_map(|(handle, effect)| {
+                (effect.definition.name == name
+                    && effect.components.first().is_some_and(|&id| {
+                        self.instances.get(id).unwrap().params.entity == params.entity
+                    }))
+                .then_some(handle)
+            });
+            if let Some(handle) = previous {
+                let effect = self.running.get_mut(handle).unwrap();
+                let manual_trail = !effect.stopping
+                    && effect.components.iter().all(|&id| {
+                        let instance = self.instances.get(id).unwrap();
+                        matches!(&self.registry.assets.get(instance.descriptor).unwrap().family,
+                        VfxFamily::Trail { logical, .. } if logical.emission.manual)
+                    });
+                if manual_trail {
+                    for &id in &effect.components {
+                        let instance = self.instances.get_mut(id).unwrap();
+                        let VfxFamily::Trail { logical, .. } = &self
+                            .registry
+                            .assets
+                            .get(instance.descriptor)
+                            .unwrap()
+                            .family
+                        else {
+                            unreachable!()
+                        };
+                        instance.params = params;
+                        instance.state = VfxInstanceState::Active;
+                        instance.trail_samples.push(params.pos);
+                        let max = logical.evolution.max_points as usize;
+                        if instance.trail_samples.len() > max {
+                            instance
+                                .trail_samples
+                                .drain(..instance.trail_samples.len() - max);
+                        }
+                    }
+                    let result = SpawnResult::Spawned(handle);
+                    if let Some(key) = options.event_key {
+                        remember(&mut self.events, key, self.time, result);
+                    }
+                    if let Some(key) = options.prediction {
+                        self.remember_prediction(key, result);
+                    }
+                    return result;
+                }
+                self.stop(handle, StopMode::Immediate);
+            }
         }
         let result = self.admit(name, params, options.attachment, options.looping);
         if let Some(key) = options.event_key {
@@ -339,10 +401,11 @@ impl VfxSystem {
         let mut graph = VfxGraph::new(name.to_owned());
         let mut ids = Vec::new();
         for (id, delay) in leaves {
-            if matches!(
-                self.registry.assets.get(id).unwrap().family,
-                VfxFamily::Light { .. } | VfxFamily::PostProcess { .. }
-            ) {
+            let unsupported = match &self.registry.assets.get(id).unwrap().family {
+                VfxFamily::Light { .. } => true,
+                _ => false,
+            };
+            if unsupported {
                 self.diagnostics.unsupported_components += 1;
             }
             let instance = self.instances.create_instance(id, params, Vec::new());
@@ -394,6 +457,16 @@ impl VfxSystem {
         for handle in handles {
             let effect = self.running.get_mut(handle).unwrap();
             let Some(attachment) = effect.attachment else {
+                if let Some(entity) = effect
+                    .components
+                    .first()
+                    .and_then(|&id| self.instances.get(id).unwrap().params.entity)
+                    && position(entity)
+                        .filter(|pos| valid_position(*pos))
+                        .is_none()
+                {
+                    self.stop(handle, StopMode::Drain);
+                }
                 continue;
             };
             if let Some(pos) = position(attachment.entity).filter(|pos| valid_position(*pos)) {
@@ -469,8 +542,8 @@ impl VfxSystem {
         remember(&mut self.predictions, key, self.time, result);
     }
 
-    pub(super) fn take_existing(&mut self) -> Vec<ExistingEffect> {
-        std::mem::take(&mut self.existing)
+    pub fn take_camera_trauma(&mut self) -> f32 {
+        self.instances.take_camera_trauma()
     }
 
     pub(super) fn components(&self) -> impl Iterator<Item = (&VfxDefinition, &[VfxInstanceId])> {
@@ -521,7 +594,7 @@ fn reservation(effect: &VfxEffectDescriptor, duration: f32) -> Reservation {
             trail_points: logical.evolution.max_points as usize,
             ..Reservation::default()
         },
-        VfxFamily::PostProcess { .. } => Reservation {
+        VfxFamily::PostProcess { .. } | VfxFamily::Feedback { .. } => Reservation {
             elements: 1,
             ..Reservation::default()
         },

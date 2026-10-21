@@ -52,6 +52,8 @@ pub struct Attachment {
 
 #[derive(Default)]
 pub struct SpawnOptions {
+    /// Replace the occurrence with the same name/owner, or append to a manual trail.
+    pub refresh: bool,
     pub attachment: Option<Attachment>,
     pub event_key: Option<VisualEventKey>,
     pub prediction: Option<PredictionKey>,
@@ -82,7 +84,7 @@ pub enum SpawnResult {
 
 pub(super) enum VfxRequest {
     Spawn {
-        ticket: SpawnTicket,
+        ticket: Option<SpawnTicket>,
         effect: String,
         params: VfxSpawnParams,
         options: SpawnOptions,
@@ -93,12 +95,17 @@ pub(super) enum VfxRequest {
         prediction: PredictionKey,
         confirmed: bool,
     },
-    Existing(super::compatibility::ExistingEffect),
+    StopNamed(String),
 }
 
 impl Default for VfxSpawnParams {
     fn default() -> Self {
         Self {
+            tint: [1.0; 4],
+            size: None,
+            duration: None,
+            velocity: Vec2::zero(),
+            entity: None,
             pos: Vec2::zero(),
             scale: 1.0,
             direction: Vec2::new(1.0, 0.0),
@@ -114,6 +121,18 @@ pub(super) fn valid_params(params: &VfxSpawnParams) -> bool {
         && params.scale >= 0.0
         && params.lifetime.is_finite()
         && (0.0..=60.0).contains(&params.lifetime)
+        && params
+            .tint
+            .iter()
+            .all(|value| value.is_finite() && (0.0..=1.0).contains(value))
+        && params.size.is_none_or(|size| {
+            size.iter()
+                .all(|value| value.is_finite() && (0.0..=4096.0).contains(value))
+        })
+        && params
+            .duration
+            .is_none_or(|value| value.is_finite() && (0.0..=60.0).contains(&value))
+        && valid_position(params.velocity)
 }
 
 pub(super) fn valid_position(pos: Vec2) -> bool {

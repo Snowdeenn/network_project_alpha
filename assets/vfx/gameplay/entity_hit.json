@@ -1,0 +1,15 @@
+{
+  "family": "composite",
+  "components": [
+    {
+      "effect": "gameplay/impact_particles",
+      "delay_seconds": 0.0
+    },
+    {
+      "effect": "gameplay/impact_shake",
+      "delay_seconds": 0.0
+    }
+  ],
+  "name": "gameplay/entity_hit",
+  "version": 1
+}

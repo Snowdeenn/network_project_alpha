@@ -1,12 +1,13 @@
 //! Extraction possédée, puis adaptation aux capacités actuelles de Prism.
 //! Les textures et matériaux des exemples ne sont pas fournis dans le dépôt :
-//! les surfaces et rubans ont un fallback géométrique ; lumière/post-process
-//! restent des intentions inspectables, sans créer de pipelines dans le runtime.
+//! les surfaces et rubans ont un fallback géométrique. Les effets d'écran connus
+//! sont adaptés aux passes Prism V2, sans créer de pipeline dans le runtime.
 
 use super::VfxSystem;
-use super::parser::r#struct::{VfxBlend, VfxFamily};
-use super::simulation::{PostProcessValue, VfxSimulation};
-use std::collections::HashMap;
+use super::parser::r#struct::{
+    MeshRepresentationType, PostProcessRepresentationType, VfxBlend, VfxFamily,
+};
+use super::simulation::VfxSimulation;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct VfxSprite {
@@ -29,14 +30,21 @@ pub struct VfxLight {
     pub radius: f32,
 }
 
-pub struct VfxPostProcess {
-    pub effect: String,
-    pub weight: f32,
-    pub parameters: HashMap<String, PostProcessValue>,
+pub use crate::rendering::PostProcessRequest as VfxPostProcess;
+
+pub struct VfxRing {
+    pub pos: [f32; 2],
+    pub radii: [f32; 2],
+    pub rotation_degrees: f32,
+    pub half_arc_degrees: f32,
+    pub resolution: u32,
+    pub color: [f32; 4],
+    pub additive: bool,
 }
 
 #[derive(Default)]
 pub struct VfxRenderSnapshot {
+    pub rings: Vec<VfxRing>,
     pub sprites: Vec<VfxSprite>,
     pub ribbons: Vec<VfxRibbon>,
     pub lights: Vec<VfxLight>,
@@ -94,6 +102,9 @@ impl VfxSystem {
                 color[3] = fade_value(&fade.alpha, color[3], t);
                 scale *= fade_value(&fade.size_multiplier, 1.0, t);
             }
+            if visual.appearance.fade_lifetime {
+                color[3] *= (particle.lifetime / particle.lt_max.max(f32::EPSILON)).clamp(0.0, 1.0);
+            }
             snapshot.sprites.push(VfxSprite {
                 pos: [particle.pos.x, particle.pos.y],
                 size: size.map(|v| v * scale),
@@ -105,7 +116,7 @@ impl VfxSystem {
                 } else {
                     0.0
                 },
-                color: std::array::from_fn(|i| color[i] * tint[i]),
+                color: std::array::from_fn(|i| color[i] * tint[i] * instance.params.tint[i]),
                 additive: matches!(visual.appearance.blend, VfxBlend::Additive),
             });
         }
@@ -125,6 +136,27 @@ impl VfxSystem {
                             _ => false,
                         };
                         for element in elements {
+                            if let VfxFamily::Mesh { visual, .. } = &effect.family
+                                && let Some(representation) = visual
+                                    .representations
+                                    .iter()
+                                    .find(|r| r.name == visual.appearance.representation)
+                                && let MeshRepresentationType::Ring {
+                                    half_arc_degrees,
+                                    resolution,
+                                } = &representation.representation_type
+                            {
+                                snapshot.rings.push(VfxRing {
+                                    pos: [element.pos.x, element.pos.y],
+                                    radii: element.size,
+                                    rotation_degrees: element.rotation_degrees,
+                                    half_arc_degrees: *half_arc_degrees,
+                                    resolution: *resolution,
+                                    color: element.color,
+                                    additive,
+                                });
+                                continue;
+                            }
                             snapshot.sprites.push(VfxSprite {
                                 pos: [element.pos.x, element.pos.y],
                                 size: element.size,
@@ -156,9 +188,21 @@ impl VfxSystem {
                         }
                     }
                     Some(VfxSimulation::PostProcess(effect_state)) => {
+                        let VfxFamily::PostProcess { visual, .. } = &effect.family else {
+                            unreachable!()
+                        };
+                        let representation = visual
+                            .representations
+                            .iter()
+                            .find(|r| r.name == visual.appearance.representation)
+                            .unwrap();
+                        let PostProcessRepresentationType::PostProcessPass { material } =
+                            &representation.representation_type;
                         snapshot.post_process.push(VfxPostProcess {
                             effect: effect.name.clone(),
+                            material: material.clone(),
                             weight: effect_state.weight,
+                            remaining_seconds: (effect_state.lifetime - effect_state.age).max(0.0),
                             parameters: effect_state.parameters.clone(),
                         })
                     }
@@ -170,9 +214,27 @@ impl VfxSystem {
     }
 }
 
-pub fn append_to_frame(snapshot: &VfxRenderSnapshot, frame: &mut prism::Frame) {
+pub fn append_to_frame(snapshot: &VfxRenderSnapshot, frame: &mut crate::rendering::SceneFrame) {
+    frame
+        .post_effects
+        .extend(snapshot.post_process.iter().cloned());
+    for ring in &snapshot.rings {
+        frame.push_vfx(crate::rendering::Primitive::Shape {
+            shape: prism::Shape::Ring {
+                center: ring.pos,
+                inner_r: ring.radii[0],
+                outer_r: ring.radii[1],
+                start_angle: (ring.rotation_degrees - ring.half_arc_degrees).to_radians(),
+                end_angle: (ring.rotation_degrees + ring.half_arc_degrees).to_radians(),
+                resolution: ring.resolution,
+                color: ring.color,
+            },
+            blend: blend(ring.additive),
+            layer: 1,
+        });
+    }
     for sprite in &snapshot.sprites {
-        frame.push_vfx(prism::DrawCommand::Shape {
+        frame.push_vfx(crate::rendering::Primitive::Shape {
             shape: prism::Shape::Quad {
                 pos: [
                     sprite.pos[0] - sprite.size[0] * 0.5,
@@ -189,7 +251,7 @@ pub fn append_to_frame(snapshot: &VfxRenderSnapshot, frame: &mut prism::Frame) {
     }
     for ribbon in &snapshot.ribbons {
         for pair in ribbon.points.windows(2) {
-            frame.push_vfx(prism::DrawCommand::Shape {
+            frame.push_vfx(crate::rendering::Primitive::Shape {
                 shape: prism::Shape::Line {
                     start: pair[0].0,
                     end: pair[1].0,
@@ -203,11 +265,11 @@ pub fn append_to_frame(snapshot: &VfxRenderSnapshot, frame: &mut prism::Frame) {
     }
 }
 
-fn blend(additive: bool) -> prism::BlendMode {
+fn blend(additive: bool) -> crate::rendering::BlendMode {
     if additive {
-        prism::BlendMode::Additive
+        crate::rendering::BlendMode::Additive
     } else {
-        prism::BlendMode::Alpha
+        crate::rendering::BlendMode::Alpha
     }
 }
 

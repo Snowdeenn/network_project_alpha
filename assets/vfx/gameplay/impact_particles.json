@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "name": "gameplay/impact_particles",
+  "family": "particle",
+  "logical": {
+    "emission": {
+      "mode": "burst",
+      "count": 10,
+      "delay_seconds": 0.0
+    },
+    "initialization": {
+      "space": "world",
+      "position": {
+        "value": [
+          0.0,
+          0.0
+        ],
+        "shape": "point"
+      },
+      "velocity": {
+        "angle_degrees": {
+          "min": 0.0,
+          "max": 360.0
+        },
+        "speed": {
+          "min": 80.0,
+          "max": 160.0
+        }
+      },
+      "lifetime_seconds": {
+        "min": 0.1,
+        "max": 0.25
+      }
+    },
+    "evolution": {
+      "growth": 5.5,
+      "acceleration": [
+        0.0,
+        0.0
+      ],
+      "linear_drag": 6.0
+    },
+    "reactions": [],
+    "logical_death": {
+      "when": [
+        "lifetime_expired",
+        "death_requested"
+      ],
+      "on_death": {
+        "stop_simulation": true,
+        "disable_collisions": true
+      }
+    }
+  },
+  "visual": {
+    "representations": [
+      {
+        "atlas": null,
+        "texture": "",
+        "name": "dust",
+        "type": "sprite"
+      }
+    ],
+    "appearance": {
+      "initial_state": "active",
+      "orientation": "fixed",
+      "blend": "alpha",
+      "fade_lifetime": true,
+      "representation": "dust",
+      "color": [
+        0.7215686,
+        0.5254902,
+        0.04313725,
+        1.0
+      ],
+      "size": [
+        16.0,
+        16.0
+      ],
+      "scale": 0.15
+    },
+    "animations": {},
+    "transitions": [],
+    "states": {
+      "active": {
+        "animation": null
+      }
+    },
+    "visual_disappearance": {
+      "trigger": "logical_death",
+      "duration_seconds": 0.0,
+      "animation": "freeze_current_frame",
+      "orientation": "freeze",
+      "alpha": {
+        "from": "current",
+        "to": 0.0
+      },
+      "size_multiplier": {
+        "from": 1.0,
+        "to": 0.0
+      },
+      "on_complete": "release_particle"
+    }
+  }
+}

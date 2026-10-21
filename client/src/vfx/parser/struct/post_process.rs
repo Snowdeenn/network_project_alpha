@@ -52,10 +52,19 @@ pub(crate) struct PostProcessRepresentation {
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub(crate) struct PostProcessAppearance {
+    #[serde(default)]
+    pub envelope: Option<PostProcessEnvelope>,
     pub representation: String,
     pub weight: f32,
     pub parameters: HashMap<String, PostProcessParameter>,
     pub initial_state: String,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+pub(crate) struct PostProcessEnvelope {
+    pub fade_in_seconds: f32,
+    /// None fades across the complete logical lifetime.
+    pub fade_out_seconds: Option<f32>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]

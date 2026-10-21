@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "name": "gameplay/sword_trail",
+  "family": "trail",
+  "logical": {
+    "emission": {
+      "manual": true,
+      "duration_seconds": 60.0,
+      "rate_per_second": 0.0,
+      "mode": "continuous",
+      "delay_seconds": 0.0
+    },
+    "initialization": {
+      "space": "world",
+      "position": {
+        "value": [
+          0.0,
+          0.0
+        ],
+        "shape": "point"
+      },
+      "lifetime_seconds": {
+        "min": 60.0,
+        "max": 60.0
+      }
+    },
+    "evolution": {
+      "point_lifetime_seconds": 0.12,
+      "max_points": 12
+    },
+    "logical_death": {
+      "when": [
+        "lifetime_expired",
+        "death_requested"
+      ],
+      "on_death": {
+        "stop_emission": true,
+        "stop_simulation": true
+      }
+    }
+  },
+  "visual": {
+    "representations": [
+      {
+        "texture": "",
+        "name": "ribbon",
+        "type": "ribbon"
+      }
+    ],
+    "appearance": {
+      "initial_state": "active",
+      "orientation": "path",
+      "blend": "alpha",
+      "representation": "ribbon",
+      "uv_mode": "stretch",
+      "color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "width": 4.0,
+      "fade_points": true
+    },
+    "states": {
+      "active": {}
+    },
+    "transitions": [],
+    "visual_disappearance": {
+      "trigger": "logical_death",
+      "duration_seconds": 0.0,
+      "orientation": "freeze",
+      "alpha": {
+        "from": "current",
+        "to": 0.0
+      },
+      "on_complete": "release_trail"
+    }
+  }
+}

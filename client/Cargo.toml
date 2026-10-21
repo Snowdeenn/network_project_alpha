@@ -7,7 +7,9 @@ edition = "2024"
 utils  = { path = "../utils" }
 math.workspace = true
 nodus = { git = "https://github.com/Snowdeenn/nodus.git" }
-prism = { git = "https://github.com/Snowdeenn/prism.git" }
+prism = { package = "prism-v2", git = "https://github.com/Snowdeenn/prism.git", rev = "54a2a3da673371af99c325b2f29909d5e34f327f" }
+# Nodus still exposes the historical CPU command and UI handle types.
+prism_legacy = { package = "prism", git = "https://github.com/Snowdeenn/prism.git" }
 serde = { version = "1.0", features = [ "derive" ] }
 serde_json = "1.0"
 renet   = "2.0.0"
@@ -20,13 +22,14 @@ pollster = "0.3"
 wgpu = "30"
 bytemuck = "1"
 glyphon = "0.12"
+image = { version = "0.25", default-features = false, features = ["png"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 weave = { git = "https://github.com/Snowdeenn/weave.git" }
 egui = "0.36.1"
 egui-wgpu = "0.36.1"
 egui-winit = "0.36.1"
-tokio = { version = "1.53.2", features = [ "fs", "rt" ] }
+tokio = { version = "1.53.2", features = [ "fs", "rt-multi-thread" ] }
 
 [dev-dependencies]
 tokio = { version = "1.53.2", features = [ "time" ] }

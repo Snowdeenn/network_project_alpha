@@ -31,6 +31,19 @@ pub(super) fn validate_json(source: &str) -> io::Result<()> {
                     {
                         return Err(invalid(format!("{path}: min exceeds max")));
                     }
+                    if min
+                        .as_array()
+                        .zip(max.as_array())
+                        .is_some_and(|(min, max)| {
+                            min.iter().zip(max).any(|(min, max)| {
+                                min.as_f64()
+                                    .zip(max.as_f64())
+                                    .is_some_and(|(min, max)| min > max)
+                            })
+                        })
+                    {
+                        return Err(invalid(format!("{path}: box min exceeds max")));
+                    }
                 }
                 for (name, value) in fields {
                     let field_path = format!("{path}.{name}");
@@ -53,6 +66,8 @@ pub(super) fn validate_json(source: &str) -> io::Result<()> {
                                 | "alpha"
                                 | "at_least"
                                 | "color"
+                                | "scale"
+                                | "trauma"
                         );
                     if limited {
                         fn check(value: &Value, path: &str, max: f64) -> io::Result<()> {
@@ -83,7 +98,10 @@ pub(super) fn validate_json(source: &str) -> io::Result<()> {
                         check(
                             value,
                             &field_path,
-                            if matches!(name.as_str(), "weight" | "alpha" | "at_least" | "color") {
+                            if matches!(
+                                name.as_str(),
+                                "weight" | "alpha" | "at_least" | "color" | "trauma"
+                            ) {
                                 1.0
                             } else if name.ends_with("_seconds") {
                                 60.0
@@ -136,6 +154,7 @@ pub(super) fn validate_descriptor(effect: &VfxEffectDescriptor) -> io::Result<()
         Ok(())
     }
     match &effect.family {
+        VfxFamily::Feedback { .. } => Ok(()),
         VfxFamily::Particle { visual: v, .. } => {
             for state in v.states.values() {
                 if let Some(name) = &state.animation {
@@ -155,16 +174,31 @@ pub(super) fn validate_descriptor(effect: &VfxEffectDescriptor) -> io::Result<()
                     .collect(),
             )
         }
-        VfxFamily::Mesh { visual: v, .. } => visual(
-            &v.appearance.representation,
-            v.representations.iter().map(|r| r.name.as_str()).collect(),
-            &v.appearance.initial_state,
-            &v.states,
-            v.transitions
-                .iter()
-                .map(|t| (t.from.as_str(), t.to.as_str()))
-                .collect(),
-        ),
+        VfxFamily::Mesh { visual: v, .. } => {
+            for representation in &v.representations {
+                if let MeshRepresentationType::Ring {
+                    half_arc_degrees,
+                    resolution,
+                } = representation.representation_type
+                    && (!(0.0..=180.0).contains(&half_arc_degrees)
+                        || !(1..=1024).contains(&resolution))
+                {
+                    return Err(invalid(
+                        "ring: expected a half arc in 0..=180 and 1..=1024 segments",
+                    ));
+                }
+            }
+            visual(
+                &v.appearance.representation,
+                v.representations.iter().map(|r| r.name.as_str()).collect(),
+                &v.appearance.initial_state,
+                &v.states,
+                v.transitions
+                    .iter()
+                    .map(|t| (t.from.as_str(), t.to.as_str()))
+                    .collect(),
+            )
+        }
         VfxFamily::Decal { visual: v, .. } => visual(
             &v.appearance.representation,
             v.representations.iter().map(|r| r.name.as_str()).collect(),

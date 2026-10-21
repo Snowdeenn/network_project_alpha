@@ -76,7 +76,7 @@ impl VfxApi {
             .expect("VFX tickets exhausted");
         requests.results.insert(ticket, None);
         requests.queue.push_back(VfxRequest::Spawn {
-            ticket,
+            ticket: Some(ticket),
             effect: effect.into(),
             params,
             options,
@@ -92,11 +92,30 @@ impl VfxApi {
         Some(result)
     }
 
+    /// Submit a visual event without retaining an unread result ticket.
+    pub fn spawn_detached(
+        &self,
+        effect: impl Into<String>,
+        params: VfxSpawnParams,
+        options: SpawnOptions,
+    ) -> Result<(), QueueFull> {
+        self.enqueue(VfxRequest::Spawn {
+            ticket: None,
+            effect: effect.into(),
+            params,
+            options,
+        })
+    }
+
+    pub fn stop_named(&self, effect: impl Into<String>) -> Result<(), QueueFull> {
+        self.enqueue(VfxRequest::StopNamed(effect.into()))
+    }
+
     /// Annulation directe dans la file : fonctionne même lorsqu'elle est pleine.
     pub fn cancel_pending(&self, ticket: SpawnTicket) -> bool {
         let mut requests = self.requests.borrow_mut();
         let Some(index) = requests.queue.iter().position(|request| {
-            matches!(request, VfxRequest::Spawn { ticket: queued, .. } if *queued == ticket)
+            matches!(request, VfxRequest::Spawn { ticket: Some(queued), .. } if *queued == ticket)
         }) else { return false; };
         requests.queue.remove(index);
         requests

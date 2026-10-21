@@ -3,15 +3,18 @@ use serde::Deserialize;
 mod decal;
 mod light;
 mod mesh;
-mod particle;
+pub(crate) mod particle;
 mod post_process;
 mod trail;
 
 pub(crate) use decal::{DecalLogicalDescriptor, DecalVisualDescriptor};
 pub(crate) use light::{LightLogicalDescriptor, LightVisualDescriptor};
-pub(crate) use mesh::{MeshLogicalDescriptor, MeshVisualDescriptor};
+pub(crate) use mesh::{MeshLogicalDescriptor, MeshRepresentationType, MeshVisualDescriptor};
 pub(crate) use particle::{ParticleLogicalDescriptor, ParticleVisualDescriptor};
-pub(crate) use post_process::{PostProcessLogicalDescriptor, PostProcessParameter, PostProcessVisualDescriptor};
+pub(crate) use post_process::{
+    PostProcessLogicalDescriptor, PostProcessParameter, PostProcessRepresentationType,
+    PostProcessVisualDescriptor,
+};
 pub(crate) use trail::{TrailLogicalDescription, TrailVisualDescriptor};
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -41,6 +44,16 @@ pub(crate) enum VfxFamily {
         logical: PostProcessLogicalDescriptor,
         visual: PostProcessVisualDescriptor,
     },
+    Feedback {
+        feedback: FeedbackKind,
+    },
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub(crate) enum FeedbackKind {
+    CameraShake { trauma: f32 },
+    EntityTint { color: [f32; 4] },
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -78,7 +91,14 @@ pub(crate) enum VfxShape {
         coord: [f32; 2],
     },
     #[serde(rename = "attachment")]
-    Attachement { source: String }, // Enum spécifique ?
+    Attachement {
+        source: String,
+    }, // Enum spécifique ?
+    // Box offsets are sampled independently on each axis.
+    Box {
+        min: [f32; 2],
+        max: [f32; 2],
+    },
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -92,7 +112,7 @@ pub struct VfxEffectDescriptor {
     pub version: u32,
     pub name: String,
     #[serde(flatten)]
-    pub family: VfxFamily,
+    pub(crate) family: VfxFamily,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -168,6 +188,10 @@ pub(crate) enum VfxSpawnLocation {
 }
 
 // Conserve la notation [min, max] des structures Rust.
+pub(super) fn one() -> f32 {
+    1.0
+}
+
 fn deserialize_range<'de, D>(deserializer: D) -> Result<[f32; 2], D::Error>
 where
     D: serde::Deserializer<'de>,

@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "name": "fireball",
+  "family": "composite",
+  "components": [
+    {
+      "effect": "fireball_core",
+      "delay_seconds": 0
+    },
+    {
+      "effect": "fireball_flames",
+      "delay_seconds": 0
+    },
+    {
+      "effect": "fireball_trail",
+      "delay_seconds": 0
+    },
+    {
+      "effect": "fireball_light",
+      "delay_seconds": 0
+    }
+  ]
+}

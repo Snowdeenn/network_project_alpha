@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "name": "fireball_light",
+  "family": "light",
+  "logical": {
+    "emission": {
+      "mode": "burst",
+      "count": 1,
+      "delay_seconds": 0
+    },
+    "initialization": {
+      "space": "local",
+      "position": {
+        "shape": "point",
+        "value": [
+          0,
+          0
+        ]
+      },
+      "lifetime_seconds": {
+        "min": 10,
+        "max": 10
+      }
+    },
+    "logical_death": {
+      "when": [
+        "lifetime_expired",
+        "death_requested"
+      ],
+      "on_death": {
+        "stop_simulation": true
+      }
+    }
+  },
+  "visual": {
+    "representations": [
+      {
+        "name": "fire_glow",
+        "type": "point_light"
+      }
+    ],
+    "appearance": {
+      "representation": "fire_glow",
+      "color": [
+        1,
+        0.35,
+        0.05
+      ],
+      "intensity": 2,
+      "radius": 80,
+      "casts_shadows": false,
+      "initial_state": "burning"
+    },
+    "states": {
+      "burning": {}
+    },
+    "transitions": [],
+    "visual_disappearance": {
+      "trigger": "logical_death",
+      "duration_seconds": 0.08,
+      "intensity": {
+        "from": "current",
+        "to": 0
+      },
+      "on_complete": "release_light"
+    }
+  }
+}

@@ -1,6 +1,16 @@
+mod assets;
 pub mod camera;
+pub mod nodus_bridge;
+mod post_process;
+mod renderer;
+mod scene;
+mod text;
 pub mod types;
-pub mod vfx;
+
+pub use assets::RenderAssets;
+pub use post_process::{PostProcessInput, PostProcessRequest, PostProcessValue};
+pub use renderer::SceneRenderer;
+pub use scene::{BlendMode, Color, OverlayContext, Primitive, SceneFrame};
 
 use crate::graphic_data::animation::AnimEntityManager;
 use crate::graphic_data::animation_manager::{AnimKey, BossState, EnemyState, PlayerState};
@@ -42,7 +52,7 @@ impl ScreenScale {
 }
 
 pub(crate) fn render_world(
-    frame: &mut prism::Frame,
+    frame: &mut crate::rendering::SceneFrame,
     resources: &crate::app::resources::Resources,
     anim_entities: &mut AnimEntityManager,
     prev: Option<&utils::protocol::StateSnapshot>,
@@ -54,9 +64,13 @@ pub(crate) fn render_world(
 ) {
     let assets = resources.read_resource::<crate::graphic_data::asset_manager::AssetManager>();
     anim_entities.tick_all(dt, assets.anims());
-    let blind = resources.read_resource::<crate::graphic_data::post_process_effect_type::BlindEffect>();
+    let vfx = resources.read_resource::<crate::vfx::VfxSystem>();
+    let blind = vfx.post_process("blind").weight;
     let vision_radius = crate::graphic_data::post_process_effect_type::blind_vision_radius(
-        blind.amount, screen_size.width as f32, screen_size.height as f32);
+        blind,
+        screen_size.width as f32,
+        screen_size.height as f32,
+    );
     let view_center = camera.pos() - camera.shake.offset();
 
     for entity in &curr.entities {
@@ -72,7 +86,11 @@ pub(crate) fn render_world(
         };
 
         if !is_entity_visible_during_blind(
-            &entity.entity_kind, [x, y], view_center, vision_radius, blind.amount,
+            &entity.entity_kind,
+            [x, y],
+            view_center,
+            vision_radius,
+            blind,
         ) {
             continue;
         }
@@ -84,7 +102,8 @@ pub(crate) fn render_world(
             anim.set(anim_id);
             if let Some(data) = assets.anims().get(anim_id) {
                 if let Some(tex_id) = anim.current_texture_id(data) {
-                    frame.push_world(prism::DrawCommand::Texture {
+                    frame.push_world(crate::rendering::Primitive::Texture {
+                        flash: vfx.entity_tint(entity.entity_id).is_some(),
                         id: tex_id,
                         // - 32.0 Parce que les coordonées sont ceux du centre du collider
                         // donc on soustrait la moitié de la taille du collider
@@ -92,8 +111,8 @@ pub(crate) fn render_world(
                         size: [64.0, 64.0], // à adapter selon la texture
                         rotation: 0.0,
                         uv: None,
-                        tint: [1.0, 1.0, 1.0, 1.0],
-                        blend: prism::BlendMode::Alpha,
+                        tint: vfx.entity_tint(entity.entity_id).unwrap_or([1.0; 4]),
+                        blend: crate::rendering::BlendMode::Alpha,
                         layer: 1,
                     });
                     continue;
@@ -102,14 +121,19 @@ pub(crate) fn render_world(
         }
 
         // Fallback géométrique
+        let first = frame.world.len();
         draw_fallback(frame, &entity.entity_kind, x, y, entity);
+        if let Some(tint) = vfx.entity_tint(entity.entity_id)
+            && let Some(Primitive::Shape {
+                shape: prism::Shape::Quad { color, .. },
+                ..
+            }) = frame.world.get_mut(first)
+        {
+            *color = tint;
+        }
     }
 
     anim_entities.retain(|id| curr.entities.iter().any(|e| e.entity_id == id));
-
-    // Particules
-    let particles = resources.read_resource::<crate::rendering::vfx::particle::ParticlePool>();
-    particles.push_draw_commands(frame);
 }
 
 fn is_entity_visible_during_blind(
@@ -120,18 +144,21 @@ fn is_entity_visible_during_blind(
     blind_amount: f32,
 ) -> bool {
     if blind_amount <= 0.0
-        || !matches!(kind, utils::protocol::EntityKind::Enemy | utils::protocol::EntityKind::Boss(_))
+        || !matches!(
+            kind,
+            utils::protocol::EntityKind::Enemy | utils::protocol::EntityKind::Boss(_)
+        )
     {
         return true;
     }
 
-    let distance_squared = (position[0] - view_center.x).powi(2)
-        + (position[1] - view_center.y).powi(2);
+    let distance_squared =
+        (position[0] - view_center.x).powi(2) + (position[1] - view_center.y).powi(2);
     distance_squared <= vision_radius.powi(2)
 }
 
 fn draw_fallback(
-    frame: &mut prism::Frame,
+    frame: &mut crate::rendering::SceneFrame,
     kind: &utils::protocol::EntityKind,
     x: f32,
     y: f32,
@@ -139,7 +166,7 @@ fn draw_fallback(
 ) {
     match kind {
         utils::protocol::EntityKind::Player => {
-            frame.push_world(prism::DrawCommand::Shape {
+            frame.push_world(crate::rendering::Primitive::Shape {
                 shape: prism::Shape::Quad {
                     pos: [x - 20.0, y - 20.0],
                     size: [40.0, 40.0],
@@ -147,12 +174,12 @@ fn draw_fallback(
                     color: [0.529, 0.808, 0.922, 1.0], // SKYBLUE
                     uv: None,
                 },
-                blend: prism::BlendMode::Alpha,
+                blend: crate::rendering::BlendMode::Alpha,
                 layer: 1,
             });
         }
         utils::protocol::EntityKind::Enemy => {
-            frame.push_world(prism::DrawCommand::Shape {
+            frame.push_world(crate::rendering::Primitive::Shape {
                 shape: prism::Shape::Quad {
                     pos: [x - 20.0, y - 20.0],
                     size: [40.0, 40.0],
@@ -160,12 +187,12 @@ fn draw_fallback(
                     color: [1.0, 0.0, 0.0, 1.0],
                     uv: None,
                 },
-                blend: prism::BlendMode::Alpha,
+                blend: crate::rendering::BlendMode::Alpha,
                 layer: 1,
             });
             // barre de vie
             let bar_w = 40.0 * (entity.health / entity.max_health);
-            frame.push_world(prism::DrawCommand::Shape {
+            frame.push_world(crate::rendering::Primitive::Shape {
                 shape: prism::Shape::Quad {
                     pos: [x - 20.0, y - 30.0],
                     size: [40.0, 5.0],
@@ -173,10 +200,10 @@ fn draw_fallback(
                     color: [0.2, 0.2, 0.2, 1.0],
                     uv: None,
                 },
-                blend: prism::BlendMode::Alpha,
+                blend: crate::rendering::BlendMode::Alpha,
                 layer: 1,
             });
-            frame.push_world(prism::DrawCommand::Shape {
+            frame.push_world(crate::rendering::Primitive::Shape {
                 shape: prism::Shape::Quad {
                     pos: [x - 20.0, y - 30.0],
                     size: [bar_w, 5.0],
@@ -184,27 +211,27 @@ fn draw_fallback(
                     color: [0.0, 1.0, 0.0, 1.0],
                     uv: None,
                 },
-                blend: prism::BlendMode::Alpha,
+                blend: crate::rendering::BlendMode::Alpha,
                 layer: 1,
             });
         }
         utils::protocol::EntityKind::Coin => {
-            frame.push_world(prism::DrawCommand::Shape {
+            frame.push_world(crate::rendering::Primitive::Shape {
                 shape: prism::Shape::Ring {
                     center: [x, y],
                     inner_r: 0.0,
                     outer_r: 10.0,
                     start_angle: 0.0,
-                    end_angle: 360.0,
+                    end_angle: std::f32::consts::TAU,
                     resolution: 10,
                     color: [
-                        prism::Color::YELLOW.r as f32 / 255.0,
-                        prism::Color::YELLOW.g as f32 / 255.0,
-                        prism::Color::YELLOW.b as f32 / 255.0,
-                        prism::Color::YELLOW.a as f32 / 255.0,
+                        crate::rendering::Color::YELLOW.r as f32 / 255.0,
+                        crate::rendering::Color::YELLOW.g as f32 / 255.0,
+                        crate::rendering::Color::YELLOW.b as f32 / 255.0,
+                        crate::rendering::Color::YELLOW.a as f32 / 255.0,
                     ],
                 },
-                blend: prism::BlendMode::Alpha,
+                blend: crate::rendering::BlendMode::Alpha,
                 layer: 1,
             });
         }
@@ -212,11 +239,14 @@ fn draw_fallback(
     }
 }
 
-pub(crate) fn render_hud(frame: &mut prism::Frame, resources: &crate::app::resources::Resources) {
+pub(crate) fn render_hud(
+    frame: &mut crate::rendering::SceneFrame,
+    resources: &crate::app::resources::Resources,
+) {
     if let crate::core::game_phase::GamePhase::BetweenWave { time_remaining, .. } =
         *resources.read_resource::<crate::core::game_phase::GamePhase>()
     {
-        frame.push_hud(prism::DrawCommand::Text {
+        frame.push_hud(crate::rendering::Primitive::Text {
             content: format!(
                 "Temps avant la prochaine vague {}s",
                 time_remaining.as_secs()

@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use utils::Id;
 
+use super::loader::{AssetLoader, LoadRequestId};
 use super::parser::parse_effect;
 use super::parser::r#struct::VfxEffectDescriptor;
 use super::storage::AssetRegister;
@@ -61,10 +62,36 @@ impl VfxRegistry {
         result.map_err(|error| io::Error::new(error.kind(), format!("{}: {error}", path.display())))
     }
 
+    /// À appeler après `AssetLoader::run_request`.
+    /// `false` : encore en cours ; `true` : résultat consommé et publié.
+    /// Les erreurs de chargement sont consommées et ne remplacent aucune révision.
+    /// Une requête inconnue, annulée ou déjà consommée renvoie `InvalidInput`.
+    pub fn register_loaded(
+        &mut self,
+        loader: &mut AssetLoader,
+        request: LoadRequestId,
+        priority: Priority,
+    ) -> io::Result<bool> {
+        if let Some(error) = loader.take_error(request) {
+            return Err(error);
+        }
+        if let Some(descriptor) = loader.take_loaded_asset(request) {
+            self.register_descriptor(descriptor, priority);
+            return Ok(true);
+        }
+        if loader.state(request).is_none() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "unknown or already consumed VFX load request",
+            ));
+        }
+        Ok(false)
+    }
+
     pub fn register_json(&mut self, source: &str, priority: Priority) -> io::Result<()> {
-        super::validation::validate_json(source)?;
         let document: serde_json::Value = serde_json::from_str(source)?;
         if document.get("family").and_then(|family| family.as_str()) == Some("composite") {
+            super::validation::validate_json(source)?;
             #[derive(serde::Deserialize)]
             #[serde(deny_unknown_fields)]
             struct Component {
@@ -91,11 +118,15 @@ impl VfxRegistry {
             return self.register_composite(&composite.name, &children, priority);
         }
         let descriptor = parse_effect(source)?;
-        super::validation::validate_descriptor(&descriptor)?;
+        self.register_descriptor(descriptor, priority);
+        Ok(())
+    }
+
+    /// Les deux chemins publient uniquement un résultat validé par parse_effect.
+    fn register_descriptor(&mut self, descriptor: VfxEffectDescriptor, priority: Priority) {
         let name = descriptor.name.clone();
         let descriptor = self.assets.insert(descriptor);
         self.publish(name, priority, DefinitionKind::Effect(descriptor));
-        Ok(())
     }
 
     /// Composition de descriptions déjà chargées ; délais en secondes.

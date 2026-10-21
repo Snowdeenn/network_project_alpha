@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "name": "fireball_core",
+  "family": "mesh",
+  "logical": {
+    "emission": {
+      "mode": "burst",
+      "count": 1,
+      "delay_seconds": 0
+    },
+    "initialization": {
+      "space": "local",
+      "position": {
+        "shape": "point",
+        "value": [
+          0,
+          0
+        ]
+      },
+      "lifetime_seconds": {
+        "min": 10,
+        "max": 10
+      }
+    },
+    "logical_death": {
+      "when": [
+        "lifetime_expired",
+        "death_requested"
+      ],
+      "on_death": {
+        "stop_simulation": true
+      }
+    }
+  },
+  "visual": {
+    "representations": [
+      {
+        "name": "sphere",
+        "type": "mesh",
+        "mesh": "meshes/vfx/sphere.mesh",
+        "material": "materials/vfx/fireball_core.material"
+      }
+    ],
+    "appearance": {
+      "representation": "sphere",
+      "blend": "additive",
+      "size": [
+        20,
+        20
+      ],
+      "color": [
+        1,
+        0.65,
+        0.15,
+        1
+      ],
+      "orientation": "fixed",
+      "rotation_degrees": 0,
+      "initial_state": "burning"
+    },
+    "states": {
+      "burning": {}
+    },
+    "transitions": [],
+    "visual_disappearance": {
+      "trigger": "logical_death",
+      "duration_seconds": 0.08,
+      "orientation": "freeze",
+      "alpha": {
+        "from": "current",
+        "to": 0
+      },
+      "size_multiplier": {
+        "from": 1,
+        "to": 0
+      },
+      "on_complete": "release_mesh"
+    }
+  }
+}

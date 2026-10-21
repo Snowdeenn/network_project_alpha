@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "name": "gameplay/blind",
+  "family": "post-process",
+  "logical": {
+    "initialization": {
+      "lifetime_seconds": {
+        "min": 3.0,
+        "max": 3.0
+      }
+    },
+    "logical_death": {
+      "when": [
+        "lifetime_expired",
+        "death_requested"
+      ],
+      "on_death": {
+        "stop_simulation": true
+      }
+    }
+  },
+  "visual": {
+    "representations": [
+      {
+        "material": "blind",
+        "name": "screen",
+        "type": "post_process_pass"
+      }
+    ],
+    "appearance": {
+      "representation": "screen",
+      "envelope": {
+        "fade_in_seconds": 1.0,
+        "fade_out_seconds": 1.0
+      },
+      "initial_state": "active",
+      "weight": 1.0,
+      "parameters": {}
+    },
+    "states": {
+      "active": {}
+    },
+    "transitions": [],
+    "visual_disappearance": {
+      "trigger": "logical_death",
+      "duration_seconds": 0.0,
+      "weight": {
+        "from": "current",
+        "to": 0.0
+      },
+      "on_complete": "release_post_process"
+    }
+  }
+}

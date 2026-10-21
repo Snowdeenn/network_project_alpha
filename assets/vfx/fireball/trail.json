@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "name": "fireball_trail",
+  "family": "trail",
+  "logical": {
+    "emission": {
+      "mode": "continuous",
+      "rate_per_second": 60,
+      "delay_seconds": 0,
+      "duration_seconds": 10
+    },
+    "initialization": {
+      "space": "world",
+      "position": {
+        "shape": "attachment",
+        "source": "projectile_center"
+      },
+      "lifetime_seconds": {
+        "min": 10,
+        "max": 10
+      }
+    },
+    "evolution": {
+      "point_lifetime_seconds": 0.18,
+      "max_points": 32
+    },
+    "logical_death": {
+      "when": [
+        "lifetime_expired",
+        "death_requested"
+      ],
+      "on_death": {
+        "stop_simulation": true,
+        "stop_emission": true
+      }
+    }
+  },
+  "visual": {
+    "representations": [
+      {
+        "name": "fire_ribbon",
+        "type": "ribbon",
+        "texture": "textures/vfx/fireball_trail.png"
+      }
+    ],
+    "appearance": {
+      "representation": "fire_ribbon",
+      "blend": "additive",
+      "width": 12,
+      "color": [
+        1,
+        0.3,
+        0.03,
+        0.8
+      ],
+      "orientation": "path",
+      "uv_mode": "stretch",
+      "initial_state": "burning"
+    },
+    "states": {
+      "burning": {}
+    },
+    "transitions": [],
+    "visual_disappearance": {
+      "trigger": "logical_death",
+      "duration_seconds": 0.12,
+      "orientation": "freeze",
+      "alpha": {
+        "from": "current",
+        "to": 0
+      },
+      "on_complete": "release_trail"
+    }
+  }
+}

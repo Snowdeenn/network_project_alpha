@@ -25,6 +25,7 @@ pub enum VfxSimulation {
     Light(Vec<LightElement>),
     Trail(TrailSimulation),
     PostProcess(PostProcessSimulation),
+    Feedback { triggered: bool },
 }
 
 /// Mesh et decal partagent les mêmes propriétés de surface.
@@ -63,13 +64,10 @@ pub struct TrailSimulation {
     elapsed: f64,
     fractional_count: f64,
     burst_emitted: bool,
+    last_input: f64,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum PostProcessValue {
-    Scalar(f32),
-    Vector(Vec<f32>),
-}
+pub use crate::rendering::PostProcessValue;
 
 pub struct PostProcessSimulation {
     pub age: f32,
@@ -80,9 +78,14 @@ pub struct PostProcessSimulation {
 }
 
 impl VfxSimulation {
-    pub(super) fn new(family: &VfxFamily, random: &mut impl RngExt) -> Self {
+    pub(super) fn new(
+        family: &VfxFamily,
+        params: &VfxSpawnParams,
+        random: &mut impl RngExt,
+    ) -> Self {
         match family {
             VfxFamily::Particle { .. } => Self::Particle,
+            VfxFamily::Feedback { .. } => Self::Feedback { triggered: false },
             VfxFamily::Mesh { .. } => Self::Mesh(Vec::new()),
             VfxFamily::Decal { .. } => Self::Decal(Vec::new()),
             VfxFamily::Light { .. } => Self::Light(Vec::new()),
@@ -92,11 +95,14 @@ impl VfxSimulation {
                 elapsed: 0.0,
                 fractional_count: 0.0,
                 burst_emitted: false,
+                last_input: 0.0,
             }),
             VfxFamily::PostProcess { logical, visual } => {
                 Self::PostProcess(PostProcessSimulation {
                     age: 0.0,
-                    lifetime: sample_lifetime(logical.init.life_time_seconds, random),
+                    lifetime: params
+                        .duration
+                        .unwrap_or_else(|| sample_lifetime(logical.init.life_time_seconds, random)),
                     weight: visual.appearance.weight,
                     parameters: copy_parameters(&visual.appearance.parameters),
                     finishing_at: None,
@@ -125,7 +131,9 @@ pub(super) fn update_mesh(
             pos: placed(offset, &instance.params),
             offset,
             age,
-            lifetime: sample_lifetime(logical.init.life_time_seconds, &mut instance.random),
+            lifetime: instance.params.duration.unwrap_or_else(|| {
+                sample_lifetime(logical.init.life_time_seconds, &mut instance.random)
+            }),
             size: visual.appearance.size,
             color: visual.appearance.color,
             rotation_degrees: visual.appearance.rotation_degrees,
@@ -142,7 +150,7 @@ pub(super) fn update_mesh(
         );
         // Recalcul depuis l'apparence initiale : pas d'interpolation cumulative
         // dépendant du nombre de frames. Une transition commence après la précédente.
-        element.size = visual.appearance.size;
+        element.size = instance.params.size.unwrap_or(visual.appearance.size);
         element.color = visual.appearance.color;
         element.rotation_degrees = visual.appearance.rotation_degrees;
         let age = element.age.min(element.lifetime);
@@ -180,6 +188,19 @@ pub(super) fn update_mesh(
             element.size = element.size.map(|value| value * scale);
         }
         element.size = element.size.map(|value| value * instance.params.scale);
+        if !matches!(visual.appearance.orientation, VfxOrientation::Fixed) {
+            element.rotation_degrees += instance
+                .params
+                .direction
+                .y
+                .atan2(instance.params.direction.x)
+                .to_degrees();
+        }
+        if visual.appearance.fade_lifetime {
+            element.color[3] *=
+                (1.0 - element.age / element.lifetime.max(f32::EPSILON)).clamp(0.0, 1.0);
+        }
+        element.color = std::array::from_fn(|i| element.color[i] * instance.params.tint[i]);
     }
     elements.retain(|element| {
         element.age < element.lifetime + visual.visual_disappearance.duration_seconds
@@ -387,7 +408,11 @@ pub(super) fn update_trail(
     assert!(rate.is_finite() && rate >= 0.0);
     let mut count = 0;
     let mut last_emitted_at = delay;
-    if instance.state == VfxInstanceState::Active && trail.elapsed >= delay && end >= delay {
+    if !emission.manual
+        && instance.state == VfxInstanceState::Active
+        && trail.elapsed >= delay
+        && end >= delay
+    {
         match emission.mode {
             VfxEmissionMode::Burst => {
                 // Le format trail n'a pas de count : un burst crée un point.
@@ -408,6 +433,21 @@ pub(super) fn update_trail(
         }
     }
     let max_points = logical.evolution.max_points as usize;
+    if emission.manual
+        && instance.state == VfxInstanceState::Active
+        && !instance.trail_samples.is_empty()
+    {
+        trail.last_input = trail.elapsed;
+        for pos in instance.trail_samples.drain(..) {
+            trail.points.push(TrailPoint {
+                pos,
+                offset: Vec2::zero(),
+                age: 0.0,
+                width: visual.appearance.width,
+                color: visual.appearance.color,
+            });
+        }
+    }
     // Seuls les points les plus récents peuvent survivre à la limite du trail.
     for index in count.saturating_sub(max_points)..count {
         let born_at = if matches!(emission.mode, VfxEmissionMode::Continuous) {
@@ -462,6 +502,14 @@ pub(super) fn update_trail(
         }
         point.width = width * instance.params.scale;
         point.color = color;
+        point.color = std::array::from_fn(|i| point.color[i] * instance.params.tint[i]);
+        if visual.appearance.fade_points {
+            let progress = (1.0
+                - point.age / logical.evolution.point_lifetime_seconds.max(f32::EPSILON))
+            .clamp(0.0, 1.0);
+            point.width *= progress;
+            point.color[3] *= progress;
+        }
         if point.age >= logical.evolution.point_lifetime_seconds {
             let fade = &visual.visual_disappearance;
             point.color[3] = fade_value(
@@ -479,7 +527,11 @@ pub(super) fn update_trail(
             < logical.evolution.point_lifetime_seconds
                 + visual.visual_disappearance.duration_seconds
     });
-    let emission_done = trail.elapsed >= end || trail.burst_emitted;
+    let emission_done = if emission.manual {
+        trail.elapsed - trail.last_input >= f64::from(instance.params.lifetime)
+    } else {
+        trail.elapsed >= end || trail.burst_emitted
+    };
     finish_emitter(&mut instance.state, emission_done, trail.points.is_empty());
 }
 
@@ -556,6 +608,39 @@ pub(super) fn update_post_process(
             VfxInstanceState::Finishing
         };
     }
+    if let Some(envelope) = &visual.appearance.envelope {
+        let fade_in = if envelope.fade_in_seconds <= 0.0 {
+            1.0
+        } else {
+            effect.age / envelope.fade_in_seconds
+        };
+        let fade_out_seconds = envelope.fade_out_seconds.unwrap_or(effect.lifetime);
+        let fade_out = if fade_out_seconds <= 0.0 {
+            0.0
+        } else {
+            (effect.lifetime - effect.age) / fade_out_seconds
+        };
+        effect.weight *= fade_in.min(fade_out).clamp(0.0, 1.0);
+    }
+}
+
+pub(super) fn update_feedback(instance: &mut VfxInstance, feedback: &FeedbackKind) -> f32 {
+    let Some(VfxSimulation::Feedback { triggered }) = &mut instance.simulation else {
+        unreachable!()
+    };
+    let mut trauma = 0.0;
+    if let FeedbackKind::CameraShake { trauma: amount } = feedback {
+        if !*triggered && instance.state == VfxInstanceState::Active {
+            trauma = *amount * instance.params.scale;
+            *triggered = true;
+        }
+        instance.state = VfxInstanceState::Finished;
+    } else if instance.state == VfxInstanceState::Finishing
+        || instance.age >= instance.params.duration.unwrap_or(instance.params.lifetime)
+    {
+        instance.state = VfxInstanceState::Finished;
+    }
+    trauma
 }
 
 // Petits calculs communs, sans scheduler ni système de rendu supplémentaire.
@@ -601,9 +686,13 @@ fn sample_lifetime(range: [f32; 2], random: &mut impl RngExt) -> f32 {
     random.random_range(range[0]..=range[1])
 }
 
-fn sample_offset(shape: &VfxShape, random: &mut impl RngExt) -> Vec2 {
+pub(super) fn sample_offset(shape: &VfxShape, random: &mut impl RngExt) -> Vec2 {
     match shape {
         VfxShape::Point { coord } => Vec2::new(coord[0], coord[1]),
+        VfxShape::Box { min, max } => Vec2::new(
+            random.random_range(min[0]..=max[0]),
+            random.random_range(min[1]..=max[1]),
+        ),
         VfxShape::Disk {
             radius,
             spawn_location,

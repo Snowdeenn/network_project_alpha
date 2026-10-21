@@ -1,6 +1,6 @@
 use super::*;
 
-const PARTICLE: &str = include_str!("../../../../../assets/config/vfx/exemples_vfx/particle.json");
+const PARTICLE: &str = include_str!("../../../../../assets/vfx/exemples_vfx/particle.json");
 
 #[test]
 fn deserialize_all_example_families() {
@@ -8,23 +8,23 @@ fn deserialize_all_example_families() {
         ("particle", PARTICLE),
         (
             "mesh",
-            include_str!("../../../../../assets/config/vfx/exemples_vfx/mesh.json"),
+            include_str!("../../../../../assets/vfx/exemples_vfx/mesh.json"),
         ),
         (
             "trail",
-            include_str!("../../../../../assets/config/vfx/exemples_vfx/trail.json"),
+            include_str!("../../../../../assets/vfx/exemples_vfx/trail.json"),
         ),
         (
             "decal",
-            include_str!("../../../../../assets/config/vfx/exemples_vfx/decal.json"),
+            include_str!("../../../../../assets/vfx/exemples_vfx/decal.json"),
         ),
         (
             "light",
-            include_str!("../../../../../assets/config/vfx/exemples_vfx/light.json"),
+            include_str!("../../../../../assets/vfx/exemples_vfx/light.json"),
         ),
         (
             "post-process",
-            include_str!("../../../../../assets/config/vfx/exemples_vfx/post-process.json"),
+            include_str!("../../../../../assets/vfx/exemples_vfx/post-process.json"),
         ),
     ];
     for (expected, json) in examples {
@@ -38,6 +38,7 @@ fn deserialize_all_example_families() {
             VfxFamily::Decal { .. } => "decal",
             VfxFamily::Light { .. } => "light",
             VfxFamily::PostProcess { .. } => "post-process",
+            VfxFamily::Feedback { .. } => "feedback",
         };
         assert_eq!(family, expected);
     }
@@ -50,8 +51,15 @@ fn particle_preserves_ranges_reactions_and_visuals() {
         panic!("expected particle")
     };
     assert_eq!(logical.init.life_time_seconds, [0.6, 1.2]);
-    assert_eq!(logical.init.velocity.angle_degrees, [200.0, 340.0]);
-    assert_eq!(logical.init.velocity.speed, [80.0, 160.0]);
+    let particle::ParticleVelocity::Polar {
+        angle_degrees,
+        speed,
+    } = logical.init.velocity
+    else {
+        panic!()
+    };
+    assert_eq!(angle_degrees, [200.0, 340.0]);
+    assert_eq!(speed, [80.0, 160.0]);
     assert_eq!(logical.reaction.len(), 1);
     assert_eq!(logical.evolution.accel, [0.0, 200.0]);
     assert_eq!(logical.evolution.drag, 1.5);

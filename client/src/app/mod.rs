@@ -13,13 +13,11 @@ use crate::app::states::main_menu::MenuAction;
 use crate::core;
 use crate::core::client::GameNetClient;
 use crate::core::event::SpellUseEvent;
+use crate::graphic_data::ClientSpellSlots;
 use crate::graphic_data::asset_manager::AssetManager;
 use crate::graphic_data::tile_map::TileMap;
-use crate::graphic_data::{ClientSpellSlots, post_process_effect_type};
 use crate::rendering::ScreenScale;
 use crate::rendering::camera::Camera;
-use crate::rendering::vfx::particle::ParticlePool;
-use crate::rendering::vfx::vfx_manager::VfxManager;
 use crate::ui::debug_ui::{DebugData, DebugRenderer};
 
 fn build_camera_matrix(
@@ -45,8 +43,8 @@ pub struct ClientId(pub u64);
 pub struct App {
     window: Option<Arc<winit::window::Window>>,
     gpu_ctx: Option<prism::GpuContext>,
-    gpu_resources: Option<prism::GpuResources>,
-    renderer: Option<prism::Renderer>,
+    gpu_resources: Option<crate::rendering::RenderAssets>,
+    renderer: Option<crate::rendering::SceneRenderer>,
     debug_renderer: Option<DebugRenderer>,
     ui_ctx: Option<nodus::UiContext>,
     client: Option<GameNetClient>,
@@ -67,10 +65,11 @@ pub struct App {
 impl App {
     pub fn new(_event_loop: &winit::event_loop::EventLoop<()>) -> Self {
         let mut resource = Resources::new();
-        resource.insert(VfxManager::new());
         resource.insert(BufferManager::with_capacity(16));
-        resource.insert(ParticlePool::new());
-        let vfx = crate::vfx::VfxSystem::default();
+        let mut vfx = crate::vfx::VfxSystem::default();
+        vfx.registry
+            .register_gameplay_effects()
+            .expect("Les effets gameplay intégrés doivent être valides");
         resource.insert(vfx.api());
         resource.insert(vfx);
         resource.insert(nodus::DrawCommandBuffer::new(2048));
@@ -93,6 +92,13 @@ impl App {
 
         let last_frame = std::time::Instant::now();
         let id_register = utils::ids::Register::new();
+
+        let runtime =
+            tokio::runtime::Runtime::new().expect("Echec lors de la création du runtime tokio");
+        resource.insert(runtime);
+
+        let asset_loader = crate::vfx::AssetLoader::new();
+        resource.insert(asset_loader);
 
         Self {
             window: None,
@@ -117,11 +123,11 @@ impl App {
         }
     }
 
-    pub fn renderer(&self) -> &prism::Renderer {
+    pub fn renderer(&self) -> &crate::rendering::SceneRenderer {
         self.renderer.as_ref().unwrap()
     }
 
-    pub fn renderer_mut(&mut self) -> &mut prism::Renderer {
+    pub fn renderer_mut(&mut self) -> &mut crate::rendering::SceneRenderer {
         self.renderer.as_mut().unwrap()
     }
 }
@@ -161,9 +167,16 @@ impl winit::application::ApplicationHandler for App {
             self.debug_data.insert(flow_field);
             self.resource.insert(grid);
         }
-        let mut gpu_resources = prism::GpuResources::new(&gpu_ctx);
+        let mut gpu_resources = match crate::rendering::RenderAssets::new(&gpu_ctx) {
+            Ok(assets) => assets,
+            Err(error) => {
+                tracing::error!(%error, "Échec de l'initialisation des ressources Prism V2");
+                event_loop.exit();
+                return;
+            }
+        };
 
-        let mut renderer = match self.initialize_renderer(&gpu_ctx, &mut gpu_resources) {
+        let renderer = match self.initialize_renderer(&gpu_ctx, &mut gpu_resources) {
             Ok(renderer) => renderer,
             Err(error) => {
                 tracing::error!("{error}");
@@ -193,15 +206,14 @@ impl winit::application::ApplicationHandler for App {
         }
         self.resource.insert(asset_manager);
 
-        let hp_material_id =
-            match self.initialize_health_material(&gpu_ctx, &mut gpu_resources, &mut renderer) {
-                Ok(id) => id,
-                Err(error) => {
-                    tracing::error!("{error}");
-                    event_loop.exit();
-                    return;
-                }
-            };
+        let hp_material_id = match self.initialize_health_material(&gpu_ctx, &mut gpu_resources) {
+            Ok(id) => id,
+            Err(error) => {
+                tracing::error!("{error}");
+                event_loop.exit();
+                return;
+            }
+        };
 
         // Init des élements du ui des différentes scènes
         {
@@ -271,9 +283,7 @@ impl winit::application::ApplicationHandler for App {
             }
             winit::event::WindowEvent::Resized(s) => {
                 let gpu_ctx = self.gpu_ctx.as_mut().unwrap();
-                if let Some(renderer) = &mut self.renderer {
-                    renderer.resize(gpu_ctx, s.width, s.height);
-                }
+                gpu_ctx.resize(s.width, s.height);
                 if let Some(ui_ctx) = &mut self.ui_ctx {
                     ui_ctx.resize(s.width as f32, s.height as f32);
                 }
@@ -309,31 +319,38 @@ impl winit::application::ApplicationHandler for App {
                 let gpu_resources = self.gpu_resources.as_mut().unwrap();
                 let window = self.window.as_ref().unwrap();
                 if let Some(renderer) = &mut self.renderer {
-                    if let Some(frame) = renderer.frame_manager().pop() {
-                        if let Some(mut frame_ctx) = renderer.render(gpu_ctx, gpu_resources, frame)
-                        {
-                            if let core::screen::AppScreen::InGame = &self.screen {
-                                let mode = self
-                                    .resource
-                                    .read_resource::<crate::core::debug_state::DebugState>()
-                                    .mode;
-                                if mode != crate::core::debug_state::DebugMode::Off {
-                                    if let Some(debug_renderer) = self.debug_renderer.as_mut() {
-                                        debug_renderer.begin_frame(window);
+                    if let Some(frame) = renderer.take_frame() {
+                        match renderer.render(gpu_ctx, gpu_resources, frame) {
+                            Ok(Some(mut frame_ctx)) => {
+                                if let core::screen::AppScreen::InGame = &self.screen {
+                                    let mode = self
+                                        .resource
+                                        .read_resource::<crate::core::debug_state::DebugState>()
+                                        .mode;
+                                    if mode != crate::core::debug_state::DebugMode::Off {
+                                        if let Some(debug_renderer) = self.debug_renderer.as_mut() {
+                                            debug_renderer.begin_frame(window);
 
-                                        crate::ui::debug_ui::run_debug(
-                                            debug_renderer,
-                                            mode,
-                                            &self.debug_data,
-                                            &self.resource,
-                                            &mut self.cam,
-                                        );
-                                        debug_renderer.flush_into(window, &mut frame_ctx, gpu_ctx);
+                                            crate::ui::debug_ui::run_debug(
+                                                debug_renderer,
+                                                mode,
+                                                &self.debug_data,
+                                                &self.resource,
+                                                &mut self.cam,
+                                            );
+                                            debug_renderer.flush_into(
+                                                window,
+                                                &mut frame_ctx,
+                                                gpu_ctx,
+                                            );
+                                        }
                                     }
                                 }
-                            }
 
-                            frame_ctx.present(gpu_ctx);
+                                frame_ctx.present(gpu_ctx);
+                            }
+                            Ok(None) => (),
+                            Err(error) => tracing::error!(%error, "Échec du rendu Prism V2"),
                         }
                     } else {
                         tracing::trace!("Aucune frame prête lors du RedrawRequested");
@@ -366,19 +383,9 @@ impl winit::application::ApplicationHandler for App {
         let dt = frame_delta.as_secs_f32();
 
         let screen_size = gpu_ctx.size;
-        let mut frame = prism::Frame::new();
+        let mut frame = crate::rendering::SceneFrame::new();
         frame.camera_pos = self.cam.pos();
         frame.cam_shake_offset = self.cam.shake.offset();
-        let cam_matrix = build_camera_matrix(
-            self.cam.pos(),
-            self.cam.shake.offset(),
-            screen_size.width as f32,
-            screen_size.height as f32,
-        );
-        self.resource.insert(cam_matrix);
-        self.debug_data.insert(cam_matrix);
-        self.debug_data.insert(screen_size);
-        self.debug_data.insert(self.cam);
 
         if let Some(ref mut c) = self.client {
             c.update(frame_delta);
@@ -394,9 +401,6 @@ impl winit::application::ApplicationHandler for App {
                         &mut self.is_solo,
                     );
                 }
-            }
-            if matches!(self.screen, core::screen::AppScreen::InGame) {
-                renderer.frame_manager().clear();
             }
         }
         match &mut self.screen {
@@ -455,19 +459,6 @@ impl winit::application::ApplicationHandler for App {
                     debug.cycle();
                 }
 
-                // Activation des RenderPass post process
-                {
-                    let hit_flash = self
-                        .resource
-                        .read_resource::<post_process_effect_type::HitFlashEffect>();
-                    renderer.enable_post_process_pass(hit_flash.id);
-
-                    let blind = self
-                        .resource
-                        .read_resource::<post_process_effect_type::BlindEffect>();
-                    renderer.enable_post_process_pass(blind.id);
-                }
-
                 match (client_ok, ui_ok, gpu_resources_ok) {
                     (Some(client), Some(ui_ctx), Some(gpu_resources)) => {
                         let mut gui_ctx = crate::app::states::in_game::GuiContext {
@@ -496,6 +487,8 @@ impl winit::application::ApplicationHandler for App {
                             screen_size,
                         );
 
+                        frame.camera_pos = self.cam.pos();
+                        frame.cam_shake_offset = self.cam.shake.offset();
                         if let Some(map) = &self.map {
                             map.draw(
                                 &self.resource,
@@ -530,33 +523,6 @@ impl winit::application::ApplicationHandler for App {
                                     }
                                 }
                             }
-                        }
-
-                        // MAJ hit flash effect
-                        {
-                            let hit_flash = self
-                                .resource
-                                .read_resource::<post_process_effect_type::HitFlashEffect>();
-                            renderer.write_post_process_uniform(
-                                gpu_ctx,
-                                *hit_flash.id,
-                                hit_flash.intensity,
-                            );
-                        }
-
-                        // MAJ blind Effect
-                        {
-                            let mut blind = self
-                                .resource
-                                .write_resource::<post_process_effect_type::BlindEffect>();
-
-                            blind.aspect_ratio =
-                                screen_size.width as f32 / screen_size.height.max(1) as f32;
-                            let blind_uniform = post_process_effect_type::BlindUniform {
-                                amount: blind.amount,
-                                aspect_ratio: blind.aspect_ratio,
-                            };
-                            renderer.write_post_process_uniform(gpu_ctx, *blind.id, blind_uniform);
                         }
                     }
                     _ => {
@@ -603,13 +569,28 @@ impl winit::application::ApplicationHandler for App {
             });
             let mut buf = self.resource.write_resource::<nodus::DrawCommandBuffer>();
             ui_ctx.update(dt);
-            hud::prepare_hud(&mut frame, ui_ctx, &mut buf);
+            hud::prepare_hud(
+                &mut frame,
+                ui_ctx,
+                &mut buf,
+                self.gpu_resources.as_ref().unwrap(),
+            );
         }
 
-        if let Err(rejected_frame) = renderer.frame_manager().push(frame) {
-            tracing::warn!("Frame rejetée : la file d'attente du FrameManager est pleine");
-            let _ = rejected_frame;
-        }
+        // Camera logic may have advanced while updating the game scene.
+        frame.camera_pos = self.cam.pos();
+        frame.cam_shake_offset = self.cam.shake.offset();
+        let cam_matrix = build_camera_matrix(
+            frame.camera_pos,
+            frame.cam_shake_offset,
+            screen_size.width.max(1) as f32,
+            screen_size.height.max(1) as f32,
+        );
+        self.resource.insert(cam_matrix);
+        self.debug_data.insert(cam_matrix);
+        self.debug_data.insert(screen_size);
+        self.debug_data.insert(self.cam);
+        renderer.queue(frame);
 
         if let Some(window) = &self.window {
             window.request_redraw();

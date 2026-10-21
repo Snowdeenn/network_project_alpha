@@ -13,9 +13,10 @@ use crate::graphic_data::animation::AnimEntityManager;
 use crate::graphic_data::post_process_effect_type;
 use crate::rendering::ScreenScale;
 use crate::rendering::camera::{self, Camera};
-use crate::rendering::vfx::particle::{Particle, ParticlePool};
+use crate::rendering::vfx::particle::ParticlePool;
 use crate::rendering::vfx::vfx_manager::VfxManager;
 use crate::ui::hud;
+use crate::vfx::{VfxApi, VfxSystem};
 
 pub struct Snapshots {
     pub prev_snapshot: Option<StateSnapshot>,
@@ -111,13 +112,44 @@ impl InGameScene {
         dt: f32,
     ) {
         self.process_snapshots(client, gui, resources);
-        self.process_game_event(client, gui, resources, cam);
+        self.process_game_event(client, gui, resources);
         self.handle_ui(gui, input_state, resources);
         self.handle_shop(scale, client, gui, input_state, resources);
         self.process_network_ticks(client, screen_size, input_state);
 
         // Mises à jour logiques
         crate::core::update_state_timer(resources, dt);
+        {
+            let t = self.snapshots.interpolation_factor();
+            let mut vfx = resources.write_resource::<VfxSystem>();
+            vfx.update(dt, |id| {
+                let current = self
+                    .snapshots
+                    .last_snapshot
+                    .as_ref()?
+                    .entities
+                    .iter()
+                    .find(|e| e.entity_id == id)?;
+                let previous = self
+                    .snapshots
+                    .prev_snapshot
+                    .as_ref()
+                    .and_then(|snapshot| snapshot.entities.iter().find(|e| e.entity_id == id));
+                let pos = previous.map_or(current.position, |previous| {
+                    [
+                        utils::math::lerp(previous.position[0], current.position[0], t),
+                        utils::math::lerp(previous.position[1], current.position[1], t),
+                    ]
+                });
+                Some(Vec2::new(pos[0], pos[1]))
+            });
+            vfx.apply_existing(
+                &mut resources.write_resource::<ParticlePool>(),
+                &mut resources.write_resource::<VfxManager>(),
+                cam,
+                &mut resources.write_resource::<post_process_effect_type::HitFlashEffect>(),
+            );
+        }
         {
             resources.write_resource::<ParticlePool>().update(dt);
             resources.write_resource::<VfxManager>().update(dt);
@@ -169,6 +201,8 @@ impl InGameScene {
                     );
                     let vfx = resources.read_resource::<VfxManager>();
                     vfx.push_draw_commands(frame);
+                    let snapshot = resources.read_resource::<VfxSystem>().extract();
+                    crate::vfx::render_bridge::append_to_frame(&snapshot, frame);
                 }
             }
             _ => (), // On va gérer le game Over autre part
@@ -236,23 +270,9 @@ impl InGameScene {
             return;
         }
 
-        let lifetime = rand::random_range(0.18..0.32f32);
-        resources.write_resource::<ParticlePool>().spawn(Particle {
-            pos: Vec2 {
-                x: pos.x + rand::random_range(-20.0..20.0),
-                y: pos.y + 20.0,
-            },
-            velocity: Vec2 {
-                x: (-dx * 4.0) + rand::random_range(-20.0..20.0),
-                y: rand::random_range(-50.0..-20.0),
-            },
-            friction: 4.5,
-            lifetime,
-            lt_max: lifetime,
-            scale: 0.1,
-            growth: 3.5,
-            color: prism::Color::LIGHTGRAY,
-        });
+        let _ = resources
+            .read_resource::<VfxApi>()
+            .movement_dust(pos, Vec2::new(dx, dy));
     }
 
     fn process_game_event(
@@ -260,42 +280,20 @@ impl InGameScene {
         client: &mut GameNetClient,
         gui: &mut GuiContext,
         resources: &mut Resources,
-        cam: &mut Camera,
     ) {
         while let Some(event) = client.recv_event() {
-            self.handle_vfx_event(&event, cam, resources);
+            self.handle_vfx_event(&event, resources);
             handle_shop_ui_event(&event, gui.ui_ctx, &gui.ids);
-
-            if matches!(event.kind, GameEventKind::PlayerHit) {
-                let mut hit_flash =
-                    resources.write_resource::<post_process_effect_type::HitFlashEffect>();
-                hit_flash.timer = hit_flash.total_duration;
-            }
 
             crate::core::event::handle_event(event, resources);
         }
     }
 
-    fn handle_vfx_event(&mut self, event: &GameEvent, cam: &mut Camera, resources: &mut Resources) {
+    fn handle_vfx_event(&mut self, event: &GameEvent, resources: &Resources) {
+        let vfx = resources.read_resource::<VfxApi>();
         match event.kind {
             GameEventKind::EntityHit { pos } => {
-                let mut particle_pool = resources.write_resource::<ParticlePool>();
-                for _ in 0..10 {
-                    let angle = rand::random_range(0.0..std::f32::consts::TAU);
-                    let speed = rand::random_range(80.0..160.0f32);
-                    let lifetime = rand::random_range(0.1..0.25f32);
-                    particle_pool.spawn(Particle {
-                        pos: Vec2::new(pos[0], pos[1]),
-                        velocity: Vec2::new(angle.cos() * speed, angle.sin() * speed),
-                        friction: 6.0,
-                        lifetime,
-                        lt_max: lifetime,
-                        scale: 0.15,
-                        growth: 5.5,
-                        color: prism::Color::DARKGOLDENROD,
-                    })
-                }
-                cam.shake.add_trauma(0.5);
+                let _ = vfx.entity_hit(Vec2::new(pos[0], pos[1]));
             }
             GameEventKind::SpawnRect {
                 x,
@@ -304,17 +302,15 @@ impl InGameScene {
                 half_width,
                 dir,
             } => {
-                let mut vfx = resources.write_resource::<VfxManager>();
-                let angle_deg = dir[1].atan2(dir[0]).to_degrees();
-                vfx.spawn_slash(
-                    Vec2 { x, y },
-                    angle_deg,
-                    half_length * 0.5,
+                let _ = vfx.slash(
+                    Vec2::new(x, y),
+                    Vec2::new(dir[0], dir[1]),
+                    half_length,
                     half_width,
-                    60.0,
-                    0.15,
-                    prism::Color::WHITE,
                 );
+            }
+            GameEventKind::PlayerHit => {
+                let _ = vfx.player_hit();
             }
             _ => (),
         }

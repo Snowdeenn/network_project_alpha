@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "name": "impact_composite",
+  "family": "composite",
+  "components": [
+    { "effect": "impact_embers", "delay_seconds": 0.0 },
+    { "effect": "impact_shockwave", "delay_seconds": 0.05 }
+  ]
+}

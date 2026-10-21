@@ -70,6 +70,9 @@ impl App {
         resource.insert(VfxManager::new());
         resource.insert(BufferManager::with_capacity(16));
         resource.insert(ParticlePool::new());
+        let vfx = crate::vfx::VfxSystem::default();
+        resource.insert(vfx.api());
+        resource.insert(vfx);
         resource.insert(nodus::DrawCommandBuffer::new(2048));
         resource.insert(core::ui_state::UiState::default());
         let spec_mod: Option<core::ui_state::SpectatorMode> = None;

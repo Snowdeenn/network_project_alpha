@@ -7,12 +7,12 @@ mod particle;
 mod post_process;
 mod trail;
 
-use decal::{DecalLogicalDescriptor, DecalVisualDescriptor};
-use light::{LightLogicalDescriptor, LightVisualDescriptor};
-use mesh::{MeshLogicalDescriptor, MeshVisualDescriptor};
-use particle::{ParticleLogicalDescriptor, ParticleVisualDescriptor};
-use post_process::{PostProcessLogicalDescriptor, PostProcessVisualDescriptor};
-use trail::{TrailLogicalDescription, TrailVisualDescriptor};
+pub(crate) use decal::{DecalLogicalDescriptor, DecalVisualDescriptor};
+pub(crate) use light::{LightLogicalDescriptor, LightVisualDescriptor};
+pub(crate) use mesh::{MeshLogicalDescriptor, MeshVisualDescriptor};
+pub(crate) use particle::{ParticleLogicalDescriptor, ParticleVisualDescriptor};
+pub(crate) use post_process::{PostProcessLogicalDescriptor, PostProcessParameter, PostProcessVisualDescriptor};
+pub(crate) use trail::{TrailLogicalDescription, TrailVisualDescriptor};
 
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(tag = "family", rename_all = "kebab-case")]
@@ -53,7 +53,9 @@ pub(crate) enum VfxEmissionMode {
 #[derive(Debug, Deserialize, PartialEq)]
 pub(crate) struct VfxEmission {
     pub mode: VfxEmissionMode,
+    /// Nombre total pour Burst ; particules par seconde pour Continuous.
     pub count: u32,
+    /// Délai initial depuis l'activation de l'instance.
     pub delay_seconds: f32,
 }
 
@@ -86,7 +88,7 @@ pub(crate) struct LogicalDeath<D> {
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
-pub(crate) struct VfxEffectDescriptor {
+pub struct VfxEffectDescriptor {
     pub version: u32,
     pub name: String,
     #[serde(flatten)]

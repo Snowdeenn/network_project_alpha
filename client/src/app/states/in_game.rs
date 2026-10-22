@@ -75,7 +75,6 @@ impl HudBuffers {
 pub struct GuiContext<'a> {
     pub ui_ctx: &'a mut nodus::UiContext,
     pub gpu_resources: &'a mut crate::rendering::RenderAssets,
-    pub ids: &'a utils::ids::Register,
 }
 
 pub struct InGameScene {
@@ -148,7 +147,7 @@ impl InGameScene {
         self.update_camera(cam);
 
         // Envoi de la demande de respawn au server
-        Self::send_respawn_request(client, gui, resources);
+        Self::send_respawn_request(client, resources);
     }
 
     pub fn render(
@@ -259,7 +258,7 @@ impl InGameScene {
     ) {
         while let Some(event) = client.recv_event() {
             self.handle_vfx_event(&event, resources);
-            handle_shop_ui_event(&event, gui.ui_ctx, &gui.ids);
+            handle_shop_ui_event(&event, gui.ui_ctx, resources);
 
             crate::core::event::handle_event(event, resources);
         }
@@ -316,7 +315,10 @@ impl InGameScene {
         input_state: &Input,
         resources: &mut Resources,
     ) {
-        let root = match gui.ids.get::<nodus::NodeId>(crate::key::shop::ROOT) {
+        let root = match resources
+            .read_resource::<utils::ids::Register>()
+            .get::<nodus::NodeId>(crate::key::shop::ROOT)
+        {
             Some(id) => id,
             None => {
                 tracing::warn!("L'id {} est absent du register", crate::key::shop::ROOT);
@@ -400,11 +402,7 @@ impl InGameScene {
         }
     }
 
-    fn send_respawn_request(
-        client: &mut GameNetClient,
-        gui: &mut GuiContext,
-        resources: &mut Resources,
-    ) {
+    fn send_respawn_request(client: &mut GameNetClient, resources: &mut Resources) {
         let mut game_phase = resources.write_resource::<crate::core::game_phase::GamePhase>();
         let ui_state = resources.write_resource::<crate::core::ui_state::UiState>();
         let Some(respawn_timer) = ui_state.respawn_timer else {
@@ -417,12 +415,12 @@ impl InGameScene {
         }
         let client_id = resources.read_resource::<crate::app::ClientId>();
         let ui_output_event = resources.read_resource::<Vec<nodus::UIOutputEvent>>();
-        let shared_lives_button = gui
-            .ids
+        let shared_lives_button = resources
+            .read_resource::<utils::ids::Register>()
             .get::<nodus::NodeId>(crate::key::hud::RESPAWN_SHARED_LIVES_BUTTON)
             .unwrap();
-        let gold_button = gui
-            .ids
+        let gold_button = resources
+            .read_resource::<utils::ids::Register>()
             .get::<nodus::NodeId>(crate::key::hud::RESPAWN_GOLD_BUTTON)
             .unwrap();
 

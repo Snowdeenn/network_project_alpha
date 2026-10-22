@@ -18,7 +18,8 @@ pub struct SlotId {
     pub gold_border: nodus::NodeId, // overlay doré pour le slot local
 }
 
-pub fn init_lobby(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Register) {
+pub fn init_lobby(ui_ctx: &mut nodus::UiContext, resources: &crate::app::resources::Resources) {
+    let mut register = resources.write_resource::<utils::ids::Register>();
     let root = ui_ctx.add_node(
         ui_ctx.root,
         nodus::LayoutProps::new(
@@ -166,7 +167,12 @@ pub fn init_lobby(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Regi
     register.insert(crate::key::lobby::CLASS, class_label);
 }
 
-pub fn update(ui_ctx: &mut nodus::UiContext, ids: &utils::ids::Register, state: &LobbyScreenState) {
+pub fn update(
+    ui_ctx: &mut nodus::UiContext,
+    resources: &crate::app::resources::Resources,
+    state: &LobbyScreenState,
+) {
+    let ids = resources.read_resource::<utils::ids::Register>();
     let code_label = match ids.get::<nodus::NodeId>(crate::key::lobby::CODE_LABEL) {
         Some(id) => id,
         None => {

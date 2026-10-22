@@ -46,7 +46,8 @@ impl App {
         let id = assets
             .create_health_material(context)
             .map_err(|error| error.to_string())?;
-        self.id_register
+        self.resource
+            .write_resource::<utils::ids::Register>()
             .insert(crate::key::material::HP_MATERIAL, id);
         Ok(id)
     }

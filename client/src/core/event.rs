@@ -1,3 +1,5 @@
+use crate::vfx::{AssetLoader, LoadRequestId, registry::Priority};
+
 pub struct SpellUseEvent(pub Option<utils::protocol::SpellSlot>);
 
 pub fn handle_event(
@@ -117,6 +119,19 @@ pub fn handle_event(
             tracing::error!("Impossible d'utiliser le spell : reason => {reason:?}")
         }
         utils::protocol::GameEventKind::SpellAcquired { slot, config } => {
+            {
+                let runtime = app_resource.read_resource::<tokio::runtime::Runtime>();
+                let mut asset_loader = app_resource.write_resource::<AssetLoader>();
+
+                let _guard = runtime.enter();
+                let request = asset_loader.request_load(crate::vfx::AssetLoadContext::new(
+                    "assets/vfx/fireball/core.json",
+                ));
+
+                app_resource
+                    .write_resource::<utils::ids::Register>()
+                    .insert("asset/fireball_core_request", request);
+            }
             let mut spell_slots =
                 app_resource.write_resource::<crate::graphic_data::ClientSpellSlots>();
             tracing::info!("Spell Acquired {slot:?}");
@@ -135,6 +150,20 @@ pub fn handle_event(
         }
         utils::protocol::GameEventKind::SpellUsed { slot } => {
             app_resource.write_resource::<SpellUseEvent>().0 = Some(slot);
+            let mut vfx = app_resource.write_resource::<crate::vfx::VfxSystem>();
+            let mut asset_loader = app_resource.write_resource::<AssetLoader>();
+            let fireball_core_request = app_resource
+                .read_resource::<utils::ids::Register>()
+                .get::<LoadRequestId>("asset/fireball_core_request")
+                .unwrap();
+
+            if vfx
+                .registry
+                .register_loaded(&mut asset_loader, fireball_core_request, Priority::Normal)
+                .unwrap()
+            {
+                tracing::info!("asset loaded pour fireball");
+            }
         }
         utils::protocol::GameEventKind::PlayerBlind { duration } => {
             if let Err(error) = app_resource
@@ -150,8 +179,9 @@ pub fn handle_event(
 pub fn handle_shop_ui_event(
     event: &utils::protocol::GameEvent,
     ui_ctx: &mut nodus::UiContext,
-    shop_ids: &utils::ids::Register,
+    resources: &crate::app::resources::Resources,
 ) {
+    let shop_ids = resources.read_resource::<utils::ids::Register>();
     let root = match shop_ids.get::<nodus::NodeId>(crate::key::shop::ROOT) {
         Some(id) => id,
         None => {

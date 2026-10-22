@@ -6,11 +6,8 @@ use prism_legacy::ids::MaterialId;
 use std::fmt::Write;
 use utils::protocol::StateSnapshot;
 
-pub fn init_hud(
-    ui_ctx: &mut nodus::UiContext,
-    hp_material_id: MaterialId,
-    register: &mut utils::ids::Register,
-) {
+pub fn init_hud(ui_ctx: &mut nodus::UiContext, hp_material_id: MaterialId, resources: &Resources) {
+    let mut register = resources.write_resource::<utils::ids::Register>();
     let root = ui_ctx.add_node(
         ui_ctx.root,
         nodus::LayoutProps::new(
@@ -29,17 +26,17 @@ pub fn init_hud(
         },
     );
     register.insert(crate::key::hud::ROOT, root);
-    init_wave_label(ui_ctx, root, register);
+    init_wave_label(ui_ctx, root, &mut register);
 
-    init_health_bar(ui_ctx, root, register, hp_material_id);
+    init_health_bar(ui_ctx, root, &mut register, hp_material_id);
 
-    init_gold_label(ui_ctx, root, register);
+    init_gold_label(ui_ctx, root, &mut register);
 
-    init_respawn_menu(ui_ctx, root, register);
+    init_respawn_menu(ui_ctx, root, &mut register);
 
-    init_shared_lives_label(ui_ctx, root, register);
+    init_shared_lives_label(ui_ctx, root, &mut register);
 
-    init_spell_slots(ui_ctx, root, register);
+    init_spell_slots(ui_ctx, root, &mut register);
 }
 
 fn init_wave_label(
@@ -322,7 +319,8 @@ pub struct ShopCardIds {
     pub sold_text: nodus::NodeId,
 }
 
-pub fn init_shop(ui_ctx: &mut nodus::UiContext, register: &mut utils::ids::Register) {
+pub fn init_shop(ui_ctx: &mut nodus::UiContext, resources: &Resources) {
+    let mut register = resources.write_resource::<utils::ids::Register>();
     let shop_root = ui_ctx.add_node(
         ui_ctx.root,
         nodus::LayoutProps::new(
@@ -553,10 +551,11 @@ pub fn update(
         )
         .unwrap();
 
-        let hp_material_id = match gui
-            .ids
-            .get::<prism_legacy::ids::MaterialId>(crate::key::material::HP_MATERIAL)
-        {
+        let hp_material_id = match resources
+            .read_resource::<utils::ids::Register>()
+            .get::<prism_legacy::ids::MaterialId>(
+            crate::key::material::HP_MATERIAL,
+        ) {
             Some(id) => id,
             None => {
                 tracing::warn!(
@@ -566,7 +565,10 @@ pub fn update(
                 return;
             }
         };
-        if let Some(hp_fill_id) = gui.ids.get::<nodus::NodeId>(crate::key::hud::HP_FILL) {
+        if let Some(hp_fill_id) = resources
+            .read_resource::<utils::ids::Register>()
+            .get::<nodus::NodeId>(crate::key::hud::HP_FILL)
+        {
             // Mise à jour de la barre de vie via uniform_data
             // Le shader hp reçoit un f32 ratio en group(2) binding(0)
             gui.ui_ctx.send_event(nodus::UIEvent::SetMaterial {
@@ -587,7 +589,10 @@ pub fn update(
             tracing::warn!("L'id {} est absent du register", crate::key::hud::HP_FILL);
         }
 
-        let hp_text_id = match gui.ids.get::<nodus::NodeId>(crate::key::hud::HP_TEXT) {
+        let hp_text_id = match resources
+            .read_resource::<utils::ids::Register>()
+            .get::<nodus::NodeId>(crate::key::hud::HP_TEXT)
+        {
             Some(id) => id,
             None => {
                 tracing::warn!("L'id {} est absent du register", crate::key::hud::HP_TEXT);
@@ -598,7 +603,10 @@ pub fn update(
             target: hp_text_id,
             content: bufs.hp.to_string(),
         });
-        let gold_label_id = match gui.ids.get::<nodus::NodeId>(crate::key::hud::GOLD_LABEL) {
+        let gold_label_id = match resources
+            .read_resource::<utils::ids::Register>()
+            .get::<nodus::NodeId>(crate::key::hud::GOLD_LABEL)
+        {
             Some(id) => id,
             None => {
                 tracing::warn!(
@@ -613,7 +621,10 @@ pub fn update(
             content: bufs.gold.to_string(),
         });
         'wave_label: {
-            let wave_label_id = match gui.ids.get::<nodus::NodeId>(crate::key::hud::WAVE_LABEL) {
+            let wave_label_id = match resources
+                .read_resource::<utils::ids::Register>()
+                .get::<nodus::NodeId>(crate::key::hud::WAVE_LABEL)
+            {
                 Some(id) => id,
                 None => {
                     tracing::warn!(
@@ -632,7 +643,10 @@ pub fn update(
 
     'shared_lives: {
         let ui_state = resources.read_resource::<crate::core::ui_state::UiState>();
-        let Some(shared_lives) = gui.ids.get(crate::key::hud::SHARED_LIVES_LABEL) else {
+        let Some(shared_lives) = resources
+            .read_resource::<utils::ids::Register>()
+            .get(crate::key::hud::SHARED_LIVES_LABEL)
+        else {
             tracing::error!("SHARED_LIVES_LABEL introuvable dans l'id register");
             break 'shared_lives;
         };
@@ -650,8 +664,8 @@ pub fn update(
         let spell_slots = resources.read_resource::<crate::graphic_data::ClientSpellSlots>();
         let cooldowns = spell_slots.cooldowns;
         for i in 0..cooldowns.len() {
-            let Some(slot) = gui
-                .ids
+            let Some(slot) = resources
+                .read_resource::<utils::ids::Register>()
                 .get::<SpellSlot>(crate::key::hud::SPELL_SLOT_KEYS[i])
             else {
                 tracing::error!(
@@ -694,7 +708,9 @@ pub fn update(
 fn update_respawn_menu(gui: &mut GuiContext, resources: &Resources) {
     let game_phase = resources.read_resource::<crate::core::game_phase::GamePhase>();
     if matches!(*game_phase, crate::core::game_phase::GamePhase::Dead) {
-        let Some(respawn_label) = gui.ids.get::<nodus::NodeId>(crate::key::hud::RESPAWN_LABEL)
+        let Some(respawn_label) = resources
+            .read_resource::<utils::ids::Register>()
+            .get::<nodus::NodeId>(crate::key::hud::RESPAWN_LABEL)
         else {
             tracing::error!("Respawn Label introuvable dans l'id register");
             return;
@@ -719,8 +735,8 @@ fn update_respawn_menu(gui: &mut GuiContext, resources: &Resources) {
                     target: respawn_label,
                     visible: false,
                 });
-                let shared_lives_button = gui
-                    .ids
+                let shared_lives_button = resources
+                    .read_resource::<utils::ids::Register>()
                     .get::<nodus::NodeId>(crate::key::hud::RESPAWN_SHARED_LIVES_BUTTON)
                     .unwrap();
                 gui.ui_ctx.send_event(nodus::UIEvent::SetVisible {
@@ -728,8 +744,8 @@ fn update_respawn_menu(gui: &mut GuiContext, resources: &Resources) {
                     visible: true,
                 });
 
-                let gold_button = gui
-                    .ids
+                let gold_button = resources
+                    .read_resource::<utils::ids::Register>()
                     .get::<nodus::NodeId>(crate::key::hud::RESPAWN_GOLD_BUTTON)
                     .unwrap();
                 gui.ui_ctx.send_event(nodus::UIEvent::SetVisible {
@@ -739,9 +755,10 @@ fn update_respawn_menu(gui: &mut GuiContext, resources: &Resources) {
             }
         }
     } else {
-        let Some(shared_lives_button) = gui
-            .ids
-            .get::<nodus::NodeId>(crate::key::hud::RESPAWN_SHARED_LIVES_BUTTON)
+        let Some(shared_lives_button) =
+            resources
+                .read_resource::<utils::ids::Register>()
+                .get::<nodus::NodeId>(crate::key::hud::RESPAWN_SHARED_LIVES_BUTTON)
         else {
             tracing::error!("RESPAWN_SHARED_LIVES_BUTTON introuvable dans l'id register");
             return;
@@ -750,8 +767,8 @@ fn update_respawn_menu(gui: &mut GuiContext, resources: &Resources) {
             target: shared_lives_button,
             visible: false,
         });
-        let Some(gold_button) = gui
-            .ids
+        let Some(gold_button) = resources
+            .read_resource::<utils::ids::Register>()
             .get::<nodus::NodeId>(crate::key::hud::RESPAWN_GOLD_BUTTON)
         else {
             tracing::error!("RESPAWN_GOLD_BUTTON introuvable dans l'id register");

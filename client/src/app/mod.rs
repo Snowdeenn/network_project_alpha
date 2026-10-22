@@ -51,7 +51,6 @@ pub struct App {
     map: Option<TileMap>,
     resource: Resources,
     debug_data: DebugData,
-    id_register: utils::ids::Register,
     client_id: ClientId,
     in_game_scene: InGameScene,
     screen: core::screen::AppScreen,
@@ -91,10 +90,11 @@ impl App {
         resource.insert(SpellUseEvent(None));
 
         let last_frame = std::time::Instant::now();
-        let id_register = utils::ids::Register::new();
+        resource.insert(utils::ids::Register::new());
 
-        let runtime =
-            tokio::runtime::Runtime::new().expect("Echec lors de la création du runtime tokio");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .expect("Echec lors de la création du runtime tokio");
         resource.insert(runtime);
 
         let asset_loader = crate::vfx::AssetLoader::new();
@@ -111,7 +111,6 @@ impl App {
             map: None,
             resource,
             debug_data: DebugData::default(),
-            id_register,
             client_id: client_id,
             in_game_scene: InGameScene::default(),
             screen: core::screen::AppScreen::MainMenu,
@@ -217,9 +216,9 @@ impl winit::application::ApplicationHandler for App {
 
         // Init des élements du ui des différentes scènes
         {
-            hud::init_hud(&mut ui_ctx, hp_material_id, &mut self.id_register);
-            hud::init_shop(&mut ui_ctx, &mut self.id_register);
-            states::lobby::init_lobby(&mut ui_ctx, &mut self.id_register);
+            hud::init_hud(&mut ui_ctx, hp_material_id, &self.resource);
+            hud::init_shop(&mut ui_ctx, &self.resource);
+            states::lobby::init_lobby(&mut ui_ctx, &self.resource);
         }
 
         let map = match TileMap::new(&mut gpu_resources, &gpu_ctx) {
@@ -387,6 +386,12 @@ impl winit::application::ApplicationHandler for App {
         frame.camera_pos = self.cam.pos();
         frame.cam_shake_offset = self.cam.shake.offset();
 
+        {
+            let runtime = self.resource.read_resource::<tokio::runtime::Runtime>();
+            let mut asset_loader = self.resource.write_resource::<crate::vfx::AssetLoader>();
+            runtime.block_on(asset_loader.run_request());
+        }
+
         if let Some(ref mut c) = self.client {
             c.update(frame_delta);
 
@@ -439,7 +444,7 @@ impl winit::application::ApplicationHandler for App {
                 // Rendu Lobby
                 crate::app::states::lobby::update(
                     &mut self.ui_ctx.as_mut().unwrap(),
-                    &self.id_register,
+                    &self.resource,
                     state,
                 );
             }
@@ -464,7 +469,6 @@ impl winit::application::ApplicationHandler for App {
                         let mut gui_ctx = crate::app::states::in_game::GuiContext {
                             ui_ctx,
                             gpu_resources,
-                            ids: &self.id_register,
                         };
 
                         // Mise à jour logique
@@ -538,7 +542,11 @@ impl winit::application::ApplicationHandler for App {
             }
         }
         if let Some(ref mut ui_ctx) = self.ui_ctx {
-            let hud_root = match self.id_register.get::<nodus::NodeId>(crate::key::hud::ROOT) {
+            let hud_root = match self
+                .resource
+                .read_resource::<utils::ids::Register>()
+                .get::<nodus::NodeId>(crate::key::hud::ROOT)
+            {
                 Some(id) => id,
                 None => {
                     tracing::warn!("L'id {} est absent du register", crate::key::hud::ROOT);
@@ -546,7 +554,8 @@ impl winit::application::ApplicationHandler for App {
                 }
             };
             let lobby_root = match self
-                .id_register
+                .resource
+                .read_resource::<utils::ids::Register>()
                 .get::<nodus::NodeId>(crate::key::lobby::ROOT)
             {
                 Some(id) => id,

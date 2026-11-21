@@ -8,8 +8,8 @@ Documentation mise à jour le 5 octobre 2026 par lecture des sources. Les foncti
 
 - Rust, édition 2024, workspace Cargo à trois crates.
 - Serveur : ECS Legion, Renet/Netcode UDP, bincode v2.
-- Client : fenêtre Winit, GPU WGPU, rendu Prism, interface Nodus et debug Egui.
-- Dépendances Git Snowdeenn : math, prism, nodus et weave.
+- Client : fenêtre Winit, GPU WGPU, rendu Velum, interface Nodus et debug Egui.
+- Dépendances Git Snowdeenn : math, prism, nodus et weave ; Velum depuis le checkout local `learn_wgpu`.
 - Configuration JSON via Serde ; shaders WGSL.
 
 Raylib n'est plus une dépendance Cargo ; un module portant ce nom subsiste dans les sources.
@@ -106,6 +106,7 @@ Ces commandes sont des instructions, pas un compte rendu de tests exécutés lor
 - [Roadmap du jeu](doc/ROADMAP.md)
 - [Roadmap du rendu et des VFX](doc/roadmap-renderer-vfx.md)
 - [Intégration du renderer Prism V2](doc/renderer-prism-v2.md)
+- [Migration du rendu Alpha vers Velum](doc/migration-velum.md)
 - [Système VFX client : architecture et utilisation](doc/client-vfx-system.md)
 - [Cahier des charges UI](doc/Cahier_des_charge_framework_ui_embarquer.md) : objectifs de conception et intégration actuelle, sans garantie de performance mesurée.
 

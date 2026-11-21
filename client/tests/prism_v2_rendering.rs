@@ -1,12 +1,14 @@
 //! Run explicitly on machines with a graphics adapter:
 //! cargo test -p client --test prism_v2_rendering -- --ignored
-use client::rendering::{BlendMode, Color, Primitive, RenderAssets, SceneFrame, SceneRenderer};
-use prism::frame::v2::PostProcessSubmission;
+use client::rendering::PostProcessSubmission;
+use client::rendering::{
+    BlendMode, Color, GpuContext, Primitive, RenderAssets, SceneFrame, SceneRenderer,
+};
 use utils::math::Vec2;
 
 fn quad(pos: [f32; 2], size: [f32; 2], color: [f32; 4], layer: u8) -> Primitive {
     Primitive::Shape {
-        shape: prism::Shape::Quad {
+        shape: velum::geometry::Shape::Quad {
             pos,
             size,
             color,
@@ -18,7 +20,7 @@ fn quad(pos: [f32; 2], size: [f32; 2], color: [f32; 4], layer: u8) -> Primitive 
     }
 }
 
-fn pixels(context: &prism::GpuContext, target: &wgpu::Texture) -> Vec<u8> {
+fn pixels(context: &GpuContext, target: &wgpu::Texture) -> Vec<u8> {
     let row = (target.width() * 4).div_ceil(256) * 256;
     let buffer = context.device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("test readback"),
@@ -67,21 +69,27 @@ fn pixels(context: &prism::GpuContext, target: &wgpu::Texture) -> Vec<u8> {
     pixels
 }
 
-fn target(context: &prism::GpuContext, width: u32, height: u32) -> wgpu::Texture {
-    context.device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("client V2 test"),
-        size: wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
+fn target(
+    assets: &mut RenderAssets,
+    width: u32,
+    height: u32,
+) -> (
+    velum::OwnedResource<velum::backend::target::RenderTargetId>,
+    wgpu::Texture,
+) {
+    use velum::backend::target::{self, RenderTargetDescriptor, TargetSize};
+    let owner = target::register_in(
+        assets.context,
+        RenderTargetDescriptor {
+            label: "Alpha render test",
+            size: TargetSize::Fixed { width, height },
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            sample_count: 1,
         },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8UnormSrgb,
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
-        view_formats: &[],
-    })
+    );
+    let raw = target::get(owner.id()).unwrap().texture().as_raw().clone();
+    (owner, raw)
 }
 
 #[test]
@@ -92,19 +100,19 @@ fn v2_renders_camera_layers_vfx_ui_text_effects_and_resize() {
         .expect("graphics adapter");
     let (device, queue) = pollster::block_on(adapter.request_device(&Default::default())).unwrap();
     let mut context =
-        prism::GpuContext::from_device(device, queue, 64, 64, wgpu::TextureFormat::Rgba8UnormSrgb)
+        GpuContext::from_device(device, queue, 64, 64, wgpu::TextureFormat::Rgba8UnormSrgb)
             .unwrap();
     let mut assets = RenderAssets::new(&context).unwrap();
     let mut renderer = SceneRenderer::new(&context, &mut assets).unwrap();
     let health = assets.create_health_material(&context).unwrap();
-    let output = target(&context, 64, 64);
+    let (_output_owner, output) = target(&mut assets, 64, 64);
     let mut scene = SceneFrame::new();
     scene.camera_pos = Vec2::new(100.0, 100.0);
     scene.cam_shake_offset = Vec2::new(4.0, 0.0);
     scene.push_world(quad([96.0, 96.0], [8.0; 2], [1.0, 0.0, 0.0, 1.0], 3));
     scene.push_world(quad([96.0, 96.0], [8.0; 2], [0.0, 1.0, 0.0, 1.0], 1));
     scene.push_vfx(Primitive::Shape {
-        shape: prism::Shape::Quad {
+        shape: velum::geometry::Shape::Quad {
             pos: [96.0, 96.0],
             size: [8.0; 2],
             rotation: 0.0,
@@ -149,7 +157,7 @@ fn v2_renders_camera_layers_vfx_ui_text_effects_and_resize() {
         assets.load_texture(&context, &path).unwrap(),
         "texture cache"
     );
-    std::fs::remove_file(path).unwrap();
+    std::fs::remove_file(&path).unwrap();
     let ui_texture = assets.register_nodus_texture(texture).unwrap();
     ui.push(nodus::DrawCommand::Texture {
         texture_id: ui_texture,
@@ -170,11 +178,7 @@ fn v2_renders_camera_layers_vfx_ui_text_effects_and_resize() {
     let report = renderer
         .render_to_texture(&context, &mut assets, scene, &output)
         .unwrap();
-    assert!(
-        report.skipped_objects.is_empty(),
-        "{:?}",
-        report.skipped_objects
-    );
+    assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
     let image = pixels(&context, &output);
     let pixel = |x: usize, y: usize| &image[(y * 64 + x) * 4..(y * 64 + x) * 4 + 4];
     assert_eq!(
@@ -228,11 +232,7 @@ fn v2_renders_camera_layers_vfx_ui_text_effects_and_resize() {
     let report = renderer
         .render_to_texture(&context, &mut assets, scene, &output)
         .unwrap();
-    assert!(
-        report.skipped_objects.is_empty(),
-        "{:?}",
-        report.skipped_objects
-    );
+    assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
     let image = pixels(&context, &output);
     assert_eq!(
         &image[(32 * 64 + 32) * 4..(32 * 64 + 32) * 4 + 4],
@@ -250,8 +250,8 @@ fn v2_renders_camera_layers_vfx_ui_text_effects_and_resize() {
         "blind edge"
     );
 
-    context.resize(96, 32);
-    let resized = target(&context, 96, 32);
+    context.resize(96, 32).unwrap();
+    let (_resized_owner, resized) = target(&mut assets, 96, 32);
     let mut crowded = SceneFrame::new();
     for _ in 0..2048 {
         crowded.push_hud(quad([0.0; 2], [96.0, 32.0], [0.0, 1.0, 0.0, 1.0], 0));
@@ -260,9 +260,9 @@ fn v2_renders_camera_layers_vfx_ui_text_effects_and_resize() {
         .render_to_texture(&context, &mut assets, crowded, &resized)
         .unwrap();
     assert!(
-        report.skipped_objects.is_empty(),
+        report.diagnostics.is_empty(),
         "buffer growth: {:?}",
-        report.skipped_objects
+        report.diagnostics
     );
     assert!(
         report.draw_calls <= 3,
@@ -277,12 +277,17 @@ fn v2_renders_camera_layers_vfx_ui_text_effects_and_resize() {
     let report = renderer
         .render_to_texture(&context, &mut assets, SceneFrame::new(), &resized)
         .unwrap();
-    assert!(report.skipped_objects.is_empty());
+    assert!(report.diagnostics.is_empty());
     assert!(
         pixels(&context, &resized)
             .chunks_exact(4)
             .all(|pixel| pixel == [0, 0, 0, 255]),
         "no stale geometry or text after resize"
+    );
+    assert!(assets.remove_texture(texture));
+    assert!(
+        assets.load_texture(&context, &path).is_err(),
+        "removed texture must also leave the existing path cache"
     );
 }
 
@@ -296,7 +301,7 @@ fn migrated_gameplay_effects_render_through_vfx_system_and_prism_v2() {
         .expect("graphics adapter");
     let (device, queue) = pollster::block_on(adapter.request_device(&Default::default())).unwrap();
     let context =
-        prism::GpuContext::from_device(device, queue, 64, 64, wgpu::TextureFormat::Rgba8UnormSrgb)
+        GpuContext::from_device(device, queue, 64, 64, wgpu::TextureFormat::Rgba8UnormSrgb)
             .unwrap();
     let mut assets = RenderAssets::new(&context).unwrap();
     let mut renderer = SceneRenderer::new(&context, &mut assets).unwrap();
@@ -341,15 +346,11 @@ fn migrated_gameplay_effects_render_through_vfx_system_and_prism_v2() {
         blend: BlendMode::Alpha,
         layer: 1,
     });
-    let output = target(&context, 64, 64);
+    let (_output_owner, output) = target(&mut assets, 64, 64);
     let report = renderer
         .render_to_texture(&context, &mut assets, scene, &output)
         .unwrap();
-    assert!(
-        report.skipped_objects.is_empty(),
-        "{:?}",
-        report.skipped_objects
-    );
+    assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
     let image = pixels(&context, &output);
     let pixel = |x: usize, y: usize| &image[(y * 64 + x) * 4..(y * 64 + x) * 4 + 4];
     assert!(
@@ -402,7 +403,7 @@ fn migrated_gameplay_effects_render_through_vfx_system_and_prism_v2() {
     let report = renderer
         .render_to_texture(&context, &mut assets, scene, &output)
         .unwrap();
-    assert!(report.skipped_objects.is_empty());
+    assert!(report.diagnostics.is_empty());
     let image = pixels(&context, &output);
     let center = &image[(32 * 64 + 32) * 4..(32 * 64 + 32) * 4 + 4];
     assert!(
@@ -420,7 +421,7 @@ fn arbitrary_post_effects_need_only_a_shader_and_registration_and_keep_manual_pa
         .expect("graphics adapter");
     let (device, queue) = pollster::block_on(adapter.request_device(&Default::default())).unwrap();
     let context =
-        prism::GpuContext::from_device(device, queue, 64, 64, wgpu::TextureFormat::Rgba8UnormSrgb)
+        GpuContext::from_device(device, queue, 64, 64, wgpu::TextureFormat::Rgba8UnormSrgb)
             .unwrap();
     let mut assets = RenderAssets::new(&context).unwrap();
     let mut renderer = SceneRenderer::new(&context, &mut assets).unwrap();
@@ -463,7 +464,7 @@ fn arbitrary_post_effects_need_only_a_shader_and_registration_and_keep_manual_pa
         .unwrap();
     vfx.update(1.0 / 60.0, |_| None);
     assert_eq!(vfx.post_process("custom/tint").weight, 0.5);
-    let output = target(&context, 64, 64);
+    let (_output_owner, output) = target(&mut assets, 64, 64);
     let frame = |vfx: &VfxSystem| {
         let mut frame = SceneFrame::new();
         render_bridge::append_to_frame(&vfx.extract(), &mut frame);
@@ -472,7 +473,7 @@ fn arbitrary_post_effects_need_only_a_shader_and_registration_and_keep_manual_pa
     let report = renderer
         .render_to_texture(&context, &mut assets, frame(&vfx), &output)
         .unwrap();
-    assert!(report.skipped_objects.is_empty());
+    assert!(report.diagnostics.is_empty());
     let image = pixels(&context, &output);
     assert!(
         (180..=195).contains(&image[1]) && image[0] == 0 && image[2] == 0,

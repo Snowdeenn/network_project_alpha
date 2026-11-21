@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use std::{collections::HashMap, fmt, path::Path};
 
-use prism::ids::TextureId;
+use crate::rendering::TextureId;
 use utils::arena::Arena;
 use utils::ids::{AnimId, AnimTag};
 use utils::protocol::BossKind;
@@ -139,7 +139,7 @@ impl AnimationManager {
     /// Charge toutes les animations définies dans un fichier de configuration JSON.
     pub fn load_from_config(
         &mut self,
-        ctx: &prism::GpuContext,
+        ctx: &crate::rendering::GpuContext,
         gpu_resources: &mut crate::rendering::RenderAssets,
         config_path: impl AsRef<Path>,
     ) -> Result<(), AnimationError> {

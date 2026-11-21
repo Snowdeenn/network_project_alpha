@@ -1,8 +1,12 @@
 //! Extensible post-process registration and owned per-frame uniforms.
-use prism::{
-    RenderError, RenderResult,
-    frame::v2::{PostProcessId, PostProcessSubmission},
-};
+use velum::backend::{RenderError, RenderResult};
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PostProcessId(pub u64);
+#[derive(Debug, Clone)]
+pub struct PostProcessSubmission {
+    pub effect: PostProcessId,
+    pub parameters: Vec<u8>,
+}
 use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Debug, PartialEq)]

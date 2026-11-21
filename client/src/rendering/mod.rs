@@ -1,16 +1,23 @@
 mod assets;
 pub mod camera;
+mod gpu;
 pub mod nodus_bridge;
 mod post_process;
 mod renderer;
+
 mod scene;
 mod text;
 pub mod types;
 
 pub use assets::RenderAssets;
-pub use post_process::{PostProcessInput, PostProcessRequest, PostProcessValue};
+pub use gpu::{GpuContext, GpuError};
+pub use post_process::{
+    PostProcessId, PostProcessInput, PostProcessRequest, PostProcessSubmission, PostProcessValue,
+};
 pub use renderer::SceneRenderer;
 pub use scene::{BlendMode, Color, OverlayContext, Primitive, SceneFrame};
+pub use velum::backend::target::RenderTargetId;
+pub use velum::backend::texture::TextureId;
 
 use crate::graphic_data::animation::AnimEntityManager;
 use crate::graphic_data::animation_manager::{AnimKey, BossState, EnemyState, PlayerState};
@@ -125,7 +132,7 @@ pub(crate) fn render_world(
         draw_fallback(frame, &entity.entity_kind, x, y, entity);
         if let Some(tint) = vfx.entity_tint(entity.entity_id)
             && let Some(Primitive::Shape {
-                shape: prism::Shape::Quad { color, .. },
+                shape: velum::geometry::Shape::Quad { color, .. },
                 ..
             }) = frame.world.get_mut(first)
         {
@@ -167,7 +174,7 @@ fn draw_fallback(
     match kind {
         utils::protocol::EntityKind::Player => {
             frame.push_world(crate::rendering::Primitive::Shape {
-                shape: prism::Shape::Quad {
+                shape: velum::geometry::Shape::Quad {
                     pos: [x - 20.0, y - 20.0],
                     size: [40.0, 40.0],
                     rotation: 0.0,
@@ -180,7 +187,7 @@ fn draw_fallback(
         }
         utils::protocol::EntityKind::Enemy => {
             frame.push_world(crate::rendering::Primitive::Shape {
-                shape: prism::Shape::Quad {
+                shape: velum::geometry::Shape::Quad {
                     pos: [x - 20.0, y - 20.0],
                     size: [40.0, 40.0],
                     rotation: 0.0,
@@ -193,7 +200,7 @@ fn draw_fallback(
             // barre de vie
             let bar_w = 40.0 * (entity.health / entity.max_health);
             frame.push_world(crate::rendering::Primitive::Shape {
-                shape: prism::Shape::Quad {
+                shape: velum::geometry::Shape::Quad {
                     pos: [x - 20.0, y - 30.0],
                     size: [40.0, 5.0],
                     rotation: 0.0,
@@ -204,7 +211,7 @@ fn draw_fallback(
                 layer: 1,
             });
             frame.push_world(crate::rendering::Primitive::Shape {
-                shape: prism::Shape::Quad {
+                shape: velum::geometry::Shape::Quad {
                     pos: [x - 20.0, y - 30.0],
                     size: [bar_w, 5.0],
                     rotation: 0.0,
@@ -217,7 +224,7 @@ fn draw_fallback(
         }
         utils::protocol::EntityKind::Coin => {
             frame.push_world(crate::rendering::Primitive::Shape {
-                shape: prism::Shape::Ring {
+                shape: velum::geometry::Shape::Ring {
                     center: [x, y],
                     inner_r: 0.0,
                     outer_r: 10.0,

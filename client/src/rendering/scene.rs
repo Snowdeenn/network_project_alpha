@@ -1,5 +1,6 @@
-//! Client-owned drawing descriptions. GPU submission uses only Prism V2.
-use prism::{Shape, UvRect, ids::TextureId};
+//! Client-owned drawing descriptions; all GPU resource references are native Velum types.
+use super::TextureId;
+use velum::geometry::{Shape, UvRect};
 
 pub use prism_legacy::Color; // Shared CPU color type required by Nodus.
 
@@ -35,7 +36,7 @@ pub enum Primitive {
         layer: u8,
     },
     Material {
-        template: prism::ids::MaterialTemplateHandle,
+        template: velum::SharedResource<velum::backend::MaterialTemplateId>,
         texture_id: Option<TextureId>,
         pos: [f32; 2],
         size: [f32; 2],
@@ -51,7 +52,7 @@ pub enum Primitive {
         pos: [f32; 2],
         size: [f32; 2],
         texture_size: [f32; 2],
-        margins: prism::NinePatchMargins,
+        margins: velum::geometry::NinePatchMargins,
         tint: [f32; 4],
         blend: BlendMode,
         layer: u8,
@@ -77,7 +78,7 @@ pub struct SceneFrame {
     pub hud: Vec<Primitive>,
     pub camera_pos: utils::math::Vec2,
     pub cam_shake_offset: utils::math::Vec2,
-    pub post_process: Vec<prism::frame::v2::PostProcessSubmission>,
+    pub post_process: Vec<super::post_process::PostProcessSubmission>,
     pub post_effects: Vec<super::PostProcessRequest>,
 }
 
@@ -105,7 +106,7 @@ pub struct OverlayContext {
 }
 
 impl OverlayContext {
-    pub fn present(self, context: &prism::GpuContext) {
+    pub fn present(self, context: &crate::rendering::GpuContext) {
         context.queue.submit([self.encoder.finish()]);
         context.present(self.surface_texture);
     }

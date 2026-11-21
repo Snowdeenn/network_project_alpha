@@ -27,7 +27,7 @@ impl Default for EffectPreviewSettings {
 }
 
 impl DebugRenderer {
-    pub fn init(window: &winit::window::Window, gpu_ctx: &prism::GpuContext) -> Self {
+    pub fn init(window: &winit::window::Window, gpu_ctx: &crate::rendering::GpuContext) -> Self {
         let ctx = egui::Context::default();
         let state = egui_winit::State::new(
             ctx.clone(),
@@ -105,7 +105,7 @@ impl DebugRenderer {
         &mut self,
         window: &winit::window::Window,
         frame_context: &mut crate::rendering::OverlayContext,
-        gpu_ctx: &prism::GpuContext,
+        gpu_ctx: &crate::rendering::GpuContext,
     ) {
         let mut full_output = self.end_frame();
         self.state

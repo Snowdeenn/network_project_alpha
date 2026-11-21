@@ -13,7 +13,7 @@ use super::dag::VfxGraph;
 use super::parser::r#struct::VfxEffectDescriptor;
 use super::particle::*;
 use super::simulation::{self, VfxSimulation};
-use prism::ids::MaterialHandle as MaterialId;
+use velum::backend::MaterialId;
 use utils::{Arena, Id};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

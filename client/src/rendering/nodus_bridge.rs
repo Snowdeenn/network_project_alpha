@@ -15,10 +15,10 @@ pub fn collect(buffer: &nodus::DrawCommandBuffer, assets: &RenderAssets, frame: 
 fn convert(
     command: &prism_legacy::DrawCommand,
     assets: &RenderAssets,
-) -> prism::RenderResult<Primitive> {
+) -> velum::backend::RenderResult<Primitive> {
     use prism_legacy::DrawCommand as Ui;
     let uv = |uv: &Option<prism_legacy::UvRect>| {
-        uv.map(|r| prism::UvRect {
+        uv.map(|r| velum::geometry::UvRect {
             x: r.x,
             y: r.y,
             w: r.w,
@@ -42,7 +42,7 @@ fn convert(
             blend: mode,
             layer,
         } => Primitive::Shape {
-            shape: prism::Shape::Quad {
+            shape: velum::geometry::Shape::Quad {
                 pos: *pos,
                 size: *size,
                 rotation: *rotation,
@@ -87,9 +87,9 @@ fn convert(
             template: assets
                 .nodus_materials
                 .get(*material_id)
-                .copied()
+                .cloned()
                 .ok_or_else(|| {
-                    prism::RenderError::new("Nodus material", "unregistered UI token")
+                    velum::backend::RenderError::new("Nodus material", "unregistered UI token")
                 })?,
             texture_id: texture_id.map(|id| assets.nodus_texture(id)).transpose()?,
             pos: *pos,
@@ -118,7 +118,7 @@ fn convert(
                 pos: *pos,
                 size: *size,
                 texture_size: [width as f32, height as f32],
-                margins: prism::NinePatchMargins {
+                margins: velum::geometry::NinePatchMargins {
                     top: margins.top,
                     bottom: margins.bottom,
                     left: margins.left,
@@ -143,7 +143,7 @@ fn convert(
             layer: *layer,
         },
         _ => {
-            return Err(prism::RenderError::new(
+            return Err(velum::backend::RenderError::new(
                 "Nodus draw",
                 "unsupported UI primitive",
             ));

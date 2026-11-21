@@ -220,7 +220,7 @@ pub fn append_to_frame(snapshot: &VfxRenderSnapshot, frame: &mut crate::renderin
         .extend(snapshot.post_process.iter().cloned());
     for ring in &snapshot.rings {
         frame.push_vfx(crate::rendering::Primitive::Shape {
-            shape: prism::Shape::Ring {
+            shape: velum::geometry::Shape::Ring {
                 center: ring.pos,
                 inner_r: ring.radii[0],
                 outer_r: ring.radii[1],
@@ -235,7 +235,7 @@ pub fn append_to_frame(snapshot: &VfxRenderSnapshot, frame: &mut crate::renderin
     }
     for sprite in &snapshot.sprites {
         frame.push_vfx(crate::rendering::Primitive::Shape {
-            shape: prism::Shape::Quad {
+            shape: velum::geometry::Shape::Quad {
                 pos: [
                     sprite.pos[0] - sprite.size[0] * 0.5,
                     sprite.pos[1] - sprite.size[1] * 0.5,
@@ -252,7 +252,7 @@ pub fn append_to_frame(snapshot: &VfxRenderSnapshot, frame: &mut crate::renderin
     for ribbon in &snapshot.ribbons {
         for pair in ribbon.points.windows(2) {
             frame.push_vfx(crate::rendering::Primitive::Shape {
-                shape: prism::Shape::Line {
+                shape: velum::geometry::Shape::Line {
                     start: pair[0].0,
                     end: pair[1].0,
                     thickness: pair[0].1.min(pair[1].1),

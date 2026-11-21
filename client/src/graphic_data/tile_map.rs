@@ -38,8 +38,8 @@ pub struct Bounds {
 }
 
 impl Bounds {
-    pub fn to_uv(&self, tex_width: f32, tex_height: f32) -> prism::UvRect {
-        prism::UvRect {
+    pub fn to_uv(&self, tex_width: f32, tex_height: f32) -> velum::geometry::UvRect {
+        velum::geometry::UvRect {
             x: self.x as f32 / tex_width,
             y: self.y as f32 / tex_height,
             w: self.w as f32 / tex_width,  // largeur normalisée
@@ -94,7 +94,7 @@ impl<'de> Deserialize<'de> for TextureAtlasInfo {
 }
 
 pub struct TileMap {
-    texture_atlas: prism::ids::TextureId,
+    texture_atlas: crate::rendering::TextureId,
     atlas_info: TextureAtlasInfo,
     tile_size: u32,
 }
@@ -102,7 +102,7 @@ pub struct TileMap {
 impl TileMap {
     pub fn new(
         gpu_resource: &mut crate::rendering::RenderAssets,
-        ctx: &prism::GpuContext,
+        ctx: &crate::rendering::GpuContext,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let atlas_info_str = include_str!("../../../assets/map_texture/map_sprite_sheet.json");
         let atlas_info: TextureAtlasInfo = serde_json::from_str(atlas_info_str)?;

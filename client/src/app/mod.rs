@@ -42,7 +42,7 @@ pub struct ClientId(pub u64);
 
 pub struct App {
     window: Option<Arc<winit::window::Window>>,
-    gpu_ctx: Option<prism::GpuContext>,
+    gpu_ctx: Option<crate::rendering::GpuContext>,
     gpu_resources: Option<crate::rendering::RenderAssets>,
     renderer: Option<crate::rendering::SceneRenderer>,
     debug_renderer: Option<DebugRenderer>,
@@ -129,10 +129,40 @@ impl App {
     pub fn renderer_mut(&mut self) -> &mut crate::rendering::SceneRenderer {
         self.renderer.as_mut().unwrap()
     }
+
+    fn check_gpu_errors(&self, event_loop: &winit::event_loop::ActiveEventLoop) -> bool {
+        if let Some(context) = &self.gpu_ctx {
+            while let Some(error) = context.take_error() {
+                tracing::error!(%error, "Erreur GPU Alpha");
+                if error.is_fatal() {
+                    event_loop.exit();
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
+    fn release_gpu(&mut self) {
+        // Drop resources and pending frames before unregistering their GPU context.
+        self.renderer = None;
+        self.debug_renderer = None;
+        self.gpu_resources = None;
+        self.map = None;
+        self.ui_ctx = None;
+        self.gpu_ctx = None;
+        self.window = None;
+        self.scale = None;
+        self.input_state = Input::new();
+    }
 }
 
 impl winit::application::ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        // Winit can emit redundant resume notifications.
+        if self.window.is_some() {
+            return;
+        }
         event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
 
         let window_attribute =
@@ -146,7 +176,7 @@ impl winit::application::ApplicationHandler for App {
                 return;
             }
         };
-        let gpu_ctx = match pollster::block_on(prism::GpuContext::new(window.clone())) {
+        let gpu_ctx = match pollster::block_on(crate::rendering::GpuContext::new(window.clone())) {
             Ok(ctx) => ctx,
             Err(e) => {
                 tracing::error!("Erreur lors de la création du gpu context : {e}");
@@ -169,7 +199,7 @@ impl winit::application::ApplicationHandler for App {
         let mut gpu_resources = match crate::rendering::RenderAssets::new(&gpu_ctx) {
             Ok(assets) => assets,
             Err(error) => {
-                tracing::error!(%error, "Échec de l'initialisation des ressources Prism V2");
+                tracing::error!(%error, "Échec de l'initialisation des ressources Velum");
                 event_loop.exit();
                 return;
             }
@@ -214,6 +244,9 @@ impl winit::application::ApplicationHandler for App {
             }
         };
 
+        // A resumed renderer must not collect commands holding old GPU/UI tokens.
+        self.resource.insert(nodus::DrawCommandBuffer::new(2048));
+
         // Init des élements du ui des différentes scènes
         {
             hud::init_hud(&mut ui_ctx, hp_material_id, &self.resource);
@@ -238,16 +271,31 @@ impl winit::application::ApplicationHandler for App {
         self.gpu_ctx = Some(gpu_ctx);
         self.gpu_resources = Some(gpu_resources);
         self.map = Some(map);
+        self.last_frame = std::time::Instant::now();
 
         tracing::info!("Application initialisée et prête");
+    }
+
+    fn suspended(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        self.release_gpu();
+        event_loop.set_control_flow(winit::event_loop::ControlFlow::Wait);
+    }
+
+    fn exiting(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
+        self.release_gpu();
     }
 
     fn window_event(
         &mut self,
         event_loop: &winit::event_loop::ActiveEventLoop,
-        _window_id: winit::window::WindowId,
+        window_id: winit::window::WindowId,
         event: winit::event::WindowEvent,
     ) {
+        if self.window.as_ref().is_none_or(|window| window.id() != window_id)
+            || !self.check_gpu_errors(event_loop)
+        {
+            return;
+        }
         if let (Some(window), Some(debug_renderer)) = (&self.window, &mut self.debug_renderer) {
             let consumed = debug_renderer.handle_event(window, &event);
             // A debug button must not also trigger an attack or movement input.
@@ -282,7 +330,11 @@ impl winit::application::ApplicationHandler for App {
             }
             winit::event::WindowEvent::Resized(s) => {
                 let gpu_ctx = self.gpu_ctx.as_mut().unwrap();
-                gpu_ctx.resize(s.width, s.height);
+                if let Err(error) = gpu_ctx.resize(s.width, s.height) {
+                    tracing::error!(%error, "Échec du redimensionnement GPU");
+                    event_loop.exit();
+                    return;
+                }
                 if let Some(ui_ctx) = &mut self.ui_ctx {
                     ui_ctx.resize(s.width as f32, s.height as f32);
                 }
@@ -349,7 +401,7 @@ impl winit::application::ApplicationHandler for App {
                                 frame_ctx.present(gpu_ctx);
                             }
                             Ok(None) => (),
-                            Err(error) => tracing::error!(%error, "Échec du rendu Prism V2"),
+                            Err(error) => tracing::error!(%error, "Échec du rendu Velum"),
                         }
                     } else {
                         tracing::trace!("Aucune frame prête lors du RedrawRequested");
@@ -361,6 +413,9 @@ impl winit::application::ApplicationHandler for App {
     }
 
     fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        if !self.check_gpu_errors(event_loop) {
+            return;
+        }
         if self
             .input_state
             .is_pressed(winit::keyboard::KeyCode::Escape)

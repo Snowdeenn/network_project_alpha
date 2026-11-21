@@ -3,11 +3,14 @@ name = "client"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+# Retained for command compatibility; rendering and resource ownership use Velum.
+velum = []
+
 [dependencies]
 utils  = { path = "../utils" }
 math.workspace = true
 nodus = { git = "https://github.com/Snowdeenn/nodus.git" }
-prism = { package = "prism-v2", git = "https://github.com/Snowdeenn/prism.git", rev = "54a2a3da673371af99c325b2f29909d5e34f327f" }
 # Nodus still exposes the historical CPU command and UI handle types.
 prism_legacy = { package = "prism", git = "https://github.com/Snowdeenn/prism.git" }
 serde = { version = "1.0", features = [ "derive" ] }
@@ -30,6 +33,7 @@ egui = "0.36.1"
 egui-wgpu = "0.36.1"
 egui-winit = "0.36.1"
 tokio = { version = "1.53.2", features = [ "fs", "rt-multi-thread" ] }
+velum = { package = "learn_wgpu", path = "../../learn_wgpu" }
 
 [dev-dependencies]
 tokio = { version = "1.53.2", features = [ "time" ] }

@@ -14,7 +14,7 @@ impl AssetManager {
     /// Charge le fichier de configuration JSON et enregistre toutes les animations
     pub fn load_animations(
         &mut self,
-        ctx: &prism::GpuContext,
+        ctx: &crate::rendering::GpuContext,
         gpu_resources: &mut crate::rendering::RenderAssets,
         config_path: &str,
     ) -> Result<(), AnimationError> {

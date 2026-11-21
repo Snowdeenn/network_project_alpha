@@ -12,7 +12,7 @@ pub(crate) struct TextOverlay {
 }
 
 impl TextOverlay {
-    pub fn new(context: &prism::GpuContext) -> Self {
+    pub fn new(context: &crate::rendering::GpuContext) -> Self {
         let cache = glyphon::Cache::new(&context.device);
         let viewport = glyphon::Viewport::new(&context.device, &cache);
         let mut atlas = glyphon::TextAtlas::new(
@@ -35,12 +35,12 @@ impl TextOverlay {
 
     pub fn render(
         &mut self,
-        context: &prism::GpuContext,
+        context: &crate::rendering::GpuContext,
         encoder: &mut wgpu::CommandEncoder,
         target: &wgpu::TextureView,
         [width, height]: [u32; 2],
         commands: &[Primitive],
-    ) -> prism::RenderResult<()> {
+    ) -> velum::backend::RenderResult<()> {
         let texts: Vec<_> = commands
             .iter()
             .filter_map(|command| match command {
@@ -112,7 +112,7 @@ impl TextOverlay {
                 areas,
                 &mut self.swash,
             )
-            .map_err(|error| prism::RenderError::new("text preparation", error.to_string()))?;
+            .map_err(|error| velum::backend::RenderError::new("text preparation", error.to_string()))?;
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("HUD text"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -128,7 +128,7 @@ impl TextOverlay {
         });
         self.renderer
             .render(&self.atlas, &self.viewport, &mut pass)
-            .map_err(|error| prism::RenderError::new("text rendering", error.to_string()))?;
+            .map_err(|error| velum::backend::RenderError::new("text rendering", error.to_string()))?;
         drop(pass);
         self.atlas.trim();
         Ok(())

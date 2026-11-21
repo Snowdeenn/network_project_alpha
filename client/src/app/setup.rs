@@ -7,7 +7,7 @@ use crate::{
 impl App {
     pub(super) fn initialize_renderer(
         &mut self,
-        context: &prism::GpuContext,
+        context: &crate::rendering::GpuContext,
         assets: &mut RenderAssets,
     ) -> Result<SceneRenderer, String> {
         let mut renderer =
@@ -40,7 +40,7 @@ impl App {
 
     pub(super) fn initialize_health_material(
         &mut self,
-        context: &prism::GpuContext,
+        context: &crate::rendering::GpuContext,
         assets: &mut RenderAssets,
     ) -> Result<prism_legacy::ids::MaterialId, String> {
         let id = assets

@@ -14,6 +14,7 @@ pub enum GpuError {
         reason: wgpu::DeviceLostReason,
         message: String,
     },
+    Context(velum::backend::context::InitError),
 }
 
 impl GpuError {
@@ -40,6 +41,9 @@ impl std::fmt::Display for GpuError {
             Self::DeviceLost { reason, message } => {
                 write!(f, "GPU device lost ({reason:?}): {message}")
             }
+            Self::Context(error) => {
+                write!(f, "Context initialization: {error}")
+            }
         }
     }
 }
@@ -49,6 +53,7 @@ impl std::error::Error for GpuError {
         match self {
             Self::Initialization(error) => Some(error),
             Self::Uncaptured(error) => Some(error),
+            Self::Context(error) => Some(error),
             _ => None,
         }
     }
@@ -57,8 +62,6 @@ impl std::error::Error for GpuError {
 /// Owns one native Velum context and its optional native window renderer.
 pub struct GpuContext {
     velum: velum::OwnedResource<velum::backend::context::ContextId>,
-    pub device: wgpu::Device,
-    pub queue: wgpu::Queue,
     presentation: Option<velum::backend::renderer::Renderer>,
     window: Option<Arc<winit::window::Window>>,
     pub size: winit::dpi::PhysicalSize<u32>,
@@ -67,12 +70,35 @@ pub struct GpuContext {
 }
 impl GpuContext {
     pub async fn new(window: Arc<winit::window::Window>) -> Result<Self, GpuError> {
-        let (renderer, owner) = velum::backend::renderer::Renderer::new_registered(window.clone())
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::all(),
+            flags: wgpu::InstanceFlags::debugging() | wgpu::InstanceFlags::VALIDATION,
+            memory_budget_thresholds: Default::default(),
+            backend_options: Default::default(),
+            display: None,
+        });
+
+        let renderer = velum::backend::renderer::Renderer::new(window.clone())
             .map_err(GpuError::Initialization)?;
+
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptionsBase {
+                power_preference: wgpu::PowerPreference::HighPerformance,
+                force_fallback_adapter: false,
+                compatible_surface: Some(&renderer.surface),
+                apply_limit_buckets: false,
+            })
+            .await
+            .map_err(|e| {
+                GpuError::Initialization(velum::backend::renderer::RendererInitError::Adapter(e))
+            })?;
+
+        let ctx_owner = velum::backend::context::create(&adapter).map_err(GpuError::Context)?;
         let size = window.inner_size();
         let format = renderer.conf.format;
+
         Ok(Self::attach(
-            owner,
+            ctx_owner,
             Some(renderer),
             Some(window),
             size,
@@ -112,7 +138,6 @@ impl GpuContext {
     ) -> Self {
         let gpu = velum::backend::context::context(Some(velum.id()));
         let device = gpu.device.clone();
-        let queue = gpu.queue.clone();
         let (sender, errors) = mpsc::channel();
         let lost_sender = sender.clone();
         device.on_uncaptured_error(Arc::new(move |error| {
@@ -123,8 +148,6 @@ impl GpuContext {
         });
         Self {
             velum,
-            device,
-            queue,
             presentation,
             window,
             size,
@@ -132,6 +155,15 @@ impl GpuContext {
             errors,
         }
     }
+
+    pub fn device(&self) -> wgpu::Device {
+        velum::backend::context::device(Some(self.velum_context_id()))
+    }
+
+    pub fn queue(&self) -> wgpu::Queue {
+        velum::backend::context::queue(Some(self.velum_context_id()))
+    }
+
     pub fn velum_context_id(&self) -> velum::backend::context::ContextId {
         self.velum.id()
     }
@@ -145,7 +177,9 @@ impl GpuContext {
         self.presentation.is_some() && self.size.width > 0 && self.size.height > 0
     }
     pub fn resize(&mut self, width: u32, height: u32) -> Result<(), GpuError> {
-        let limit = self.device.limits().max_texture_dimension_2d;
+        let device = velum::backend::context::device(Some(self.velum_context_id()));
+
+        let limit = device.limits().max_texture_dimension_2d;
         if width > limit || height > limit {
             return Err(GpuError::InvalidSurfaceSize {
                 width,
@@ -158,20 +192,22 @@ impl GpuContext {
             if let Some(renderer) = &mut self.presentation {
                 renderer.conf.width = width;
                 renderer.conf.height = height;
-                renderer.surface.configure(&self.device, &renderer.conf);
+                renderer.surface.configure(&device, &renderer.conf);
             }
-            velum::backend::target::resize_window_targets_in(
-                Some(self.velum.id()),
+            velum::backend::target::resize_window_targets(
+                //Some(self.velum.id()),
                 [width, height],
             );
         }
         Ok(())
     }
     pub fn reconfigure(&self) {
+        let device = velum::backend::context::device(Some(self.velum_context_id()));
+
         if self.is_ready()
             && let Some(renderer) = &self.presentation
         {
-            renderer.surface.configure(&self.device, &renderer.conf);
+            renderer.surface.configure(&device, &renderer.conf);
         }
     }
     pub fn current_texture(&self) -> wgpu::CurrentSurfaceTexture {
@@ -182,16 +218,19 @@ impl GpuContext {
             })
     }
     pub fn create_encoder(&self, label: &str) -> wgpu::CommandEncoder {
-        self.device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some(label) })
+        let device = velum::backend::context::device(Some(self.velum_context_id()));
+        device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some(label) })
     }
     pub fn submit(&self, encoder: wgpu::CommandEncoder) {
-        self.queue.submit([encoder.finish()]);
+        let queue = velum::backend::context::queue(Some(self.velum_context_id()));
+        queue.submit([encoder.finish()]);
     }
     pub fn present(&self, frame: wgpu::SurfaceTexture) {
+        let queue = velum::backend::context::queue(Some(self.velum_context_id()));
+
         if let Some(window) = &self.window {
             window.pre_present_notify();
         }
-        self.queue.present(frame);
+        queue.present(frame);
     }
 }

@@ -1,23 +1,27 @@
-mod assets;
+mod asset_cache;
 pub mod camera;
 mod gpu;
 pub mod nodus_bridge;
 mod post_process;
 mod renderer;
+mod resource_loader;
 
 mod scene;
+pub mod shader_bindings;
 mod text;
 pub mod types;
 
-pub use assets::RenderAssets;
+pub use asset_cache::AssetCache;
 pub use gpu::{GpuContext, GpuError};
 pub use post_process::{
     PostProcessId, PostProcessInput, PostProcessRequest, PostProcessSubmission, PostProcessValue,
 };
 pub use renderer::SceneRenderer;
+pub use resource_loader::create_health_material;
 pub use scene::{BlendMode, Color, OverlayContext, Primitive, SceneFrame};
 pub use velum::backend::target::RenderTargetId;
-pub use velum::backend::texture::TextureId;
+
+pub type TextureId = new_collection::Id<velum::backend::texture::TextureResource>;
 
 use crate::graphic_data::animation::AnimEntityManager;
 use crate::graphic_data::animation_manager::{AnimKey, BossState, EnemyState, PlayerState};

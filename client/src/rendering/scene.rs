@@ -37,6 +37,8 @@ pub enum Primitive {
     },
     Material {
         template: velum::SharedResource<velum::backend::MaterialTemplateId>,
+        layout: super::shader_bindings::MeshBindings,
+        resource_bindings: super::shader_bindings::ObjectBindings,
         texture_id: Option<TextureId>,
         pos: [f32; 2],
         size: [f32; 2],
@@ -107,7 +109,7 @@ pub struct OverlayContext {
 
 impl OverlayContext {
     pub fn present(self, context: &crate::rendering::GpuContext) {
-        context.queue.submit([self.encoder.finish()]);
+        context.queue().submit([self.encoder.finish()]);
         context.present(self.surface_texture);
     }
 }

@@ -1,11 +1,31 @@
 //! The only command-level V1 boundary, until Nodus exposes a V2/iterable draw buffer.
-use super::{BlendMode, Primitive, RenderAssets, SceneFrame};
+use super::{BlendMode, Primitive, SceneFrame, TextureId};
+use velum::backend::{RenderError, RenderResult, material::MaterialTemplateId};
+use velum::{RenderData, RenderDataId, SharedResource};
 
-pub fn collect(buffer: &nodus::DrawCommandBuffer, assets: &RenderAssets, frame: &mut SceneFrame) {
+/// Historical Nodus tokens mapped to native resources; owns no GPU resources.
+#[derive(Default)]
+pub struct NodusBridge {
+    nodus_materials: prism_legacy::arena::Arena<
+        RenderDataId<(
+            SharedResource<MaterialTemplateId>,
+            super::shader_bindings::MeshBindings,
+        )>,
+        prism_legacy::ids::MaterialTag,
+    >,
+    nodus_textures: prism_legacy::arena::Arena<TextureId, prism_legacy::ids::TextureTag>,
+}
+
+pub fn collect(
+    buffer: &nodus::DrawCommandBuffer,
+    bridge: &NodusBridge,
+    data: &velum::RenderData,
+    frame: &mut SceneFrame,
+) {
     let mut ui = prism_legacy::Frame::new();
     buffer.collect_into(&mut ui);
     for command in ui.hud_commands().commands() {
-        match convert(command, assets) {
+        match convert(command, bridge, data) {
             Ok(command) => frame.push_hud(command),
             Err(error) => tracing::error!(%error, "Commande Nodus ignorée"),
         }
@@ -14,7 +34,8 @@ pub fn collect(buffer: &nodus::DrawCommandBuffer, assets: &RenderAssets, frame: 
 
 fn convert(
     command: &prism_legacy::DrawCommand,
-    assets: &RenderAssets,
+    bridge: &NodusBridge,
+    data: &velum::RenderData,
 ) -> velum::backend::RenderResult<Primitive> {
     use prism_legacy::DrawCommand as Ui;
     let uv = |uv: &Option<prism_legacy::UvRect>| {
@@ -63,7 +84,7 @@ fn convert(
             layer,
         } => Primitive::Texture {
             flash: false,
-            id: assets.nodus_texture(*id)?,
+            id: bridge.nodus_texture(*id)?,
             pos: *pos,
             size: *size,
             rotation: *rotation,
@@ -84,14 +105,25 @@ fn convert(
             blend: mode,
             layer,
         } => Primitive::Material {
-            template: assets
+            template: bridge
                 .nodus_materials
                 .get(*material_id)
-                .cloned()
+                .and_then(|id| data.get(*id))
+                .map(|(template, _)| template.clone())
                 .ok_or_else(|| {
                     velum::backend::RenderError::new("Nodus material", "unregistered UI token")
                 })?,
-            texture_id: texture_id.map(|id| assets.nodus_texture(id)).transpose()?,
+            layout: data
+                .require(
+                    *bridge
+                        .nodus_materials
+                        .get(*material_id)
+                        .ok_or_else(|| RenderError::new("Nodus material", "unregistered token"))?,
+                )
+                .map_err(|e| RenderError::new("Nodus material", e.to_string()))?
+                .1,
+            resource_bindings: Default::default(),
+            texture_id: texture_id.map(|id| bridge.nodus_texture(id)).transpose()?,
             pos: *pos,
             size: *size,
             rotation: *rotation,
@@ -111,8 +143,8 @@ fn convert(
             blend: mode,
             layer,
         } => {
-            let id = assets.nodus_texture(*id)?;
-            let (width, height) = assets.texture_size(id)?;
+            let id = bridge.nodus_texture(*id)?;
+            let (width, height) = super::resource_loader::texture_size(id)?;
             Primitive::NinePatch {
                 id,
                 pos: *pos,
@@ -149,4 +181,36 @@ fn convert(
             ));
         }
     })
+}
+
+impl NodusBridge {
+    pub fn register_material(
+        &mut self,
+        data: &mut RenderData,
+        template: SharedResource<MaterialTemplateId>,
+        layout: super::shader_bindings::MeshBindings,
+    ) -> prism_legacy::ids::MaterialId {
+        self.nodus_materials.insert(data.insert((template, layout)))
+    }
+    pub fn register_nodus_texture(
+        &mut self,
+        id: TextureId,
+    ) -> RenderResult<prism_legacy::ids::TextureId> {
+        super::resource_loader::texture_size(id)?;
+        Ok(self.nodus_textures.insert(id))
+    }
+    pub(crate) fn nodus_texture(
+        &self,
+        id: prism_legacy::ids::TextureId,
+    ) -> RenderResult<TextureId> {
+        let texture = *self
+            .nodus_textures
+            .get(id)
+            .ok_or_else(|| RenderError::new("Nodus texture", "unregistered token"))?;
+        super::resource_loader::texture_size(texture)?;
+        Ok(texture)
+    }
+    pub fn unregister_nodus_texture(&mut self, id: prism_legacy::ids::TextureId) -> bool {
+        self.nodus_textures.remove(id).is_some()
+    }
 }

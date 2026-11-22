@@ -1,6 +1,7 @@
 pub mod client;
 pub mod config;
 pub mod event;
+pub mod spell_vfx;
 mod state_logic;
 
 pub use state_logic::LocalId;

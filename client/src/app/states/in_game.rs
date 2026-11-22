@@ -9,6 +9,7 @@ use crate::app::resources::Resources;
 use crate::core::client::GameNetClient;
 use crate::core::config;
 use crate::core::event::handle_shop_ui_event;
+use crate::graphic_data::ClientSpellSlots;
 use crate::graphic_data::animation::AnimEntityManager;
 use crate::rendering::ScreenScale;
 use crate::rendering::camera::{self, Camera};
@@ -74,7 +75,6 @@ impl HudBuffers {
 
 pub struct GuiContext<'a> {
     pub ui_ctx: &'a mut nodus::UiContext,
-    pub gpu_resources: &'a mut crate::rendering::RenderAssets,
 }
 
 pub struct InGameScene {
@@ -286,6 +286,51 @@ impl InGameScene {
             }
             GameEventKind::PlayerHit => {
                 let _ = vfx.player_hit();
+            }
+            GameEventKind::SpellUsed { slot } => {
+                if resources
+                    .read_resource::<VfxSystem>()
+                    .registry
+                    .get("fireball")
+                    .is_none()
+                {
+                    return;
+                }
+                if resources.read_resource::<ClientSpellSlots>().slots[slot.index()].is_none() {
+                    return;
+                }
+                let entity_id = resources.read_resource::<crate::core::LocalId>().entity_id;
+                let Some(current) = self.snapshots.last_snapshot.as_ref().and_then(|snapshot| {
+                    snapshot
+                        .entities
+                        .iter()
+                        .find(|entity| entity.entity_id == entity_id)
+                }) else {
+                    return;
+                };
+                let t = self.snapshots.interpolation_factor();
+                let previous = self.snapshots.prev_snapshot.as_ref().and_then(|snapshot| {
+                    snapshot
+                        .entities
+                        .iter()
+                        .find(|entity| entity.entity_id == entity_id)
+                });
+                let position = previous.map_or(current.position, |previous| {
+                    [
+                        utils::math::lerp(previous.position[0], current.position[0], t),
+                        utils::math::lerp(previous.position[1], current.position[1], t),
+                    ]
+                });
+                let params = crate::vfx::VfxSpawnParams {
+                    pos: Vec2::new(position[0], position[1]),
+                    entity: Some(entity_id),
+                    ..Default::default()
+                };
+                if let Err(error) =
+                    vfx.spawn_detached("fireball", params, crate::vfx::SpawnOptions::default())
+                {
+                    tracing::warn!(%error, "VFX du sort refusé");
+                }
             }
             _ => (),
         }

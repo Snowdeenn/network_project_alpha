@@ -43,7 +43,9 @@ pub struct ClientId(pub u64);
 pub struct App {
     window: Option<Arc<winit::window::Window>>,
     gpu_ctx: Option<crate::rendering::GpuContext>,
-    gpu_resources: Option<crate::rendering::RenderAssets>,
+    asset_cache: Option<crate::rendering::AssetCache>,
+    render_data: velum::RenderData,
+    nodus_bridge: crate::rendering::nodus_bridge::NodusBridge,
     renderer: Option<crate::rendering::SceneRenderer>,
     debug_renderer: Option<DebugRenderer>,
     ui_ctx: Option<nodus::UiContext>,
@@ -99,13 +101,16 @@ impl App {
 
         let asset_loader = crate::vfx::AssetLoader::new();
         resource.insert(asset_loader);
+        resource.insert(core::spell_vfx::SpellVfxLoads::default());
 
         Self {
             window: None,
             renderer: None,
             debug_renderer: None,
             gpu_ctx: None,
-            gpu_resources: None,
+            asset_cache: None,
+            render_data: velum::RenderData::new(),
+            nodus_bridge: Default::default(),
             ui_ctx: None,
             client: None,
             map: None,
@@ -147,7 +152,9 @@ impl App {
         // Drop resources and pending frames before unregistering their GPU context.
         self.renderer = None;
         self.debug_renderer = None;
-        self.gpu_resources = None;
+        self.asset_cache = None;
+        self.render_data = velum::RenderData::new();
+        self.nodus_bridge = Default::default();
         self.map = None;
         self.ui_ctx = None;
         self.gpu_ctx = None;
@@ -196,7 +203,9 @@ impl winit::application::ApplicationHandler for App {
             self.debug_data.insert(flow_field);
             self.resource.insert(grid);
         }
-        let mut gpu_resources = match crate::rendering::RenderAssets::new(&gpu_ctx) {
+        let mut render_data = velum::RenderData::new();
+        let mut nodus_bridge = crate::rendering::nodus_bridge::NodusBridge::default();
+        let mut asset_cache = match crate::rendering::AssetCache::new(&gpu_ctx, &mut render_data) {
             Ok(assets) => assets,
             Err(error) => {
                 tracing::error!(%error, "Échec de l'initialisation des ressources Velum");
@@ -205,7 +214,8 @@ impl winit::application::ApplicationHandler for App {
             }
         };
 
-        let renderer = match self.initialize_renderer(&gpu_ctx, &mut gpu_resources) {
+        let renderer = match self.initialize_renderer(&gpu_ctx, &mut asset_cache, &mut render_data)
+        {
             Ok(renderer) => renderer,
             Err(error) => {
                 tracing::error!("{error}");
@@ -222,7 +232,8 @@ impl winit::application::ApplicationHandler for App {
         {
             match asset_manager.load_animations(
                 &gpu_ctx,
-                &mut gpu_resources,
+                &mut asset_cache,
+                &mut render_data,
                 "assets/config/animations.json",
             ) {
                 Ok(_) => (),
@@ -235,14 +246,15 @@ impl winit::application::ApplicationHandler for App {
         }
         self.resource.insert(asset_manager);
 
-        let hp_material_id = match self.initialize_health_material(&gpu_ctx, &mut gpu_resources) {
-            Ok(id) => id,
-            Err(error) => {
-                tracing::error!("{error}");
-                event_loop.exit();
-                return;
-            }
-        };
+        let hp_material_id =
+            match self.initialize_health_material(&gpu_ctx, &mut nodus_bridge, &mut render_data) {
+                Ok(id) => id,
+                Err(error) => {
+                    tracing::error!("{error}");
+                    event_loop.exit();
+                    return;
+                }
+            };
 
         // A resumed renderer must not collect commands holding old GPU/UI tokens.
         self.resource.insert(nodus::DrawCommandBuffer::new(2048));
@@ -254,7 +266,7 @@ impl winit::application::ApplicationHandler for App {
             states::lobby::init_lobby(&mut ui_ctx, &self.resource);
         }
 
-        let map = match TileMap::new(&mut gpu_resources, &gpu_ctx) {
+        let map = match TileMap::new(&mut asset_cache, &mut render_data, &gpu_ctx) {
             Ok(map) => map,
             Err(e) => {
                 tracing::error!("Erreur lors de la création de la map : {e}");
@@ -269,7 +281,9 @@ impl winit::application::ApplicationHandler for App {
         self.ui_ctx = Some(ui_ctx);
         self.scale = Some(scale);
         self.gpu_ctx = Some(gpu_ctx);
-        self.gpu_resources = Some(gpu_resources);
+        self.asset_cache = Some(asset_cache);
+        self.render_data = render_data;
+        self.nodus_bridge = nodus_bridge;
         self.map = Some(map);
         self.last_frame = std::time::Instant::now();
 
@@ -291,7 +305,10 @@ impl winit::application::ApplicationHandler for App {
         window_id: winit::window::WindowId,
         event: winit::event::WindowEvent,
     ) {
-        if self.window.as_ref().is_none_or(|window| window.id() != window_id)
+        if self
+            .window
+            .as_ref()
+            .is_none_or(|window| window.id() != window_id)
             || !self.check_gpu_errors(event_loop)
         {
             return;
@@ -367,11 +384,11 @@ impl winit::application::ApplicationHandler for App {
             }
             winit::event::WindowEvent::RedrawRequested => {
                 let gpu_ctx = self.gpu_ctx.as_mut().unwrap();
-                let gpu_resources = self.gpu_resources.as_mut().unwrap();
+                let asset_cache = self.asset_cache.as_mut().unwrap();
                 let window = self.window.as_ref().unwrap();
                 if let Some(renderer) = &mut self.renderer {
                     if let Some(frame) = renderer.take_frame() {
-                        match renderer.render(gpu_ctx, gpu_resources, frame) {
+                        match renderer.render(gpu_ctx, asset_cache, &mut self.render_data, frame) {
                             Ok(Some(mut frame_ctx)) => {
                                 if let core::screen::AppScreen::InGame = &self.screen {
                                     let mode = self
@@ -445,6 +462,13 @@ impl winit::application::ApplicationHandler for App {
             let runtime = self.resource.read_resource::<tokio::runtime::Runtime>();
             let mut asset_loader = self.resource.write_resource::<crate::vfx::AssetLoader>();
             runtime.block_on(asset_loader.run_request());
+            let mut loads = self
+                .resource
+                .write_resource::<core::spell_vfx::SpellVfxLoads>();
+            let mut vfx = self.resource.write_resource::<crate::vfx::VfxSystem>();
+            if let Err(error) = loads.publish(&mut asset_loader, &mut vfx.registry) {
+                tracing::warn!(%error, "Échec du chargement des VFX fireball");
+            }
         }
 
         if let Some(ref mut c) = self.client {
@@ -507,7 +531,7 @@ impl winit::application::ApplicationHandler for App {
             core::screen::AppScreen::InGame => {
                 let client_ok = self.client.as_mut();
                 let ui_ok = self.ui_ctx.as_mut();
-                let gpu_resources_ok = self.gpu_resources.as_mut();
+                let asset_cache_ok = self.asset_cache.as_mut();
 
                 if self
                     .input_state
@@ -519,12 +543,9 @@ impl winit::application::ApplicationHandler for App {
                     debug.cycle();
                 }
 
-                match (client_ok, ui_ok, gpu_resources_ok) {
-                    (Some(client), Some(ui_ctx), Some(gpu_resources)) => {
-                        let mut gui_ctx = crate::app::states::in_game::GuiContext {
-                            ui_ctx,
-                            gpu_resources,
-                        };
+                match (client_ok, ui_ok, asset_cache_ok) {
+                    (Some(client), Some(ui_ctx), Some(asset_cache)) => {
+                        let mut gui_ctx = crate::app::states::in_game::GuiContext { ui_ctx };
 
                         // Mise à jour logique
                         self.in_game_scene.update(
@@ -551,7 +572,7 @@ impl winit::application::ApplicationHandler for App {
                         if let Some(map) = &self.map {
                             map.draw(
                                 &self.resource,
-                                gpu_resources,
+                                asset_cache,
                                 &mut frame,
                                 screen_size.width as f32,
                                 screen_size.height as f32,
@@ -588,7 +609,7 @@ impl winit::application::ApplicationHandler for App {
                         tracing::error!(
                             client = self.client.is_some(),
                             ui_ctx = self.ui_ctx.is_some(),
-                            gpu_resources = self.gpu_resources.is_some(),
+                            asset_cache = self.asset_cache.is_some(),
                             debug_renderer = self.debug_renderer.is_some(),
                             "Impossible de rendre InGame : une ressource requise est None"
                         );
@@ -637,7 +658,8 @@ impl winit::application::ApplicationHandler for App {
                 &mut frame,
                 ui_ctx,
                 &mut buf,
-                self.gpu_resources.as_ref().unwrap(),
+                &self.nodus_bridge,
+                &self.render_data,
             );
         }
 
@@ -660,5 +682,11 @@ impl winit::application::ApplicationHandler for App {
             window.request_redraw();
         }
         self.input_state.end_frame();
+    }
+}
+
+impl Drop for App {
+    fn drop(&mut self) {
+        self.release_gpu();
     }
 }

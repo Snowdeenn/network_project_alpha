@@ -38,7 +38,7 @@ impl DebugRenderer {
             None,
         );
         let renderer = egui_wgpu::Renderer::new(
-            &gpu_ctx.device,
+            &gpu_ctx.device(),
             gpu_ctx.surface_format(),
             egui_wgpu::RendererOptions {
                 msaa_samples: 1,
@@ -118,7 +118,7 @@ impl DebugRenderer {
         for (id, deltas) in &full_output.textures_delta.set {
             for delta in deltas {
                 self.renderer
-                    .update_texture(&gpu_ctx.device, &gpu_ctx.queue, *id, delta);
+                    .update_texture(&gpu_ctx.device(), &gpu_ctx.queue(), *id, delta);
             }
         }
 
@@ -128,8 +128,8 @@ impl DebugRenderer {
         };
 
         self.renderer.update_buffers(
-            &gpu_ctx.device,
-            &gpu_ctx.queue,
+            &gpu_ctx.device(),
+            &gpu_ctx.queue(),
             &mut frame_context.encoder,
             &paint_jobs,
             &screen_descriptor,

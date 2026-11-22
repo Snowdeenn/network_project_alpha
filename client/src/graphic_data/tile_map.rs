@@ -101,13 +101,14 @@ pub struct TileMap {
 
 impl TileMap {
     pub fn new(
-        gpu_resource: &mut crate::rendering::RenderAssets,
+        gpu_resource: &mut crate::rendering::AssetCache,
+        data: &mut velum::RenderData,
         ctx: &crate::rendering::GpuContext,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let atlas_info_str = include_str!("../../../assets/map_texture/map_sprite_sheet.json");
         let atlas_info: TextureAtlasInfo = serde_json::from_str(atlas_info_str)?;
         let texture_atlas =
-            gpu_resource.load_texture(ctx, "assets/map_texture/map_sprite_sheet.png")?;
+            gpu_resource.load_texture(ctx, data, "assets/map_texture/map_sprite_sheet.png")?;
 
         Ok(Self {
             texture_atlas,
@@ -118,7 +119,7 @@ impl TileMap {
     pub fn draw(
         &self,
         app_resources: &Resources,
-        gpu_resources: &crate::rendering::RenderAssets,
+        gpu_resources: &crate::rendering::AssetCache,
         frame: &mut crate::rendering::SceneFrame,
         screen_w: f32,
         screen_h: f32,

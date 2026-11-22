@@ -15,11 +15,12 @@ impl AssetManager {
     pub fn load_animations(
         &mut self,
         ctx: &crate::rendering::GpuContext,
-        gpu_resources: &mut crate::rendering::RenderAssets,
+        gpu_resources: &mut crate::rendering::AssetCache,
+        data: &mut velum::RenderData,
         config_path: &str,
     ) -> Result<(), AnimationError> {
         self.anims
-            .load_from_config(ctx, gpu_resources, config_path)?;
+            .load_from_config(ctx, gpu_resources, data, config_path)?;
         Ok(())
     }
 

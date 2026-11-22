@@ -1,13 +1,14 @@
 //! Alpha scene orchestration using only native Velum resource and draw APIs.
 use super::post_process::{PostProcessId, PostProcessSubmission};
-use super::{OverlayContext, Primitive, RenderAssets, SceneFrame, text::TextOverlay};
+use super::shader_bindings::{self, EffectBindings, SHAPE_BINDINGS, SPRITE_BINDINGS, UniformSlot};
+use super::{AssetCache, OverlayContext, Primitive, SceneFrame, text::TextOverlay};
 use std::ops::Range;
-use velum::geometry::{Shape, Tesselator, mesh::Mesh};
+use velum::geometry::{Mesh, Shape, Tesselator};
 use velum::{
-    OwnedResource, SharedResource,
+    OwnedResource, RenderData, RenderDataId, SharedResource,
     backend::{
         self as gpu, RenderError, RenderResult,
-        bindings::{self, BindingResource, BindingSet},
+        bindings::{BindingResource, BindingUse},
         buffer::{self, Buffer, BufferKind},
         geometry::{self, BufferRegion, Geometry, IndexBuffer, VertexBuffer},
         material::{self, Material, MaterialId, MaterialTemplate, MaterialTemplateId, ShaderEntry},
@@ -17,6 +18,9 @@ use velum::{
 };
 
 type Context = super::GpuContext;
+fn render_data_error(error: velum::RenderDataError) -> RenderError {
+    RenderError::new("render data", error.to_string())
+}
 struct MeshBuffer<K: BufferKind + Send + Sync + 'static> {
     owner: SharedResource<Buffer<u8, K>>,
     capacity: u64,
@@ -44,51 +48,56 @@ impl<K: BufferKind + Send + Sync + 'static> MeshBuffer<K> {
     }
 }
 struct EffectProgram {
-    template: SharedResource<MaterialTemplateId>,
-    parameter_size: usize,
+    template: RenderDataId<SharedResource<MaterialTemplateId>>,
+    layout: EffectBindings,
 }
 pub struct SceneRenderer {
     pending: Option<SceneFrame>,
-    vertices: MeshBuffer<buffer::Vertex>,
-    indices: MeshBuffer<buffer::Index>,
-    cameras: [(
-        SharedResource<Buffer<u8, buffer::Uniform>>,
-        SharedResource<gpu::BindingSetId>,
-    ); 2],
-    geometries: Vec<OwnedResource<gpu::GeometryId>>,
-    materials: Vec<OwnedResource<MaterialId>>,
+    vertices: RenderDataId<MeshBuffer<buffer::Vertex>>,
+    indices: RenderDataId<MeshBuffer<buffer::Index>>,
+    cameras: [RenderDataId<SharedResource<Buffer<u8, buffer::Uniform>>>; 2],
+    object_bindings: RenderDataId<Vec<SharedResource<gpu::BindingSetId>>>,
+    geometries: RenderDataId<Vec<OwnedResource<gpu::GeometryId>>>,
+    materials: RenderDataId<Vec<OwnedResource<MaterialId>>>,
     mesh: Mesh,
-    text: TextOverlay,
+    text: RenderDataId<TextOverlay>,
     post_process: super::post_process::PostProcessRegistry,
     effects: Vec<EffectProgram>,
-    blit: SharedResource<MaterialTemplateId>,
+    blit: RenderDataId<SharedResource<MaterialTemplateId>>,
+    blit_layout: EffectBindings,
 }
 fn uniform(
     context: Option<gpu::context::ContextId>,
-    group: u32,
+    slot: UniformSlot,
     bytes: &[u8],
 ) -> RenderResult<SharedResource<gpu::BindingSetId>> {
-    let owner = buffer::allocate_in::<u8, buffer::Uniform>(context, bytes.len() as u64)
+    if bytes.len() as u64 != slot.size || bytes.is_empty() || bytes.len() % 4 != 0 {
+        return Err(RenderError::new(
+            "uniform",
+            "data size differs from shader contract",
+        ));
+    }
+    let owner = buffer::allocate_in::<u8, buffer::Uniform>(context, slot.size)
         .map_err(|e| RenderError::new("uniform", e.to_string()))?
         .share();
     buffer::try_write_buffer(&owner.id(), 0, bytes)
         .map_err(|e| RenderError::new("uniform upload", e.to_string()))?;
-    bindings::try_register(BindingSet {
+    Ok(shader_bindings::register_sets(
         context,
-        group,
-        entries: vec![(
-            0,
+        [(
+            slot.location,
             BindingResource::buffer(BufferRegion::from_shared(owner)?),
         )],
-    })
-    .map(OwnedResource::share)
+    )?
+    .remove(0))
 }
+
 fn effect_template(
     context: Option<gpu::context::ContextId>,
     format: wgpu::TextureFormat,
     label: &str,
     fragment: &str,
-    parameter_size: usize,
+    layout: EffectBindings,
 ) -> RenderResult<SharedResource<MaterialTemplateId>> {
     let vertex = gpu::try_shader(
         context,
@@ -98,56 +107,45 @@ fn effect_template(
     let fragment = gpu::try_shader(context, label, fragment)?;
     let mut template = MaterialTemplate::fullscreen(context, label, vertex, format);
     template.fragment = Some(ShaderEntry::new(fragment, "fs_main"));
-    template.schema.groups.push(super::assets::texture_group(0));
-    if parameter_size > 0 {
-        template.schema.groups.push(super::assets::uniform_group(
-            1,
-            parameter_size as u64,
-            wgpu::ShaderStages::FRAGMENT,
-        ));
-    }
+    template.schema = layout.schema()?;
     material::try_template(template).map(OwnedResource::share)
 }
 impl SceneRenderer {
-    pub fn new(context: &Context, assets: &mut RenderAssets) -> RenderResult<Self> {
+    pub fn new(
+        context: &Context,
+        assets: &mut AssetCache,
+        data: &mut RenderData,
+    ) -> RenderResult<Self> {
         fn camera(
             context: Option<gpu::context::ContextId>,
-        ) -> RenderResult<(
-            SharedResource<Buffer<u8, buffer::Uniform>>,
-            SharedResource<gpu::BindingSetId>,
-        )> {
-            let owner = buffer::allocate_in::<u8, buffer::Uniform>(context, 64)
-                .map_err(|e| RenderError::new("camera", e.to_string()))?
-                .share();
-            let binding = bindings::try_register(BindingSet {
-                context,
-                group: 0,
-                entries: vec![(
-                    0,
-                    BindingResource::buffer(BufferRegion::from_shared(owner.clone())?),
-                )],
-            })?
-            .share();
-            Ok((owner, binding))
+        ) -> RenderResult<SharedResource<Buffer<u8, buffer::Uniform>>> {
+            buffer::allocate_in::<u8, buffer::Uniform>(context, 64)
+                .map(OwnedResource::share)
+                .map_err(|e| RenderError::new("camera", e.to_string()))
         }
         Ok(Self {
             pending: None,
-            vertices: MeshBuffer::new(assets.context, 4096)?,
-            indices: MeshBuffer::new(assets.context, 4096)?,
-            cameras: [camera(assets.context)?, camera(assets.context)?],
-            geometries: vec![],
-            materials: vec![],
+            vertices: data.insert(MeshBuffer::new(assets.context, 4096)?),
+            indices: data.insert(MeshBuffer::new(assets.context, 4096)?),
+            cameras: [
+                data.insert(camera(assets.context)?),
+                data.insert(camera(assets.context)?),
+            ],
+            object_bindings: data.insert(Vec::new()),
+            geometries: data.insert(Vec::new()),
+            materials: data.insert(Vec::new()),
             mesh: Mesh::with_capacity(4096, 6144),
-            text: TextOverlay::new(context),
+            text: data.insert(TextOverlay::new(context)),
             post_process: Default::default(),
             effects: vec![],
-            blit: effect_template(
+            blit: data.insert(effect_template(
                 assets.context,
                 context.surface_format(),
                 "presentation",
                 include_str!("../graphic_data/shader/default_post_process.frag.wgsl"),
-                0,
-            )?,
+                EffectBindings::bundled(0),
+            )?),
+            blit_layout: EffectBindings::bundled(0),
         })
     }
     pub fn queue(&mut self, frame: SceneFrame) {
@@ -158,36 +156,51 @@ impl SceneRenderer {
     }
     pub fn register_post_effect(
         &mut self,
-        assets: &mut RenderAssets,
+        assets: &mut AssetCache,
+        data: &mut RenderData,
         format: wgpu::TextureFormat,
         label: &str,
         source: &str,
         parameter_size: u64,
     ) -> RenderResult<PostProcessId> {
+        self.register_post_effect_with_bindings(
+            assets,
+            data,
+            format,
+            label,
+            source,
+            EffectBindings::bundled(parameter_size),
+        )
+    }
+    pub fn register_post_effect_with_bindings(
+        &mut self,
+        assets: &mut AssetCache,
+        data: &mut RenderData,
+        format: wgpu::TextureFormat,
+        label: &str,
+        source: &str,
+        layout: EffectBindings,
+    ) -> RenderResult<PostProcessId> {
+        let parameter_size = layout.parameters.map_or(0, |slot| slot.size);
         if parameter_size % 4 != 0 {
             return Err(RenderError::new(
                 "post-process uniform",
                 "uniform size must be a multiple of four bytes",
             ));
         }
-        let template = effect_template(
-            assets.context,
-            format,
-            label,
-            source,
-            parameter_size as usize,
-        )?;
+        let template = effect_template(assets.context, format, label, source, layout)?;
         let id = PostProcessId(self.effects.len() as u64);
         self.effects.push(EffectProgram {
-            template,
-            parameter_size: parameter_size as usize,
+            template: data.insert(template),
+            layout,
         });
         Ok(id)
     }
     pub fn register_vfx_post_effect<T: bytemuck::Pod + 'static>(
         &mut self,
         context: &Context,
-        assets: &mut RenderAssets,
+        assets: &mut AssetCache,
+        data: &mut RenderData,
         material: &str,
         source: &str,
         encode: impl Fn(&super::PostProcessInput<'_>) -> T + 'static,
@@ -195,6 +208,7 @@ impl SceneRenderer {
         self.post_process.check_material(material)?;
         let id = self.register_post_effect(
             assets,
+            data,
             context.surface_format(),
             material,
             source,
@@ -206,7 +220,8 @@ impl SceneRenderer {
     pub fn add_post_process_pass<T: bytemuck::Pod>(
         &mut self,
         context: &Context,
-        assets: &mut RenderAssets,
+        assets: &mut AssetCache,
+        data: &mut RenderData,
         source: &str,
         value: Option<T>,
     ) -> RenderResult<PostProcessId> {
@@ -215,6 +230,7 @@ impl SceneRenderer {
             .unwrap_or_default();
         let id = self.register_post_effect(
             assets,
+            data,
             context.surface_format(),
             "post-process pass",
             source,
@@ -239,13 +255,20 @@ impl SceneRenderer {
 
     fn tessellate(
         &mut self,
-        assets: &mut RenderAssets,
+        assets: &mut AssetCache,
+        data: &mut RenderData,
         command: &Primitive,
-    ) -> RenderResult<Option<MaterialId>> {
+    ) -> RenderResult<Option<(MaterialId, UniformSlot, Vec<BindingUse>)>> {
         let (shape, material) = match command {
             Primitive::Shape { shape, blend, .. } => {
                 Tesselator::tesselate(shape, &mut self.mesh);
-                return Ok(Some(assets.shapes[blend].id()));
+                return Ok(Some((
+                    data.require(assets.shapes[blend])
+                        .map_err(render_data_error)?
+                        .id(),
+                    SHAPE_BINDINGS.camera,
+                    vec![],
+                )));
             }
             Primitive::Texture {
                 flash,
@@ -265,7 +288,7 @@ impl SceneRenderer {
                     uv: *uv,
                     color: *tint,
                 },
-                assets.sprite_material(*id, *blend, *flash)?,
+                assets.sprite_material(*id, data, *blend, *flash)?,
             ),
             Primitive::NinePatch {
                 id,
@@ -284,10 +307,12 @@ impl SceneRenderer {
                     margins: *margins,
                     color: *tint,
                 },
-                assets.sprite_material(*id, *blend, false)?,
+                assets.sprite_material(*id, data, *blend, false)?,
             ),
             Primitive::Material {
                 template,
+                layout,
+                resource_bindings,
                 texture_id,
                 pos,
                 size,
@@ -298,41 +323,72 @@ impl SceneRenderer {
                 ..
             } => {
                 let template = template.clone();
-                let mut bindings = vec![];
-                if let Some(texture) = texture_id {
-                    bindings.push(assets.texture_binding(*texture)?);
+                layout.schema()?;
+                if layout.camera.size != 64 {
+                    return Err(RenderError::new("camera", "expected a mat4 uniform"));
                 }
-                if !uniform_data.is_empty() {
-                    bindings.push(uniform(assets.context, 2, uniform_data)?);
+                let mut bindings = vec![];
+                match (texture_id, layout.texture) {
+                    (Some(texture), Some(slots)) => {
+                        bindings.extend(assets.texture_binding(*texture, data, slots)?)
+                    }
+                    (None, None) => {}
+                    _ => {
+                        return Err(RenderError::new(
+                            "material texture",
+                            "resource differs from shader contract",
+                        ));
+                    }
+                }
+                match layout.parameters {
+                    Some(slot) => bindings.push(uniform(assets.context, slot, uniform_data)?),
+                    None if uniform_data.is_empty() => {}
+                    None => {
+                        return Err(RenderError::new(
+                            "material parameters",
+                            "shader has no parameter slot",
+                        ));
+                    }
                 }
                 let owner = material::try_register(Material { template, bindings })?;
                 let id = owner.id();
-                self.materials.push(owner);
-                (
-                    Shape::Quad {
+                data.require_mut(self.materials)
+                    .map_err(render_data_error)?
+                    .push(owner);
+                Tesselator::tesselate(
+                    &Shape::Quad {
                         pos: *pos,
                         size: *size,
                         rotation: *rotation,
                         uv: *uv,
                         color: *tint,
                     },
-                    id,
-                )
+                    &mut self.mesh,
+                );
+                return Ok(Some((id, layout.camera, resource_bindings.0.clone())));
             }
             Primitive::Text { .. } => return Ok(None),
         };
         Tesselator::tesselate(&shape, &mut self.mesh);
-        Ok(Some(material))
+        Ok(Some((material, SPRITE_BINDINGS.camera, vec![])))
     }
     fn prepare(
         &mut self,
-        assets: &mut RenderAssets,
+        assets: &mut AssetCache,
+        data: &mut RenderData,
         scene: &mut SceneFrame,
         width: u32,
         height: u32,
     ) -> RenderResult<[Vec<RenderObject>; 3]> {
-        self.geometries.clear();
-        self.materials.clear();
+        data.require_mut(self.geometries)
+            .map_err(render_data_error)?
+            .clear();
+        data.require_mut(self.materials)
+            .map_err(render_data_error)?
+            .clear();
+        data.require_mut(self.object_bindings)
+            .map_err(render_data_error)?
+            .clear();
         self.mesh.clear();
         let projection = utils::math::Mat4::orthographic_wgpu(
             0.0,
@@ -348,10 +404,18 @@ impl SceneRenderer {
             0.0,
         ));
         for (index, matrix) in [world, projection].iter().enumerate() {
-            buffer::try_write_buffer(&self.cameras[index].0.id(), 0, bytemuck::bytes_of(matrix))
-                .map_err(|e| RenderError::new("camera upload", e.to_string()))?;
+            buffer::try_write_buffer(
+                &data
+                    .require(self.cameras[index])
+                    .map_err(render_data_error)?
+                    .id(),
+                0,
+                bytemuck::bytes_of(matrix),
+            )
+            .map_err(|e| RenderError::new("camera upload", e.to_string()))?;
         }
-        let mut batches: Vec<(usize, MaterialId, Range<u32>)> = vec![];
+        let mut batches: Vec<(usize, MaterialId, UniformSlot, Vec<BindingUse>, Range<u32>)> =
+            vec![];
         for (phase, commands) in [&mut scene.world, &mut scene.vfx, &mut scene.hud]
             .into_iter()
             .enumerate()
@@ -359,20 +423,24 @@ impl SceneRenderer {
             commands.sort_by_key(Primitive::layer);
             for command in commands.iter() {
                 let start = self.mesh.indices().len() as u32;
-                let Some(material) = self.tessellate(assets, command)? else {
+                let Some((material, camera, resources)) = self.tessellate(assets, data, command)?
+                else {
                     continue;
                 };
                 let end = self.mesh.indices().len() as u32;
                 if start == end {
                     continue;
                 }
-                if let Some((p, m, range)) = batches.last_mut()
+                if let Some((p, m, c, r, range)) = batches.last_mut()
                     && *p == phase
                     && *m == material
+                    && *c == camera
+                    && r.is_empty()
+                    && resources.is_empty()
                 {
                     range.end = end;
                 } else {
-                    batches.push((phase, material, start..end));
+                    batches.push((phase, material, camera, resources, start..end));
                 }
             }
         }
@@ -380,13 +448,15 @@ impl SceneRenderer {
         if self.mesh.indices().is_empty() {
             return Ok(phases);
         }
-        let vertices = self
-            .vertices
+        let vertices = data
+            .require_mut(self.vertices)
+            .map_err(render_data_error)?
             .upload(assets.context, self.mesh.vertices_bytes())?;
-        let indices = self
-            .indices
+        let indices = data
+            .require_mut(self.indices)
+            .map_err(render_data_error)?
             .upload(assets.context, self.mesh.indices_bytes())?;
-        for (phase, material, elements) in batches {
+        for (phase, material, camera, resources, elements) in batches {
             let geometry = geometry::try_register(Geometry {
                 context: assets.context,
                 vertices: vec![VertexBuffer {
@@ -402,11 +472,28 @@ impl SceneRenderer {
             })?;
             let mut object = RenderObject::new(geometry.id(), material);
             object.phase = PhaseId(phase as u32);
+            let owner = data
+                .require(self.cameras[if phase == 2 { 1 } else { 0 }])
+                .map_err(render_data_error)?
+                .clone();
+            let camera_sets = shader_bindings::register_sets(
+                assets.context,
+                [(
+                    camera.location,
+                    BindingResource::buffer(BufferRegion::from_shared(owner)?),
+                )],
+            )?;
             object
                 .bindings
-                .push(self.cameras[if phase == 2 { 1 } else { 0 }].1.id().into());
+                .extend(camera_sets.iter().map(|set| set.id().into()));
+            object.bindings.extend(resources);
+            data.require_mut(self.object_bindings)
+                .map_err(render_data_error)?
+                .extend(camera_sets);
             phases[phase].push(object);
-            self.geometries.push(geometry);
+            data.require_mut(self.geometries)
+                .map_err(render_data_error)?
+                .push(geometry);
         }
         Ok(phases)
     }
@@ -447,20 +534,26 @@ impl SceneRenderer {
         destination: &wgpu::TextureView,
         sampler: &wgpu::Sampler,
         template: SharedResource<MaterialTemplateId>,
+        layout: EffectBindings,
         parameters: &[u8],
     ) -> RenderResult<()> {
-        let source = bindings::try_register(BindingSet {
+        let mut bindings = shader_bindings::register_sets(
             context,
-            group: 0,
-            entries: vec![
-                (0, BindingResource::Texture(source.clone())),
-                (1, BindingResource::Sampler(sampler.clone())),
+            [
+                (
+                    layout.source.texture,
+                    BindingResource::Texture(source.clone()),
+                ),
+                (
+                    layout.source.sampler,
+                    BindingResource::Sampler(sampler.clone()),
+                ),
             ],
-        })?
-        .share();
-        let mut bindings = vec![source];
-        if !parameters.is_empty() {
-            bindings.push(uniform(context, 1, parameters)?);
+        )?;
+        if let Some(slot) = layout.parameters {
+            bindings.push(uniform(context, slot, parameters)?);
+        } else if !parameters.is_empty() {
+            return Err(RenderError::new("post-process", "unexpected parameters"));
         }
         let material = material::try_register(Material { template, bindings })?;
         let geometry = geometry::try_register(Geometry::generated(context, 0..3))?;
@@ -475,7 +568,8 @@ impl SceneRenderer {
     pub fn render_to_texture(
         &mut self,
         context: &Context,
-        assets: &mut RenderAssets,
+        assets: &mut AssetCache,
+        data: &mut RenderData,
         mut scene: SceneFrame,
         target: &wgpu::Texture,
     ) -> RenderResult<gpu::report::FrameReport> {
@@ -484,7 +578,7 @@ impl SceneRenderer {
             target.create_view(&Default::default()),
         )?;
         let [world, vfx, hud] =
-            self.prepare(assets, &mut scene, target.width(), target.height())?;
+            self.prepare(assets, data, &mut scene, target.width(), target.height())?;
         let descriptor = RenderTargetDescriptor {
             label: "Alpha scene",
             size: TargetSize::Fixed {
@@ -495,7 +589,7 @@ impl SceneRenderer {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             sample_count: 1,
         };
-        let mut intermediate = vec![target::register_in(assets.context, descriptor)];
+        let mut intermediate = vec![target::register(descriptor)];
         let mut source = target::get(intermediate[0].id())
             .ok_or_else(|| RenderError::new("target", "missing scene target"))?;
         let (encoder, output) = frame.render_parts();
@@ -510,13 +604,13 @@ impl SceneRenderer {
                 .effects
                 .get(effect.0 as usize)
                 .ok_or_else(|| RenderError::new("post-process", "unknown effect"))?;
-            if parameters.len() != program.parameter_size {
+            if parameters.len() as u64 != program.layout.parameters.map_or(0, |slot| slot.size) {
                 return Err(RenderError::new(
                     "post-process",
                     "uniform size differs from registered layout",
                 ));
             }
-            let owner = target::register_in(assets.context, descriptor);
+            let owner = target::register(descriptor);
             let destination = target::get(owner.id())
                 .ok_or_else(|| RenderError::new("target", "missing effect target"))?;
             Self::fullscreen(
@@ -524,8 +618,13 @@ impl SceneRenderer {
                 assets.context,
                 source.texture().view(),
                 destination.texture().view(),
-                assets.sampler.as_raw(),
-                program.template.clone(),
+                data.require(assets.sampler)
+                    .map_err(render_data_error)?
+                    .as_raw(),
+                data.require(program.template)
+                    .map_err(render_data_error)?
+                    .clone(),
+                program.layout,
                 &parameters,
             )?;
             intermediate.push(owner);
@@ -536,34 +635,41 @@ impl SceneRenderer {
             assets.context,
             source.texture().view(),
             output,
-            assets.sampler.as_raw(),
-            self.blit.clone(),
+            data.require(assets.sampler)
+                .map_err(render_data_error)?
+                .as_raw(),
+            data.require(self.blit).map_err(render_data_error)?.clone(),
+            self.blit_layout,
             &[],
         )?;
         Self::draw_phase(encoder, output, hud, 2, false)?;
-        self.text.render(
-            context,
-            encoder,
-            output,
-            [target.width(), target.height()],
-            &scene.hud,
-        )?;
+        data.require_mut(self.text)
+            .map_err(render_data_error)?
+            .render(
+                context,
+                encoder,
+                output,
+                [target.width(), target.height()],
+                &scene.hud,
+            )?;
         Ok(frame.finish())
     }
     pub fn render_to_target(
         &mut self,
         context: &Context,
-        assets: &mut RenderAssets,
+        assets: &mut AssetCache,
+        data: &mut RenderData,
         scene: SceneFrame,
         id: super::RenderTargetId,
     ) -> RenderResult<gpu::report::FrameReport> {
         let target = target::get(id).ok_or_else(|| RenderError::new("target", "missing target"))?;
-        self.render_to_texture(context, assets, scene, target.texture().as_raw())
+        self.render_to_texture(context, assets, data, scene, target.texture().as_raw())
     }
     pub fn render(
         &mut self,
         context: &Context,
-        assets: &mut RenderAssets,
+        assets: &mut AssetCache,
+        data: &mut RenderData,
         scene: SceneFrame,
     ) -> RenderResult<Option<OverlayContext>> {
         if !context.is_ready() {
@@ -583,7 +689,7 @@ impl SceneRenderer {
                 return Ok(None);
             }
         };
-        self.render_to_texture(context, assets, scene, &surface.texture)?;
+        self.render_to_texture(context, assets, data, scene, &surface.texture)?;
         Ok(Some(OverlayContext {
             surface_view: surface.texture.create_view(&Default::default()),
             surface_texture: surface,

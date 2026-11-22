@@ -785,10 +785,11 @@ pub fn prepare_hud(
     frame: &mut crate::rendering::SceneFrame,
     ui_ctx: &mut nodus::UiContext,
     buf: &mut nodus::DrawCommandBuffer,
-    assets: &crate::rendering::RenderAssets,
+    bridge: &crate::rendering::nodus_bridge::NodusBridge,
+    data: &velum::RenderData,
 ) {
     ui_ctx.collect(buf);
     buf.sort();
-    crate::rendering::nodus_bridge::collect(buf, assets, frame);
+    crate::rendering::nodus_bridge::collect(buf, bridge, data, frame);
     buf.clear();
 }

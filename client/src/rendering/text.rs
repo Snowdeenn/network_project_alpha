@@ -13,16 +13,16 @@ pub(crate) struct TextOverlay {
 
 impl TextOverlay {
     pub fn new(context: &crate::rendering::GpuContext) -> Self {
-        let cache = glyphon::Cache::new(&context.device);
-        let viewport = glyphon::Viewport::new(&context.device, &cache);
+        let cache = glyphon::Cache::new(&context.device());
+        let viewport = glyphon::Viewport::new(&context.device(), &cache);
         let mut atlas = glyphon::TextAtlas::new(
-            &context.device,
-            &context.queue,
+            &context.device(),
+            &context.queue(),
             &cache,
             context.surface_format(),
         );
         let renderer =
-            glyphon::TextRenderer::new(&mut atlas, &context.device, Default::default(), None);
+            glyphon::TextRenderer::new(&mut atlas, &context.device(), Default::default(), None);
         Self {
             fonts: glyphon::FontSystem::new(),
             swash: glyphon::SwashCache::new(),
@@ -59,7 +59,7 @@ impl TextOverlay {
             return Ok(());
         }
         self.viewport
-            .update(&context.queue, glyphon::Resolution { width, height });
+            .update(&context.queue(), glyphon::Resolution { width, height });
         let mut active = HashSet::new();
         for (content, _, size, _) in &texts {
             let key = ((*content).clone(), size.to_bits(), width, height);
@@ -104,8 +104,8 @@ impl TextOverlay {
             });
         self.renderer
             .prepare(
-                &context.device,
-                &context.queue,
+                &context.device(),
+                &context.queue(),
                 &mut self.fonts,
                 &mut self.atlas,
                 &self.viewport,

@@ -1,4 +1,4 @@
-use crate::vfx::{AssetLoader, LoadRequestId, registry::Priority};
+use crate::vfx::AssetLoader;
 
 pub struct SpellUseEvent(pub Option<utils::protocol::SpellSlot>);
 
@@ -122,15 +122,12 @@ pub fn handle_event(
             {
                 let runtime = app_resource.read_resource::<tokio::runtime::Runtime>();
                 let mut asset_loader = app_resource.write_resource::<AssetLoader>();
+                let vfx = app_resource.read_resource::<crate::vfx::VfxSystem>();
 
                 let _guard = runtime.enter();
-                let request = asset_loader.request_load(crate::vfx::AssetLoadContext::new(
-                    "assets/vfx/fireball/core.json",
-                ));
-
                 app_resource
-                    .write_resource::<utils::ids::Register>()
-                    .insert("asset/fireball_core_request", request);
+                    .write_resource::<crate::core::spell_vfx::SpellVfxLoads>()
+                    .request_fireball(&mut asset_loader, &vfx.registry);
             }
             let mut spell_slots =
                 app_resource.write_resource::<crate::graphic_data::ClientSpellSlots>();
@@ -150,20 +147,6 @@ pub fn handle_event(
         }
         utils::protocol::GameEventKind::SpellUsed { slot } => {
             app_resource.write_resource::<SpellUseEvent>().0 = Some(slot);
-            let mut vfx = app_resource.write_resource::<crate::vfx::VfxSystem>();
-            let mut asset_loader = app_resource.write_resource::<AssetLoader>();
-            let fireball_core_request = app_resource
-                .read_resource::<utils::ids::Register>()
-                .get::<LoadRequestId>("asset/fireball_core_request")
-                .unwrap();
-
-            if vfx
-                .registry
-                .register_loaded(&mut asset_loader, fireball_core_request, Priority::Normal)
-                .unwrap()
-            {
-                tracing::info!("asset loaded pour fireball");
-            }
         }
         utils::protocol::GameEventKind::PlayerBlind { duration } => {
             if let Err(error) = app_resource

@@ -11,6 +11,6 @@ pub struct FrameState<'a> {
 /// Regroupe temporairement les outils de ton Framework UI pour le rendu
 pub struct RenderContext<'a> {
     pub buffer: &'a mut nodus::DrawCommandBuffer,
-    pub assets: &'a mut crate::rendering::RenderAssets,
+    pub assets: &'a mut crate::rendering::AssetCache,
     pub ui_ctx: &'a mut nodus::UiContext,
 }

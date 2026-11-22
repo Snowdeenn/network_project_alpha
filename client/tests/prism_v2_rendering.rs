@@ -2,7 +2,7 @@
 //! cargo test -p client --test prism_v2_rendering -- --ignored
 use client::rendering::PostProcessSubmission;
 use client::rendering::{
-    BlendMode, Color, GpuContext, Primitive, RenderAssets, SceneFrame, SceneRenderer,
+    AssetCache, BlendMode, Color, GpuContext, Primitive, SceneFrame, SceneRenderer,
 };
 use utils::math::Vec2;
 
@@ -22,7 +22,7 @@ fn quad(pos: [f32; 2], size: [f32; 2], color: [f32; 4], layer: u8) -> Primitive 
 
 fn pixels(context: &GpuContext, target: &wgpu::Texture) -> Vec<u8> {
     let row = (target.width() * 4).div_ceil(256) * 256;
-    let buffer = context.device.create_buffer(&wgpu::BufferDescriptor {
+    let buffer = context.device().create_buffer(&wgpu::BufferDescriptor {
         label: Some("test readback"),
         size: row as u64 * target.height() as u64,
         usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
@@ -54,7 +54,7 @@ fn pixels(context: &GpuContext, target: &wgpu::Texture) -> Vec<u8> {
             tx.send(result).unwrap();
         });
     context
-        .device
+        .device()
         .poll(wgpu::PollType::Wait {
             submission_index: None,
             timeout: Some(std::time::Duration::from_secs(30)),
@@ -70,7 +70,7 @@ fn pixels(context: &GpuContext, target: &wgpu::Texture) -> Vec<u8> {
 }
 
 fn target(
-    assets: &mut RenderAssets,
+    assets: &mut AssetCache,
     width: u32,
     height: u32,
 ) -> (
@@ -102,9 +102,15 @@ fn v2_renders_camera_layers_vfx_ui_text_effects_and_resize() {
     let mut context =
         GpuContext::from_device(device, queue, 64, 64, wgpu::TextureFormat::Rgba8UnormSrgb)
             .unwrap();
-    let mut assets = RenderAssets::new(&context).unwrap();
-    let mut renderer = SceneRenderer::new(&context, &mut assets).unwrap();
-    let health = assets.create_health_material(&context).unwrap();
+    let mut data = velum::RenderData::new();
+    let mut assets = AssetCache::new(&context, &mut data).unwrap();
+    let mut renderer = SceneRenderer::new(&context, &mut assets, &mut data).unwrap();
+    let mut bridge = client::rendering::nodus_bridge::NodusBridge::default();
+    let health = bridge.register_material(
+        &mut data,
+        client::rendering::create_health_material(&context).unwrap(),
+        client::rendering::shader_bindings::HEALTH_BINDINGS,
+    );
     let (_output_owner, output) = target(&mut assets, 64, 64);
     let mut scene = SceneFrame::new();
     scene.camera_pos = Vec2::new(100.0, 100.0);
@@ -151,14 +157,14 @@ fn v2_renders_camera_layers_vfx_ui_text_effects_and_resize() {
     image::RgbaImage::from_pixel(2, 2, image::Rgba([255u8; 4]))
         .save(&path)
         .unwrap();
-    let texture = assets.load_texture(&context, &path).unwrap();
+    let texture = assets.load_texture(&context, &mut data, &path).unwrap();
     assert_eq!(
         texture,
-        assets.load_texture(&context, &path).unwrap(),
+        assets.load_texture(&context, &mut data, &path).unwrap(),
         "texture cache"
     );
     std::fs::remove_file(&path).unwrap();
-    let ui_texture = assets.register_nodus_texture(texture).unwrap();
+    let ui_texture = bridge.register_nodus_texture(texture).unwrap();
     ui.push(nodus::DrawCommand::Texture {
         texture_id: ui_texture,
         pos: Vec2::new(48.0, 0.0),
@@ -174,9 +180,9 @@ fn v2_renders_camera_layers_vfx_ui_text_effects_and_resize() {
         tint: Color::WHITE,
         layer: 0,
     });
-    client::rendering::nodus_bridge::collect(&ui, &assets, &mut scene);
+    client::rendering::nodus_bridge::collect(&ui, &bridge, &data, &mut scene);
     let report = renderer
-        .render_to_texture(&context, &mut assets, scene, &output)
+        .render_to_texture(&context, &mut assets, &mut data, scene, &output)
         .unwrap();
     assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
     let image = pixels(&context, &output);
@@ -202,6 +208,7 @@ fn v2_renders_camera_layers_vfx_ui_text_effects_and_resize() {
     let flash = renderer
         .register_post_effect(
             &mut assets,
+            &mut data,
             context.surface_format(),
             "flash",
             include_str!("../src/graphic_data/shader/hit_flash_effect.frag.wgsl"),
@@ -211,6 +218,7 @@ fn v2_renders_camera_layers_vfx_ui_text_effects_and_resize() {
     let blind = renderer
         .register_post_effect(
             &mut assets,
+            &mut data,
             context.surface_format(),
             "blind",
             include_str!("../src/graphic_data/shader/blind_effect.frag.wgsl"),
@@ -230,7 +238,7 @@ fn v2_renders_camera_layers_vfx_ui_text_effects_and_resize() {
         },
     ];
     let report = renderer
-        .render_to_texture(&context, &mut assets, scene, &output)
+        .render_to_texture(&context, &mut assets, &mut data, scene, &output)
         .unwrap();
     assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
     let image = pixels(&context, &output);
@@ -257,7 +265,7 @@ fn v2_renders_camera_layers_vfx_ui_text_effects_and_resize() {
         crowded.push_hud(quad([0.0; 2], [96.0, 32.0], [0.0, 1.0, 0.0, 1.0], 0));
     }
     let report = renderer
-        .render_to_texture(&context, &mut assets, crowded, &resized)
+        .render_to_texture(&context, &mut assets, &mut data, crowded, &resized)
         .unwrap();
     assert!(
         report.diagnostics.is_empty(),
@@ -275,7 +283,13 @@ fn v2_renders_camera_layers_vfx_ui_text_effects_and_resize() {
             .all(|pixel| pixel == [0, 255, 0, 255])
     );
     let report = renderer
-        .render_to_texture(&context, &mut assets, SceneFrame::new(), &resized)
+        .render_to_texture(
+            &context,
+            &mut assets,
+            &mut data,
+            SceneFrame::new(),
+            &resized,
+        )
         .unwrap();
     assert!(report.diagnostics.is_empty());
     assert!(
@@ -284,9 +298,9 @@ fn v2_renders_camera_layers_vfx_ui_text_effects_and_resize() {
             .all(|pixel| pixel == [0, 0, 0, 255]),
         "no stale geometry or text after resize"
     );
-    assert!(assets.remove_texture(texture));
+    assert!(assets.remove_texture(&mut data, texture));
     assert!(
-        assets.load_texture(&context, &path).is_err(),
+        assets.load_texture(&context, &mut data, &path).is_err(),
         "removed texture must also leave the existing path cache"
     );
 }
@@ -303,8 +317,9 @@ fn migrated_gameplay_effects_render_through_vfx_system_and_prism_v2() {
     let context =
         GpuContext::from_device(device, queue, 64, 64, wgpu::TextureFormat::Rgba8UnormSrgb)
             .unwrap();
-    let mut assets = RenderAssets::new(&context).unwrap();
-    let mut renderer = SceneRenderer::new(&context, &mut assets).unwrap();
+    let mut data = velum::RenderData::new();
+    let mut assets = AssetCache::new(&context, &mut data).unwrap();
+    let mut renderer = SceneRenderer::new(&context, &mut assets, &mut data).unwrap();
     let mut vfx = VfxSystem::with_seed(VfxBudgets::default(), 42);
     vfx.registry.register_gameplay_effects().unwrap();
     let api = vfx.api();
@@ -332,7 +347,7 @@ fn migrated_gameplay_effects_render_through_vfx_system_and_prism_v2() {
     let texture_image =
         image::RgbaImage::from_raw(2, 1, vec![255, 0, 0, 255, 0, 255, 0, 0]).unwrap();
     texture_image.save(&path).unwrap();
-    let texture = assets.load_texture(&context, &path).unwrap();
+    let texture = assets.load_texture(&context, &mut data, &path).unwrap();
     std::fs::remove_file(path).unwrap();
     let tint = vfx.entity_tint(7).unwrap();
     scene.push_world(Primitive::Texture {
@@ -348,7 +363,7 @@ fn migrated_gameplay_effects_render_through_vfx_system_and_prism_v2() {
     });
     let (_output_owner, output) = target(&mut assets, 64, 64);
     let report = renderer
-        .render_to_texture(&context, &mut assets, scene, &output)
+        .render_to_texture(&context, &mut assets, &mut data, scene, &output)
         .unwrap();
     assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
     let image = pixels(&context, &output);
@@ -375,6 +390,7 @@ fn migrated_gameplay_effects_render_through_vfx_system_and_prism_v2() {
         .register_vfx_post_effect(
             &context,
             &mut assets,
+            &mut data,
             "hit_flash",
             include_str!("../src/graphic_data/shader/hit_flash_effect.frag.wgsl"),
             |input| HitFlashUniform {
@@ -386,6 +402,7 @@ fn migrated_gameplay_effects_render_through_vfx_system_and_prism_v2() {
         .register_vfx_post_effect(
             &context,
             &mut assets,
+            &mut data,
             "blind",
             include_str!("../src/graphic_data/shader/blind_effect.frag.wgsl"),
             |input| BlindUniform {
@@ -401,7 +418,7 @@ fn migrated_gameplay_effects_render_through_vfx_system_and_prism_v2() {
     let mut scene = SceneFrame::new();
     scene.post_effects = vfx.extract().post_process;
     let report = renderer
-        .render_to_texture(&context, &mut assets, scene, &output)
+        .render_to_texture(&context, &mut assets, &mut data, scene, &output)
         .unwrap();
     assert!(report.diagnostics.is_empty());
     let image = pixels(&context, &output);
@@ -423,23 +440,31 @@ fn arbitrary_post_effects_need_only_a_shader_and_registration_and_keep_manual_pa
     let context =
         GpuContext::from_device(device, queue, 64, 64, wgpu::TextureFormat::Rgba8UnormSrgb)
             .unwrap();
-    let mut assets = RenderAssets::new(&context).unwrap();
-    let mut renderer = SceneRenderer::new(&context, &mut assets).unwrap();
+    let mut data = velum::RenderData::new();
+    let mut assets = AssetCache::new(&context, &mut data).unwrap();
+    let mut renderer = SceneRenderer::new(&context, &mut assets, &mut data).unwrap();
     let shader = r#"
         @group(1) @binding(0) var<uniform> tint: vec4<f32>;
         @fragment fn fs_main() -> @location(0) vec4<f32> { return tint; }
     "#;
     let custom = renderer
-        .register_vfx_post_effect(&context, &mut assets, "custom/tint", shader, |input| {
-            let color = input.vector("color").unwrap();
-            let strength = input.scalar("strength").unwrap() * input.weight;
-            [
-                color[0] * strength,
-                color[1] * strength,
-                color[2] * strength,
-                1.0,
-            ]
-        })
+        .register_vfx_post_effect(
+            &context,
+            &mut assets,
+            &mut data,
+            "custom/tint",
+            shader,
+            |input| {
+                let color = input.vector("color").unwrap();
+                let strength = input.scalar("strength").unwrap() * input.weight;
+                [
+                    color[0] * strength,
+                    color[1] * strength,
+                    color[2] * strength,
+                    1.0,
+                ]
+            },
+        )
         .unwrap();
     let mut document: serde_json::Value = serde_json::from_str(include_str!(
         "../../assets/vfx/exemples_vfx/post-process.json"
@@ -471,7 +496,7 @@ fn arbitrary_post_effects_need_only_a_shader_and_registration_and_keep_manual_pa
         frame
     };
     let report = renderer
-        .render_to_texture(&context, &mut assets, frame(&vfx), &output)
+        .render_to_texture(&context, &mut assets, &mut data, frame(&vfx), &output)
         .unwrap();
     assert!(report.diagnostics.is_empty());
     let image = pixels(&context, &output);
@@ -482,33 +507,39 @@ fn arbitrary_post_effects_need_only_a_shader_and_registration_and_keep_manual_pa
     );
     renderer.disable_post_process_pass(custom).unwrap();
     renderer
-        .render_to_texture(&context, &mut assets, frame(&vfx), &output)
+        .render_to_texture(&context, &mut assets, &mut data, frame(&vfx), &output)
         .unwrap();
     assert_eq!(&pixels(&context, &output)[..4], [0, 0, 0, 255]);
     renderer.enable_post_process_pass(custom).unwrap();
     renderer
-        .render_to_texture(&context, &mut assets, frame(&vfx), &output)
+        .render_to_texture(&context, &mut assets, &mut data, frame(&vfx), &output)
         .unwrap();
     assert!(pixels(&context, &output)[1] > 180);
     renderer.disable_post_process_pass(custom).unwrap();
 
     let manual = renderer
-        .add_post_process_pass(&context, &mut assets, shader, Some([0.0f32, 0.0, 1.0, 1.0]))
+        .add_post_process_pass(
+            &context,
+            &mut assets,
+            &mut data,
+            shader,
+            Some([0.0f32, 0.0, 1.0, 1.0]),
+        )
         .unwrap();
     renderer
-        .render_to_texture(&context, &mut assets, SceneFrame::new(), &output)
+        .render_to_texture(&context, &mut assets, &mut data, SceneFrame::new(), &output)
         .unwrap();
     assert_eq!(&pixels(&context, &output)[..4], [0, 0, 255, 255]);
     renderer
         .write_post_process_uniform(manual, [1.0f32, 0.0, 0.0, 1.0])
         .unwrap();
     renderer
-        .render_to_texture(&context, &mut assets, SceneFrame::new(), &output)
+        .render_to_texture(&context, &mut assets, &mut data, SceneFrame::new(), &output)
         .unwrap();
     assert_eq!(&pixels(&context, &output)[..4], [255, 0, 0, 255]);
     renderer.disable_post_process_pass(manual).unwrap();
     renderer
-        .render_to_texture(&context, &mut assets, SceneFrame::new(), &output)
+        .render_to_texture(&context, &mut assets, &mut data, SceneFrame::new(), &output)
         .unwrap();
     assert_eq!(&pixels(&context, &output)[..4], [0, 0, 0, 255]);
 }

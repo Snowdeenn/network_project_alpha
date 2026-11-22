@@ -1,6 +1,6 @@
 //! Creates a short-lived X11 window to exercise real surface presentation.
 #![cfg(target_os = "linux")]
-use client::rendering::{GpuContext, RenderAssets, SceneFrame, SceneRenderer};
+use client::rendering::{AssetCache, GpuContext, SceneFrame, SceneRenderer};
 use std::sync::Arc;
 use winit::{
     application::ApplicationHandler,
@@ -9,9 +9,17 @@ use winit::{
     window::{Window, WindowId},
 };
 
-fn draw(context: &GpuContext, renderer: &mut SceneRenderer, assets: &mut RenderAssets) {
+fn draw(
+    context: &GpuContext,
+    renderer: &mut SceneRenderer,
+    assets: &mut AssetCache,
+    data: &mut velum::RenderData,
+) {
     for _ in 0..16 {
-        if let Some(frame) = renderer.render(context, assets, SceneFrame::new()).unwrap() {
+        if let Some(frame) = renderer
+            .render(context, assets, data, SceneFrame::new())
+            .unwrap()
+        {
             assert_eq!(
                 frame.surface_texture.texture.format(),
                 context.surface_format()
@@ -26,7 +34,7 @@ fn draw(context: &GpuContext, renderer: &mut SceneRenderer, assets: &mut RenderA
             );
             frame.present(context);
             context
-                .device
+                .device()
                 .poll(wgpu::PollType::Wait {
                     submission_index: None,
                     timeout: Some(std::time::Duration::from_secs(10)),
@@ -56,18 +64,19 @@ impl ApplicationHandler for Probe {
                 .unwrap(),
         );
         let mut context = pollster::block_on(GpuContext::new(window.clone())).unwrap();
-        let device = context.device.clone();
-        let queue = context.queue.clone();
+        let device = context.device();
+        let queue = context.queue();
         let format = context.surface_format();
-        let mut assets = RenderAssets::new(&context).unwrap();
-        let mut renderer = SceneRenderer::new(&context, &mut assets).unwrap();
-        draw(&context, &mut renderer, &mut assets);
+        let mut data = velum::RenderData::new();
+        let mut assets = AssetCache::new(&context, &mut data).unwrap();
+        let mut renderer = SceneRenderer::new(&context, &mut assets, &mut data).unwrap();
+        draw(&context, &mut renderer, &mut assets, &mut data);
 
         context.resize(0, 0).unwrap();
         assert!(!context.is_ready());
         assert!(
             renderer
-                .render(&context, &mut assets, SceneFrame::new())
+                .render(&context, &mut assets, &mut data, SceneFrame::new())
                 .unwrap()
                 .is_none()
         );
@@ -75,14 +84,15 @@ impl ApplicationHandler for Probe {
             context.resize(width, height).unwrap();
             assert!(context.is_ready());
             assert_eq!(context.surface_format(), format);
-            assert_eq!(context.device, device);
-            assert_eq!(context.queue, queue);
-            draw(&context, &mut renderer, &mut assets);
+            assert_eq!(context.device(), device);
+            assert_eq!(context.queue(), queue);
+            draw(&context, &mut renderer, &mut assets, &mut data);
         }
         context.reconfigure();
-        draw(&context, &mut renderer, &mut assets);
+        draw(&context, &mut renderer, &mut assets, &mut data);
         drop(renderer);
         drop(assets);
+        drop(data);
         #[cfg(feature = "velum")]
         let old_id = context.velum_context_id();
         drop(context);
@@ -91,9 +101,10 @@ impl ApplicationHandler for Probe {
 
         let context = pollster::block_on(GpuContext::new(window)).unwrap();
         assert_eq!(context.surface_format(), format);
-        let mut assets = RenderAssets::new(&context).unwrap();
-        let mut renderer = SceneRenderer::new(&context, &mut assets).unwrap();
-        draw(&context, &mut renderer, &mut assets);
+        let mut data = velum::RenderData::new();
+        let mut assets = AssetCache::new(&context, &mut data).unwrap();
+        let mut renderer = SceneRenderer::new(&context, &mut assets, &mut data).unwrap();
+        draw(&context, &mut renderer, &mut assets, &mut data);
         self.completed = true;
         event_loop.exit();
     }

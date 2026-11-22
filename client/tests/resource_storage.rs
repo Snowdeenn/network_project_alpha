@@ -1,7 +1,5 @@
 //! Native Velum resource lifetime checks; no Alpha storage or Prism projections.
-use client::rendering::{
-    BlendMode, GpuContext, Primitive, RenderAssets, SceneFrame, SceneRenderer,
-};
+use client::rendering::{AssetCache, BlendMode, GpuContext, Primitive, SceneFrame, SceneRenderer};
 use velum::backend::{
     self as gpu,
     buffer::{self, BufferKind},
@@ -17,7 +15,7 @@ fn context() -> GpuContext {
     GpuContext::from_device(device, queue, 32, 32, wgpu::TextureFormat::Rgba8UnormSrgb).unwrap()
 }
 fn destination(context: &GpuContext, size: u64) -> wgpu::Buffer {
-    context.device.create_buffer(&wgpu::BufferDescriptor {
+    context.device().create_buffer(&wgpu::BufferDescriptor {
         label: Some("readback"),
         size,
         usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
@@ -30,7 +28,7 @@ fn read(context: &GpuContext, buffer: &wgpu::Buffer) -> Vec<u8> {
         .slice(..)
         .map_async(wgpu::MapMode::Read, move |result| tx.send(result).unwrap());
     context
-        .device
+        .device()
         .poll(wgpu::PollType::Wait {
             submission_index: None,
             timeout: Some(std::time::Duration::from_secs(10)),
@@ -75,10 +73,11 @@ fn native_buffer_leases_keep_allocations_live_until_submission() {
 fn native_texture_and_target_render_share_and_release_without_alpha_storage() {
     let context = context();
     let ctx = Some(context.velum_context_id());
-    let mut assets = RenderAssets::new(&context).unwrap();
-    let mut renderer = SceneRenderer::new(&context, &mut assets).unwrap();
+    let mut data = velum::RenderData::new();
+    let mut assets = AssetCache::new(&context, &mut data).unwrap();
+    let mut renderer = SceneRenderer::new(&context, &mut assets, &mut data).unwrap();
     let sampler = sampler::pixel_art_in(ctx, "test sampler");
-    let raw = context.device.create_texture(&wgpu::TextureDescriptor {
+    let raw = context.device().create_texture(&wgpu::TextureDescriptor {
         label: Some("shared native texture"),
         size: wgpu::Extent3d {
             width: 1,
@@ -92,7 +91,7 @@ fn native_texture_and_target_render_share_and_release_without_alpha_storage() {
         usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
         view_formats: &[],
     });
-    context.queue.write_texture(
+    context.queue().write_texture(
         wgpu::TexelCopyTextureInfo {
             texture: &raw,
             mip_level: 0,
@@ -147,7 +146,7 @@ fn native_texture_and_target_render_share_and_release_without_alpha_storage() {
         });
     }
     let report = renderer
-        .render_to_target(&context, &mut assets, scene, output_id)
+        .render_to_target(&context, &mut assets, &mut data, scene, output_id)
         .unwrap();
     assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
     let destination = destination(&context, 512);
@@ -229,7 +228,7 @@ fn native_texture_registration_returns_gpu_validation_errors() {
     let local = context();
     let foreign = context();
     let sampler = sampler::pixel_art_in(Some(foreign.velum_context_id()), "foreign sampler");
-    let raw = local.device.create_texture(&wgpu::TextureDescriptor {
+    let raw = local.device().create_texture(&wgpu::TextureDescriptor {
         label: Some("validation texture"),
         size: wgpu::Extent3d {
             width: 1,

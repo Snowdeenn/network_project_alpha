@@ -13,8 +13,8 @@ fn context() -> GpuContext {
 #[ignore = "requires a GPU or software graphics adapter"]
 fn resize_preserves_gpu_and_format_and_rejects_invalid_dimensions() {
     let mut context = context();
-    let device = context.device.clone();
-    let queue = context.queue.clone();
+    let device = context.device();
+    let queue = context.queue();
     let format = context.surface_format();
     context.resize(0, 0).unwrap();
     assert_eq!((context.size.width, context.size.height), (0, 0));
@@ -22,8 +22,8 @@ fn resize_preserves_gpu_and_format_and_rejects_invalid_dimensions() {
     context.resize(96, 32).unwrap();
     assert_eq!((context.size.width, context.size.height), (96, 32));
     assert_eq!(context.surface_format(), format);
-    assert_eq!(context.device, device);
-    assert_eq!(context.queue, queue);
+    assert_eq!(context.device(), device);
+    assert_eq!(context.queue(), queue);
     let limit = device.limits().max_texture_dimension_2d;
     assert!(matches!(
         context.resize(limit + 1, 32),
@@ -38,8 +38,8 @@ fn resize_preserves_gpu_and_format_and_rejects_invalid_dimensions() {
 #[ignore = "requires a GPU or software graphics adapter"]
 fn velum_shares_the_gpu_and_unregisters_before_recreation() {
     let context = context();
-    let device = context.device.clone();
-    let queue = context.queue.clone();
+    let device = context.device();
+    let queue = context.queue();
     let id = context.velum_context_id();
     {
         let registered = velum::backend::context::try_context(Some(id)).unwrap();
@@ -68,13 +68,13 @@ fn velum_shares_the_gpu_and_unregisters_before_recreation() {
 fn uncaptured_validation_errors_reach_the_application() {
     let context = context();
     // MAP_READ may only be combined with COPY_DST on this default device.
-    let _invalid = context.device.create_buffer(&wgpu::BufferDescriptor {
+    let _invalid = context.device().create_buffer(&wgpu::BufferDescriptor {
         label: Some("intentional validation failure"),
         size: 16,
         usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::VERTEX,
         mapped_at_creation: false,
     });
-    context.device.poll(wgpu::PollType::Poll).unwrap();
+    context.device().poll(wgpu::PollType::Poll).unwrap();
     let error = context.take_error().expect("GPU validation callback");
     assert!(matches!(
         error,
@@ -88,8 +88,8 @@ fn uncaptured_validation_errors_reach_the_application() {
 #[ignore = "requires a GPU or software graphics adapter"]
 fn device_loss_is_reported_as_fatal() {
     let context = context();
-    context.device.destroy();
-    context.device.poll(wgpu::PollType::Poll).unwrap();
+    context.device().destroy();
+    context.device().poll(wgpu::PollType::Poll).unwrap();
     let error = context.take_error().expect("device-lost callback");
     assert!(matches!(
         error,

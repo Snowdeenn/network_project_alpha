@@ -1,52 +1,53 @@
 Phase 1 — Préparation et infrastructure
 1. Préparer la branche de migration
-- [ ] Créer une branche refactor/velum-renderer dans Alpha.
-- [ ] Ajouter Velum depuis learn_wgpu, branche codex/velum-prism-alpha.
-- [ ] Conserver Prism comme dépendance temporaire.
-- [ ] Identifier les modules d'Alpha qui utilisent directement Prism.
-- [ ] Recenser les types, traits et macros Prism utilisés.
-- [ ] Identifier les appels de rendu effectués à chaque frame.
-- [ ] Identifier les ressources graphiques créées au démarrage et pendant l'exécution.
-- [ ] Préparer un mécanisme de sélection du backend, si les deux peuvent coexister sans trop de complexité.
-- [ ] Vérifier que le projet compile sans modifier son comportement.
+- [x] Créer une branche refactor/velum-renderer dans Alpha.
+- [x] Ajouter Velum depuis learn_wgpu, branche codex/velum-prism-alpha.
+- [x] Conserver Prism comme dépendance temporaire.
+- [x] Identifier les modules d'Alpha qui utilisent directement Prism.
+- [x] Recenser les types, traits et macros Prism utilisés.
+- [x] Identifier les appels de rendu effectués à chaque frame.
+- [x] Identifier les ressources graphiques créées au démarrage et pendant l'exécution.
+- [x] Préparer un mécanisme de sélection du backend, si les deux peuvent coexister sans trop de complexité.
+- [x] Vérifier que le projet compile sans modifier son comportement.
 Validation : Alpha démarre encore avec Prism, mais Velum est disponible.
 2. Migrer le contexte GPU
-- [ ] Identifier qui possède actuellement wgpu::Device et wgpu::Queue.
-- [ ] Raccorder Velum au contexte GPU utilisé par Alpha.
-- [ ] Éviter toute duplication inutile du device ou de la queue.
-- [ ] Vérifier la gestion de la surface de rendu.
-- [ ] Conserver les formats de textures et les paramètres de présentation compatibles.
-- [ ] Gérer correctement le redimensionnement de la fenêtre.
-- [ ] Vérifier la destruction et la recréation des ressources dépendantes de la surface.
-- [ ] Vérifier la propagation des erreurs GPU.
+- [x] Identifier qui possède actuellement wgpu::Device et wgpu::Queue.
+- [x] Raccorder Velum au contexte GPU utilisé par Alpha.
+- [x] Éviter toute duplication inutile du device ou de la queue.
+- [x] Vérifier la gestion de la surface de rendu.
+- [x] Conserver les formats de textures et les paramètres de présentation compatibles.
+- [x] Gérer correctement le redimensionnement de la fenêtre.
+- [x] Vérifier la destruction et la recréation des ressources dépendantes de la surface.
+- [x] Vérifier la propagation des erreurs GPU.
 Validation : Velum peut accéder au GPU et préparer une frame dans Alpha.
 3. Migrer le stockage des ressources
-- [ ] Identifier les collections de ressources utilisées par Prism.
-- [ ] Migrer le stockage des buffers vers les mécanismes Velum retenus.
-- [ ] Migrer les textures et leurs identifiants.
-- [ ] Migrer les samplers.
-- [ ] Migrer les render targets.
-- [ ] Raccorder les identifiants de ressources aux structures applicatives d'Alpha.
-- [ ] Vérifier le partage des ressources entre plusieurs objets.
-- [ ] Vérifier la destruction des ressources lorsqu'elles ne sont plus utilisées.
-- [ ] Conserver les systèmes d'upload et de vues existants, sans refonte.
-- [ ] Ne pas ajouter de nouveau système de cache.
+- [x] Identifier les collections de ressources utilisées par Prism.
+- [x] Migrer le stockage des buffers vers les mécanismes Velum retenus.
+- [x] Migrer les textures et leurs identifiants.
+- [x] Migrer les samplers.
+- [x] Migrer les render targets.
+- [x] Raccorder les identifiants de ressources aux structures applicatives d'Alpha.
+- [x] Vérifier le partage des ressources entre plusieurs objets.
+- [ ] Vérifier la destruction des ressources lorsqu'elles ne sont plus utilisées. (bloquer par l'api
+  velum pas encore présente).
+- [x] Conserver les systèmes d'upload et de vues existants, sans refonte.
+- [x] Ne pas ajouter de nouveau système de cache.
 Validation : les ressources nécessaires à un rendu peuvent être créées, retrouvées, utilisées et libérées correctement.
 
 Phase 2 — Construction du rendu
 4. Migrer les bindings
 C'est une étape fondamentale, mais la nouvelle branche de Velum possède déjà une API de bindings explicites.
-- [ ] Recenser les conventions de groupes et de bindings utilisées par Prism.
-- [ ] Supprimer leur dépendance dans les nouveaux composants d'Alpha.
-- [ ] Définir les BindingSchema des shaders.
-- [ ] Définir les BindingSet nécessaires.
-- [ ] Raccorder les uniform buffers.
-- [ ] Raccorder les storage buffers.
-- [ ] Raccorder les textures et samplers.
-- [ ] Raccorder les tableaux de ressources si Alpha en utilise.
-- [ ] Gérer les dynamic offsets lorsque nécessaire.
-- [ ] Vérifier les collisions entre plusieurs contributions de bindings.
-- [ ] Vérifier que les ressources déclarées correspondent aux shaders WGSL.
+- [x] Recenser les conventions de groupes et de bindings utilisées par Prism. Voir [l'inventaire](migration-velum.md#inventaire-des-conventions-de-bindings-prism).
+- [x] Supprimer leur dépendance dans les nouveaux composants d'Alpha.
+- [x] Définir les BindingSchema des shaders.
+- [x] Définir les BindingSet nécessaires.
+- [x] Raccorder les uniform buffers.
+- [x] Raccorder les storage buffers. Contributions natives par objet, validées sur GPU ; aucun buffer métier supplémentaire introduit.
+- [x] Raccorder les textures et samplers.
+- [x] Raccorder les tableaux de ressources si Alpha en utilise. Aucun tableau utilisé par les shaders applicatifs actuels ; contributions natives conservées.
+- [x] Gérer les dynamic offsets lorsque nécessaire.
+- [x] Vérifier les collisions entre plusieurs contributions de bindings.
+- [x] Vérifier que les ressources déclarées correspondent aux shaders WGSL.
 - [ ] Tester plusieurs groupes non consécutifs.
 - [ ] Tester des bindings à des indices arbitraires.
 - [ ] Vérifier que les macros permettent de construire les schémas et les ensembles de bindings.

@@ -48,9 +48,9 @@ C'est une étape fondamentale, mais la nouvelle branche de Velum possède déjà
 - [x] Gérer les dynamic offsets lorsque nécessaire.
 - [x] Vérifier les collisions entre plusieurs contributions de bindings.
 - [x] Vérifier que les ressources déclarées correspondent aux shaders WGSL.
-- [ ] Tester plusieurs groupes non consécutifs.
-- [ ] Tester des bindings à des indices arbitraires.
-- [ ] Vérifier que les macros permettent de construire les schémas et les ensembles de bindings.
+- [x] Tester plusieurs groupes non consécutifs. Les groupes 1 et 3 sont validés avec Naga et dans le rendu de post-traitement sur GPU.
+- [x] Tester des bindings à des indices arbitraires. Le rendu GPU utilise notamment les indices 5, 7 et 9.
+- [x] Vérifier que les macros permettent de construire les schémas et les ensembles de bindings. Le test unitaire compare le résultat de `binding_schema!` au schéma Alpha et le test GPU utilise un ensemble créé par `try_binding_set!`.
 Validation : Alpha peut utiliser des groupes et bindings arbitraires sans convention imposée par Velum.
 5. Migrer les shaders, matériaux et pipelines
 - [ ] Inventorier les shaders utilisés dans Alpha.

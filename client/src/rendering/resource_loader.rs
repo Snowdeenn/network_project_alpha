@@ -45,7 +45,7 @@ use velum::{
     backend::{
         self as gpu, RenderResult,
         context::ContextId,
-        material::{self, MaterialTemplate, MaterialTemplateId, ShaderEntry},
+        material::{MaterialTemplate, MaterialTemplateId, ShaderEntry},
     },
 };
 
@@ -62,7 +62,7 @@ pub fn create_health_material(
         "health",
         include_str!("../graphic_data/shader/progress_bar.frag.wgsl"),
     )?;
-    let template = material::try_template(mesh_template(
+    mesh_template(
         Some(context.velum_context_id()),
         "health",
         vertex,
@@ -70,9 +70,7 @@ pub fn create_health_material(
         context.surface_format(),
         BlendMode::Alpha,
         HEALTH_BINDINGS.schema()?,
-    ))?
-    .share();
-    Ok(template)
+    )
 }
 
 use super::TextureId;
@@ -87,7 +85,7 @@ pub(crate) fn mesh_template(
     format: wgpu::TextureFormat,
     blend: BlendMode,
     schema: BindingSchema,
-) -> MaterialTemplate {
+) -> RenderResult<SharedResource<MaterialTemplateId>> {
     let mut template = MaterialTemplate::fullscreen(context, label, vertex, format);
     template.fragment = Some(ShaderEntry::new(fragment, "fs_main"));
     template.schema = schema;
@@ -103,7 +101,7 @@ pub(crate) fn mesh_template(
             alpha: wgpu::BlendComponent::OVER,
         },
     });
-    template
+    velum::try_material_template!(template).map(velum::OwnedResource::share)
 }
 pub(crate) fn texture_size(id: TextureId) -> RenderResult<(u32, u32)> {
     let storage = gpu::context::texture_storage(None);

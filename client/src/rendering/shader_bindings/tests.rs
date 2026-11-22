@@ -166,8 +166,20 @@ fn contracts_allow_arbitrary_bindings_shared_groups_and_holes() {
     let vertex = VERTEX.replace("@group(0) @binding(0)", "@group(3) @binding(7)");
     let fragment = include_str!("../../graphic_data/shader/progress_bar.frag.wgsl")
         .replace("@group(2) @binding(0)", "@group(1) @binding(5)");
+    let schema = velum::binding_schema! {
+        3 => [bindings::buffer_entry(
+            7, wgpu::ShaderStages::VERTEX, wgpu::BufferBindingType::Uniform, 64, false,
+        )],
+        1 => [bindings::buffer_entry(
+            5, wgpu::ShaderStages::FRAGMENT, wgpu::BufferBindingType::Uniform, 4, false,
+        )],
+    };
+    assert_eq!(
+        schema.normalized().unwrap(),
+        layout.schema().unwrap().normalized().unwrap()
+    );
     verify(
-        layout.schema().unwrap(),
+        schema,
         &[
             (&vertex, wgpu::ShaderStages::VERTEX),
             (&fragment, wgpu::ShaderStages::FRAGMENT),

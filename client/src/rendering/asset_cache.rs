@@ -56,7 +56,7 @@ impl AssetCache {
         let mut shapes = HashMap::new();
         let mut sprite_templates = HashMap::new();
         for blend in [BlendMode::Alpha, BlendMode::Additive] {
-            let template = material::try_template(mesh_template(
+            let template = mesh_template(
                 ctx,
                 "shape",
                 vertex.clone(),
@@ -64,20 +64,13 @@ impl AssetCache {
                 context.surface_format(),
                 blend,
                 SHAPE_BINDINGS.schema()?,
-            ))?
-            .share();
+            )?;
             shapes.insert(
                 blend,
-                data.insert(
-                    material::try_register(material::Material {
-                        template,
-                        bindings: vec![],
-                    })?
-                    .share(),
-                ),
+                data.insert(velum::try_material!(template: template, bindings: [])?.share()),
             );
             for (is_flash, fragment) in [(false, &textured), (true, &flash)] {
-                let template = material::try_template(mesh_template(
+                let template = mesh_template(
                     ctx,
                     "sprite",
                     vertex.clone(),
@@ -85,8 +78,7 @@ impl AssetCache {
                     context.surface_format(),
                     blend,
                     SPRITE_BINDINGS.schema()?,
-                ))?
-                .share();
+                )?;
                 sprite_templates.insert((blend, is_flash), data.insert(template));
             }
         }

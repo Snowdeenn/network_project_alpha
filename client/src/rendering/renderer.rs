@@ -82,14 +82,12 @@ fn uniform(
         .share();
     buffer::try_write_buffer(&owner.id(), 0, bytes)
         .map_err(|e| RenderError::new("uniform upload", e.to_string()))?;
-    Ok(shader_bindings::register_sets(
-        context,
-        [(
-            slot.location,
-            BindingResource::buffer(BufferRegion::from_shared(owner)?),
-        )],
-    )?
-    .remove(0))
+    velum::try_binding_set! {
+        context: context,
+        group: slot.location.group,
+        entries: [slot.location.binding => BindingResource::buffer(BufferRegion::from_shared(owner)?)],
+    }
+    .map(OwnedResource::share)
 }
 
 fn effect_template(
@@ -108,7 +106,7 @@ fn effect_template(
     let mut template = MaterialTemplate::fullscreen(context, label, vertex, format);
     template.fragment = Some(ShaderEntry::new(fragment, "fs_main"));
     template.schema = layout.schema()?;
-    material::try_template(template).map(OwnedResource::share)
+    velum::try_material_template!(template).map(OwnedResource::share)
 }
 impl SceneRenderer {
     pub fn new(
@@ -476,20 +474,17 @@ impl SceneRenderer {
                 .require(self.cameras[if phase == 2 { 1 } else { 0 }])
                 .map_err(render_data_error)?
                 .clone();
-            let camera_sets = shader_bindings::register_sets(
-                assets.context,
-                [(
-                    camera.location,
-                    BindingResource::buffer(BufferRegion::from_shared(owner)?),
-                )],
-            )?;
-            object
-                .bindings
-                .extend(camera_sets.iter().map(|set| set.id().into()));
+            let camera_set = velum::try_binding_set! {
+                context: assets.context,
+                group: camera.location.group,
+                entries: [camera.location.binding => BindingResource::buffer(BufferRegion::from_shared(owner)?)],
+            }?
+            .share();
+            object.bindings.push(camera_set.id().into());
             object.bindings.extend(resources);
             data.require_mut(self.object_bindings)
                 .map_err(render_data_error)?
-                .extend(camera_sets);
+                .push(camera_set);
             phases[phase].push(object);
             data.require_mut(self.geometries)
                 .map_err(render_data_error)?

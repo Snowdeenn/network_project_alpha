@@ -172,25 +172,21 @@ struct Input { @location(0) uv: vec2<f32>, @location(1) color: vec4<f32> }
         .unwrap()
         .share();
     buffer::try_write_buffer(&stored.id(), 0, bytemuck::cast_slice(&[1f32; 4])).unwrap();
-    let sets = shader_bindings::register_sets(
-        ctx,
-        [
-            (
-                Location::new(1, 6),
-                BindingResource::buffer(BufferRegion::from_shared(stored).unwrap()),
-            ),
-            (
-                Location::new(1, 8),
-                BindingResource::Buffer {
-                    region: BufferRegion::from_shared(dynamic).unwrap(),
-                    size: 16,
-                },
-            ),
+    let set = velum::try_binding_set! {
+        context: ctx,
+        group: 1,
+        entries: [
+            8 => BindingResource::Buffer {
+                region: BufferRegion::from_shared(dynamic).unwrap(),
+                size: 16,
+            },
+            6 => BindingResource::buffer(BufferRegion::from_shared(stored).unwrap()),
         ],
-    )
-    .unwrap();
-    let usage = BindingUse::from(sets[0].id()).with_offsets(vec![alignment]);
-    data.insert(sets);
+    }
+    .unwrap()
+    .share();
+    let usage = BindingUse::from(set.id()).with_offsets(vec![alignment]);
+    data.insert([set]);
 
     let scene = |resources: Vec<BindingUse>, template: SharedResource<MaterialTemplateId>| {
         let mut scene = SceneFrame::new();

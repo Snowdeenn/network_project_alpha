@@ -149,9 +149,9 @@ le gestionnaire Prism ont été supprimés.
 | --- | --- | --- |
 | Sommets et indices | `buffer::allocate_in::<u8, Vertex/Index>`, `BufferRegion::from_shared` | `SharedResource<Buffer<…>>` dans les flux du renderer |
 | Caméras et uniforms | `buffer::allocate_in::<u8, Uniform>`, `try_write_buffer` | Propriétaires natifs et leases des bindings |
-| Textures | `texture::Texture`, `try_register`, `TextureId`, `get` | Propriétaires natifs partagés, conservés par les assets |
-| Samplers | `sampler::Sampler<Filtering>`, `pixel_art_in` | Handle natif immuable |
-| Cibles | `target::RenderTargetDescriptor`, `try_register_in`/`register_in`, `get` | `OwnedResource<RenderTargetId>` |
+| Textures | `texture::TextureBuilder`, `texture::register_texture`, `TextureId`, `texture::get` | `SharedResource<TextureId>` dans `RenderData` |
+| Samplers | `sampler::Sampler<Filtering>`, `sampler::pixel_art` | Handle natif immuable |
+| Cibles | `target::RenderTargetDescriptor`, `target::register`, `target::get` | `OwnedResource<RenderTargetId>` |
 | Shaders | `backend::try_shader` | Modules natifs détenus par les templates |
 | Templates et matériaux | `material::try_template`, `try_register` | `SharedResource<MaterialTemplateId/MaterialId>` |
 | Bindings | `bindings::try_register`, `BindingSet`, `BindingResource` | Propriétaires natifs partagés |
@@ -169,11 +169,9 @@ ressources n'est ajouté.
 
 ## Contexte et dépendance
 
-Alpha référence le checkout local `../../learn_wgpu`, sur `main`, dont la
-bibliothèque s'appelle `velum`. Ce checkout accompagne la migration : il expose
-les API natives nécessaires à un contexte externe pour les textures, samplers
-et cibles. Il faut conserver les modifications des deux dépôts pour reproduire
-le build.
+Alpha utilise la bibliothèque `velum` du dépôt Git `learn_wgpu`. La révision
+consignée dans `Cargo.lock` fournit les API de textures, de samplers et de
+cibles qui acceptent le contexte GPU d’Alpha.
 
 Le contexte de fenêtre est créé par `Renderer::new_registered`, qui renvoie une
 surface et un propriétaire de contexte natifs Velum. Les contextes hors écran
@@ -192,9 +190,10 @@ aux ressources natives Velum. Cette frontière CPU est la seule utilisation de
 
 ## Uploads et vues
 
-Le décodage des images, les formats sRGB et `Queue::write_texture` sont conservés.
-Le résultat est un `texture::Texture` natif, avec sa vue native, enregistré dans
-le contexte Velum approprié.
+Alpha décode les images, crée la texture sRGB avec `TextureBuilder::build_in`
+et transfère les pixels via `Queue::write_texture`. `texture::register_texture`
+associe la texture au contexte Velum. `texture::get` résout ensuite son
+identifiant pour lire ses dimensions ou obtenir sa vue.
 
 Les données de sommets, indices, matrices et paramètres restent les mêmes. Les
 transferts de buffers utilisent `try_write_buffer`, qui applique les offsets des
@@ -228,7 +227,7 @@ son registre. Les snapshots de cibles et les handles GPU déjà résolus peuvent
 rester vivants après ce retrait.
 
 Les cibles dépendantes de la fenêtre peuvent être redimensionnées par
-`target::resize_window_targets_in(context, size)`. Les identifiants restent
+`target::resize_window_targets(context, size)`. Les identifiants restent
 stables, les révisions changent et les vues sont résolues à nouveau. Une taille
 nulle conserve les cibles existantes. Le renderer crée ses cibles transitoires
 aux dimensions de la texture de sortie ; la surface reste gérée par le contexte

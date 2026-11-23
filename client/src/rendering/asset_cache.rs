@@ -89,7 +89,7 @@ impl AssetCache {
             sprite_materials: HashMap::new(),
             shapes,
             sprite_templates,
-            sampler: data.insert(sampler::pixel_art("pixel art sampler")),
+            sampler: data.insert(sampler::pixel_art(ctx, "pixel art sampler")),
         })
     }
     pub fn load_texture(
@@ -98,14 +98,20 @@ impl AssetCache {
         data: &mut RenderData,
         path: impl AsRef<Path>,
     ) -> Result<TextureId, Box<dyn std::error::Error>> {
+        let ctx = Some(context.velum_context_id());
+        if ctx != self.context {
+            return Err(
+                RenderError::new("texture", "asset cache belongs to another GPU context").into(),
+            );
+        }
         let path = path.as_ref();
         if let Some(&(id, owner)) = self.textures.get(path) {
             if data.get(owner).is_some() {
                 return Ok(id);
             }
         }
-        let raw = super::resource_loader::load_texture(context, path)?;
-        let (owner, _) = texture::register_texture(raw);
+        let raw = super::resource_loader::load_texture(ctx, path)?;
+        let (owner, _) = texture::register_texture(ctx, raw);
         let owner = owner.share();
         let id = owner.id();
         self.textures
@@ -121,12 +127,15 @@ impl AssetCache {
         data: &mut RenderData,
         slots: TextureSlots,
     ) -> RenderResult<Vec<SharedResource<gpu::BindingSetId>>> {
-        let storage = gpu::context::texture_storage(None);
-        let storage = storage.read().unwrap();
-        let resource = storage
-            .get(texture)
-            .ok_or_else(|| RenderError::new("texture", "missing texture"))?;
-        let value = match resource {
+        if texture.context_id() != self.context {
+            return Err(RenderError::new(
+                "texture",
+                "texture belongs to another GPU context",
+            ));
+        }
+        let resource =
+            texture::get(texture).ok_or_else(|| RenderError::new("texture", "missing texture"))?;
+        let value = match resource.as_ref() {
             texture::TextureResource::Separate(resource)
             | texture::TextureResource::Array(resource)
             | texture::TextureResource::Atlas { resource, .. } => &resource.texture,

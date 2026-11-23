@@ -4,7 +4,6 @@ use velum::backend::{
     self as gpu,
     buffer::{self, BufferKind},
     geometry::BufferRegion,
-    sampler,
     target::{self, RenderTargetDescriptor, TargetSize},
     texture,
 };
@@ -76,7 +75,6 @@ fn native_texture_and_target_render_share_and_release_without_alpha_storage() {
     let mut data = velum::RenderData::new();
     let mut assets = AssetCache::new(&context, &mut data).unwrap();
     let mut renderer = SceneRenderer::new(&context, &mut assets, &mut data).unwrap();
-    let sampler = sampler::pixel_art_in(ctx, "test sampler");
     let raw = context.device().create_texture(&wgpu::TextureDescriptor {
         label: Some("shared native texture"),
         size: wgpu::Extent3d {
@@ -106,16 +104,16 @@ fn native_texture_and_target_render_share_and_release_without_alpha_storage() {
         },
         raw.size(),
     );
-    let owner = texture::try_register_in(ctx, texture::Texture::from_raw(raw), &sampler)
-        .unwrap()
-        .share();
+    let (owner, _) = texture::register_texture(ctx, raw.clone());
+    let owner = owner.share();
     let id = owner.id();
     let another_object = owner.clone();
-    assert_eq!(
-        texture::get(id).unwrap().as_raw(),
-        texture::get(id).unwrap().as_raw()
-    );
-    let output_owner = target::try_register_in(
+    let resource = texture::get(id).unwrap();
+    let texture::TextureResource::Separate(resource) = resource.as_ref() else {
+        panic!("expected a separate texture");
+    };
+    assert_eq!(resource.texture.as_raw(), &raw);
+    let output_owner = target::register(
         ctx,
         RenderTargetDescriptor {
             label: "output",
@@ -127,8 +125,7 @@ fn native_texture_and_target_render_share_and_release_without_alpha_storage() {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
             sample_count: 1,
         },
-    )
-    .unwrap();
+    );
     let output_id = output_owner.id();
     let output = target::get(output_id).unwrap();
     let mut scene = SceneFrame::new();
@@ -197,13 +194,13 @@ fn native_targets_resize_by_context_preserve_snapshots_and_release_by_owner() {
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
         sample_count: 1,
     };
-    let owner = target::try_register_in(ctx, descriptor).unwrap();
+    let owner = target::register(ctx, descriptor);
     let id = owner.id();
     let old = target::get(id).unwrap();
     let old_view = old.texture().view().clone();
-    target::resize_window_targets_in(ctx, [0, 0]);
+    target::resize_window_targets(ctx, [0, 0]);
     assert_eq!(target::get(id).unwrap().revision(), 0);
-    target::resize_window_targets_in(ctx, [16, 4]);
+    target::resize_window_targets(ctx, [16, 4]);
     let new = target::get(id).unwrap();
     assert_eq!(new.size(), [16, 4]);
     assert_eq!(new.revision(), 1);
@@ -214,7 +211,12 @@ fn native_targets_resize_by_context_preserve_snapshots_and_release_by_owner() {
         width: 0,
         height: 4,
     };
-    assert!(target::try_register_in(ctx, invalid).is_err());
+    assert!(
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| target::register(
+            ctx, invalid
+        )))
+        .is_err()
+    );
     assert_eq!(target::get(id).unwrap().size(), [16, 4]);
     drop(owner);
     assert!(target::get(id).is_none());
@@ -224,10 +226,8 @@ fn native_targets_resize_by_context_preserve_snapshots_and_release_by_owner() {
 
 #[test]
 #[ignore = "requires a graphics adapter"]
-fn native_texture_registration_returns_gpu_validation_errors() {
+fn native_texture_registration_reports_gpu_validation_errors() {
     let local = context();
-    let foreign = context();
-    let sampler = sampler::pixel_art_in(Some(foreign.velum_context_id()), "foreign sampler");
     let raw = local.device().create_texture(&wgpu::TextureDescriptor {
         label: Some("validation texture"),
         size: wgpu::Extent3d {
@@ -242,16 +242,10 @@ fn native_texture_registration_returns_gpu_validation_errors() {
         usage: wgpu::TextureUsages::COPY_DST,
         view_formats: &[],
     });
-    let value = texture::Texture::from_raw(raw);
-    assert!(
-        texture::try_register_in(Some(local.velum_context_id()), value.clone(), &sampler).is_err()
-    );
-    let local_sampler = sampler::pixel_art_in(Some(local.velum_context_id()), "local sampler");
-    assert!(
-        texture::try_register_in(Some(local.velum_context_id()), value, &local_sampler).is_err()
-    );
-    assert!(
-        local.take_error().is_none(),
-        "validation must be returned through the API"
-    );
+    let scope = local
+        .device()
+        .push_error_scope(wgpu::ErrorFilter::Validation);
+    let (_owner, _) = texture::register_texture(Some(local.velum_context_id()), raw);
+    assert!(pollster::block_on(scope.pop()).is_some());
+    assert!(local.take_error().is_none());
 }

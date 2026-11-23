@@ -34,7 +34,6 @@ egui-wgpu = "0.36.1"
 egui-winit = "0.36.1"
 tokio = { version = "1.53.2", features = [ "fs", "rt-multi-thread" ] }
 velum = { package = "velum", git = "https://github.com/Snowdeenn/learn_wgpu.git" }
-new_collection = { git = "https://github.com/Snowdeenn/new_collection.git" }
 
 [dev-dependencies]
 naga = { version = "30", features = ["wgsl-in"] }

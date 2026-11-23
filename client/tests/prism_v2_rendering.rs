@@ -78,7 +78,7 @@ fn target(
     wgpu::Texture,
 ) {
     use velum::backend::target::{self, RenderTargetDescriptor, TargetSize};
-    let owner = target::register_in(
+    let owner = target::register(
         assets.context,
         RenderTargetDescriptor {
             label: "Alpha render test",

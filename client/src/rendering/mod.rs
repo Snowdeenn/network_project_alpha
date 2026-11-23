@@ -19,9 +19,7 @@ pub use post_process::{
 pub use renderer::SceneRenderer;
 pub use resource_loader::create_health_material;
 pub use scene::{BlendMode, Color, OverlayContext, Primitive, SceneFrame};
-pub use velum::backend::target::RenderTargetId;
-
-pub type TextureId = new_collection::Id<velum::backend::texture::TextureResource>;
+pub use velum::backend::{target::RenderTargetId, texture::TextureId};
 
 use crate::graphic_data::animation::AnimEntityManager;
 use crate::graphic_data::animation_manager::{AnimKey, BossState, EnemyState, PlayerState};

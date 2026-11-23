@@ -70,18 +70,11 @@ pub struct GpuContext {
 }
 impl GpuContext {
     pub async fn new(window: Arc<winit::window::Window>) -> Result<Self, GpuError> {
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::all(),
-            flags: wgpu::InstanceFlags::debugging() | wgpu::InstanceFlags::VALIDATION,
-            memory_budget_thresholds: Default::default(),
-            backend_options: Default::default(),
-            display: None,
-        });
-
         let renderer = velum::backend::renderer::Renderer::new(window.clone())
             .map_err(GpuError::Initialization)?;
 
-        let adapter = instance
+        let adapter = renderer
+            .instance()
             .request_adapter(&wgpu::RequestAdapterOptionsBase {
                 power_preference: wgpu::PowerPreference::HighPerformance,
                 force_fallback_adapter: false,
@@ -194,10 +187,7 @@ impl GpuContext {
                 renderer.conf.height = height;
                 renderer.surface.configure(&device, &renderer.conf);
             }
-            velum::backend::target::resize_window_targets(
-                //Some(self.velum.id()),
-                [width, height],
-            );
+            velum::backend::target::resize_window_targets(Some(self.velum.id()), [width, height]);
         }
         Ok(())
     }

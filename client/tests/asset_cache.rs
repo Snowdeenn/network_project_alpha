@@ -1,6 +1,6 @@
 //! Ownership regression: cache entries must not keep GPU resources alive.
 use client::rendering::{AssetCache, GpuContext, SceneRenderer};
-use velum::backend::context;
+use velum::backend::texture;
 
 #[test]
 #[ignore = "requires a graphics adapter"]
@@ -8,8 +8,6 @@ fn render_data_owns_resources_independently_of_cache_and_renderer() {
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
     let adapter = pollster::block_on(instance.request_adapter(&Default::default())).unwrap();
     let (device, queue) = pollster::block_on(adapter.request_device(&Default::default())).unwrap();
-    // The pinned Velum version still registers textures in its default context.
-    context::init_from(device.clone(), queue.clone()).unwrap();
     let gpu = GpuContext::from_device(device, queue, 32, 32, wgpu::TextureFormat::Rgba8UnormSrgb)
         .unwrap();
     let mut data = velum::RenderData::new();
@@ -20,34 +18,27 @@ fn render_data_owns_resources_independently_of_cache_and_renderer() {
         .save(&path)
         .unwrap();
     let id = cache.load_texture(&gpu, &mut data, &path).unwrap();
+    assert_eq!(id.context_id(), Some(gpu.velum_context_id()));
+    assert_eq!(cache.texture_size(id).unwrap(), (1, 1));
+    let texture = texture::get(id).unwrap();
+    let texture::TextureResource::Separate(resource) = texture.as_ref() else {
+        panic!("expected a separate texture");
+    };
+    assert_eq!(
+        resource.texture.as_raw().format(),
+        wgpu::TextureFormat::Rgba8UnormSrgb
+    );
+    drop(texture);
     assert_eq!(id, cache.load_texture(&gpu, &mut data, &path).unwrap());
     assert!(cache.remove_texture(&mut data, id));
-    assert!(
-        context::texture_storage(None)
-            .read()
-            .unwrap()
-            .get(id)
-            .is_none()
-    );
+    assert!(texture::get(id).is_none());
     let id = cache.load_texture(&gpu, &mut data, &path).unwrap();
     std::fs::remove_file(path).unwrap();
 
     drop(renderer);
     drop(cache);
-    assert!(
-        context::texture_storage(None)
-            .read()
-            .unwrap()
-            .get(id)
-            .is_some()
-    );
+    assert!(texture::get(id).is_some());
     drop(data);
-    assert!(
-        context::texture_storage(None)
-            .read()
-            .unwrap()
-            .get(id)
-            .is_none()
-    );
+    assert!(texture::get(id).is_none());
     assert!(gpu.take_error().is_none());
 }

@@ -63,8 +63,6 @@ fn alpha_renders_explicit_bindings_storage_dynamic_offsets_and_rejects_collision
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
     let adapter = pollster::block_on(instance.request_adapter(&Default::default())).unwrap();
     let (device, queue) = pollster::block_on(adapter.request_device(&Default::default())).unwrap();
-    // Pinned Velum still creates transient targets and asset textures in the default context.
-    gpu::context::init_from(device.clone(), queue.clone()).unwrap();
     let context =
         GpuContext::from_device(device, queue, 4, 2, wgpu::TextureFormat::Rgba8UnormSrgb).unwrap();
     let ctx = Some(context.velum_context_id());

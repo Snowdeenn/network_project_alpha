@@ -1,27 +1,36 @@
 //! Texture loading for the explicit Alpha GPU context.
-//! Velum's current file loader uses its default context and an unorm format.
+use super::{BlendMode, TextureId, shader_bindings::HEALTH_BINDINGS};
 use std::path::Path;
+use velum::{
+    SharedResource,
+    backend::{
+        self as gpu, BindingSchema, RenderError, RenderResult,
+        context::ContextId,
+        material::{MaterialTemplate, MaterialTemplateId, ShaderEntry},
+        texture,
+    },
+};
+
 pub(crate) fn load_texture(
-    context: &super::GpuContext,
+    context: Option<ContextId>,
     path: &Path,
 ) -> Result<wgpu::Texture, image::ImageError> {
     let image = image::open(path)?.into_rgba8();
     let (width, height) = image.dimensions();
-    let raw = context.device().create_texture(&wgpu::TextureDescriptor {
-        label: path.to_str(),
-        size: wgpu::Extent3d {
+    // Velum's file loader uses Rgba8Unorm; keep sRGB decoding for Alpha assets.
+    let mut builder = texture::TextureBuilder::new()
+        .with_size(wgpu::Extent3d {
             width,
             height,
             depth_or_array_layers: 1,
-        },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8UnormSrgb,
-        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-        view_formats: &[],
-    });
-    context.queue().write_texture(
+        })
+        .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
+        .with_view_formats(&[]);
+    if let Some(label) = path.to_str() {
+        builder = builder.with_label(label);
+    }
+    let raw = builder.build_in(context);
+    gpu::context::queue(context).write_texture(
         wgpu::TexelCopyTextureInfo {
             texture: &raw,
             mip_level: 0,
@@ -38,16 +47,6 @@ pub(crate) fn load_texture(
     );
     Ok(raw)
 }
-
-use super::BlendMode;
-use velum::{
-    SharedResource,
-    backend::{
-        self as gpu, RenderResult,
-        context::ContextId,
-        material::{MaterialTemplate, MaterialTemplateId, ShaderEntry},
-    },
-};
 
 pub fn create_health_material(
     context: &super::GpuContext,
@@ -73,10 +72,6 @@ pub fn create_health_material(
     )
 }
 
-use super::TextureId;
-use super::shader_bindings::HEALTH_BINDINGS;
-use gpu::{BindingSchema, RenderError};
-use velum::backend::texture;
 pub(crate) fn mesh_template(
     context: Option<ContextId>,
     label: &str,
@@ -104,12 +99,9 @@ pub(crate) fn mesh_template(
     velum::try_material_template!(template).map(velum::OwnedResource::share)
 }
 pub(crate) fn texture_size(id: TextureId) -> RenderResult<(u32, u32)> {
-    let storage = gpu::context::texture_storage(None);
-    let storage = storage.read().unwrap();
-    let resource = storage
-        .get(id)
-        .ok_or_else(|| RenderError::new("texture", "missing texture"))?;
-    let texture = match resource {
+    let resource =
+        texture::get(id).ok_or_else(|| RenderError::new("texture", "missing texture"))?;
+    let texture = match resource.as_ref() {
         texture::TextureResource::Separate(resource)
         | texture::TextureResource::Array(resource)
         | texture::TextureResource::Atlas { resource, .. } => &resource.texture,

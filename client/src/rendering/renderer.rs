@@ -584,30 +584,41 @@ impl SceneRenderer {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             sample_count: 1,
         };
-        let mut intermediate = vec![target::register(descriptor)];
+        let mut intermediate = vec![target::register(
+            Some(context.velum_context_id()),
+            descriptor,
+        )];
         let mut source = target::get(intermediate[0].id())
             .ok_or_else(|| RenderError::new("target", "missing scene target"))?;
+
         let (encoder, output) = frame.render_parts();
         Self::draw_phase(encoder, source.texture().view(), world, 0, true)?;
         Self::draw_phase(encoder, source.texture().view(), vfx, 1, false)?;
+
         let mut submissions = self
             .post_process
             .submissions(&scene.post_effects, [target.width(), target.height()]);
+
         submissions.append(&mut scene.post_process);
+
         for PostProcessSubmission { effect, parameters } in submissions {
             let program = self
                 .effects
                 .get(effect.0 as usize)
                 .ok_or_else(|| RenderError::new("post-process", "unknown effect"))?;
+
             if parameters.len() as u64 != program.layout.parameters.map_or(0, |slot| slot.size) {
                 return Err(RenderError::new(
                     "post-process",
                     "uniform size differs from registered layout",
                 ));
             }
-            let owner = target::register(descriptor);
+
+            let owner = target::register(Some(context.velum_context_id()), descriptor);
+
             let destination = target::get(owner.id())
                 .ok_or_else(|| RenderError::new("target", "missing effect target"))?;
+
             Self::fullscreen(
                 encoder,
                 assets.context,
@@ -622,9 +633,11 @@ impl SceneRenderer {
                 program.layout,
                 &parameters,
             )?;
+
             intermediate.push(owner);
             source = destination;
         }
+
         Self::fullscreen(
             encoder,
             assets.context,
@@ -637,7 +650,9 @@ impl SceneRenderer {
             self.blit_layout,
             &[],
         )?;
+
         Self::draw_phase(encoder, output, hud, 2, false)?;
+
         data.require_mut(self.text)
             .map_err(render_data_error)?
             .render(
@@ -647,8 +662,10 @@ impl SceneRenderer {
                 [target.width(), target.height()],
                 &scene.hud,
             )?;
+
         Ok(frame.finish())
     }
+
     pub fn render_to_target(
         &mut self,
         context: &Context,
@@ -660,6 +677,7 @@ impl SceneRenderer {
         let target = target::get(id).ok_or_else(|| RenderError::new("target", "missing target"))?;
         self.render_to_texture(context, assets, data, scene, target.texture().as_raw())
     }
+
     pub fn render(
         &mut self,
         context: &Context,
@@ -670,6 +688,7 @@ impl SceneRenderer {
         if !context.is_ready() {
             return Ok(None);
         }
+
         let surface = match context.current_texture() {
             wgpu::CurrentSurfaceTexture::Success(surface)
             | wgpu::CurrentSurfaceTexture::Suboptimal(surface) => surface,
@@ -684,7 +703,9 @@ impl SceneRenderer {
                 return Ok(None);
             }
         };
+
         self.render_to_texture(context, assets, data, scene, &surface.texture)?;
+
         Ok(Some(OverlayContext {
             surface_view: surface.texture.create_view(&Default::default()),
             surface_texture: surface,

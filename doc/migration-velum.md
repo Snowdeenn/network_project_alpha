@@ -80,7 +80,7 @@ Prism V2 possède déjà des `BindingSchema` avec groupes et bindings explicites
 son `bindings/mod.rs::LayoutCache` conserve les trous entre groupes. Les slots
 0/1/2 ci-dessus sont donc des choix des passes historiques ou d'Alpha, pas une
 contrainte générale de Prism V2 ni de Velum. Le code Velum actuel d'Alpha les
-reprend encore dans `rendering/asset_cache.rs`, `resource_loader.rs` et
+reprend encore dans `rendering/asset_cache.rs`, `material.rs` et
 `renderer.rs`.
 
 Le recensement historique est distinct du raccordement explicite décrit ci-dessous.
@@ -99,7 +99,7 @@ Le renderer utilise le contrat du matériau pour raccorder sa caméra, sa textur
 et ses paramètres. `Primitive::Material` transporte ce contrat et des
 `ObjectBindings` supplémentaires. Le pont Nodus conserve le contrat avec le
 template enregistré. Les effets personnalisés passent par
-`SceneRenderer::register_post_effect_with_bindings` ; l'ancienne méthode reste
+`AlphaRenderer::register_post_effect_with_bindings` ; l'ancienne méthode reste
 un raccourci pour les emplacements des effets WGSL fournis avec Alpha.
 
 `register_sets` regroupe les contributions par groupe et enregistre des
@@ -107,7 +107,7 @@ un raccourci pour les emplacements des effets WGSL fournis avec Alpha.
 erreur, jamais un remplacement implicite. Le cache des bindings de textures
 inclut les emplacements de la texture **et** du sampler dans sa clé, pour éviter
 de réutiliser un set incompatible entre deux programmes. Les propriétaires
-restent dans le `RenderData` de l'app, sans ajout de `Scene`.
+des ressources partagées entre écrans restent dans le `RenderData` partagé.
 
 Les uniforms automatiques vérifient leur taille avant l'upload. Les contributions
 supplémentaires acceptent les `BindingResource` et `BindingUse` natifs : buffers
@@ -173,12 +173,7 @@ Alpha utilise la bibliothèque `velum` du dépôt Git `learn_wgpu`. La révision
 consignée dans `Cargo.lock` fournit les API de textures, de samplers et de
 cibles qui acceptent le contexte GPU d’Alpha.
 
-Le contexte de fenêtre est créé par `Renderer::new_registered`, qui renvoie une
-surface et un propriétaire de contexte natifs Velum. Les contextes hors écran
-enregistrent directement une paire device/queue fournie par l’appelant.
-Tous les appels reçoivent son `ContextId` explicite ; le contexte global par
-défaut n'est pas initialisé. Aucun second device ni seconde queue n'est créé.
-Le raccordement est actif par défaut. La feature vide `velum` est conservée pour
+La fenêtre utilise `Renderer::new`, le device et la queue du contexte Velum par défaut. Les contextes hors écran enregistrent la paire fournie par l’appelant. Au retour de suspension desktop, Alpha rattache la fenêtre au renderer existant via son instance WGPU et appelle son resize. Le raccordement est actif par défaut. La feature vide `velum` est conservée pour
 la compatibilité des commandes précédentes.
 
 Alpha ne dépend plus directement de Prism V2. La surface, le contexte, le renderer
@@ -190,7 +185,10 @@ aux ressources natives Velum. Cette frontière CPU est la seule utilisation de
 
 ## Uploads et vues
 
-Alpha décode les images, crée la texture sRGB avec `TextureBuilder::build_in`
+`rendering::texture::load_cached` réutilise la texture associée au chemin
+tant que son propriétaire existe dans `RenderData`. Le chargeur de fichiers
+de la révision Velum utilisée impose le format linéaire `Rgba8Unorm`.
+Pour les sprites et les atlas, Alpha décode les images, crée la texture sRGB avec `TextureBuilder::build_in`
 et transfère les pixels via `Queue::write_texture`. `texture::register_texture`
 associe la texture au contexte Velum. `texture::get` résout ensuite son
 identifiant pour lire ses dimensions ou obtenir sa vue.
@@ -200,15 +198,16 @@ transferts de buffers utilisent `try_write_buffer`, qui applique les offsets des
 allocations Velum. Les `BufferRegion` transmettent les plages correspondantes aux
 bindings et géométries ; aucun adaptateur d'identifiant Prism n'intervient.
 
-Les flux de géométrie conservent leur capacité et grandissent au besoin. Les
-allocations et les limites de pages relèvent de l'arène native Velum.
+Les meshes sont transférés par `geometry::try_mesh`. Les instances et les deux caméras utilisent les uploads du backend Velum.
 
 ## Rendu et durée de vie
 
-`SceneRenderer` conserve les descriptions CPU d'Alpha, trie les couches de manière
-stable, tesselle avec `velum::geometry::Tesselator` et regroupe les dessins
-consécutifs compatibles. Il soumet ensuite des `RenderObject` et `RenderPhase`
-natifs.
+Le menu, le lobby et le jeu sont trois `velum::Scene` enregistrées dans
+`velum::Velum`. L’application active le SceneId de l’écran lors de la mise
+en file de la frame. Chaque scène possède son SceneRenderer natif et son
+RenderData pour les phases, les cibles, les buffers de géométrie, les
+caméras et le texte. AlphaRenderer prépare les commandes de dessin.
+En fenêtre, Alpha demande une Frame à Velum, appelle `Velum::render`, puis `Frame::finish` après le debug. Les sorties hors écran utilisent `OffscreenFrame::execute`.
 
 L'ordre reste monde, VFX, post-traitements, géométrie HUD, texte Glyphon, puis
 Egui. Les programmes de post-traitement utilisent des templates, uniforms et
@@ -229,9 +228,8 @@ rester vivants après ce retrait.
 Les cibles dépendantes de la fenêtre peuvent être redimensionnées par
 `target::resize_window_targets(context, size)`. Les identifiants restent
 stables, les révisions changent et les vues sont résolues à nouveau. Une taille
-nulle conserve les cibles existantes. Le renderer crée ses cibles transitoires
-aux dimensions de la texture de sortie ; la surface reste gérée par le contexte
-Alpha et conserve ses formats et modes de présentation.
+nulle conserve les cibles existantes. Chaque scène conserve ses cibles intermédiaires et les adapte
+aux dimensions de sortie. Velum configure et présente la surface de fenêtre.
 
 ## Validation
 
@@ -247,9 +245,53 @@ vérifient les pixels de la caméra, des couches, des VFX, des textures, du
 nine-patch, du HUD, du texte et des post-traitements, ainsi que le redimensionnement.
 
 Les tests de stockage utilisent directement l'API native : leases de buffers,
-partage et retrait des textures, cibles et vues par contexte. Le test X11 vérifie
-la présentation et la recréation de la surface. Avant le dernier remplacement du contexte de présentation, les huit tests GPU
-(rendu, ressources, surface et erreurs de validation) et les 77 tests unitaires
-du client ont réussi. La dernière exécution GPU demandée après ce remplacement
-n’a pas été autorisée ; la validation sur GPU de ce dernier changement reste à
-faire. La compilation du workspace avec toutes les cibles et features réussit.
+partage et retrait des textures, cibles et vues par contexte. Le test de surface exerce la présentation native, le HUD, la minimisation, le redimensionnement et le rattachement de la fenêtre. Il a réussi sous Windows.
+
+## Inventaire des programmes et états de pipeline
+
+- Les formes et VFX géométriques utilisent le template standard de mesh Velum avec blending alpha ou additif.
+- Les sprites, les tuiles et les VFX texturés ordinaires utilisent le shader standard de sprite de Velum. Les nine-patch utilisent la géométrie tessellée et le fragment texturé. Le flash utilise `entity_flash.frag.wgsl` pour remplacer la couleur en conservant le masque alpha.
+- Barre de vie : `default_textured.vert.wgsl` et `progress_bar.frag.wgsl`, avec blending alpha et un uniforme de progression.
+- Copie finale, flash de dégâts et aveuglement : `default_post_process.vert.wgsl` combiné respectivement à `default_post_process.frag.wgsl`, `hit_flash_effect.frag.wgsl` et `blind_effect.frag.wgsl`. Ces passes écrivent directement dans la cible, sans blending, et génèrent leurs sommets sans vertex buffer.
+- La copie finale de la fenêtre est confiée à `PresentEffect` et `PresentOperation`. La copie sur un device hors écran utilise le matériau plein écran décrit ci-dessus.
+
+Les matériaux alpha utilisent `ALPHA_BLENDING`. La variante additive combine
+les couleurs avec les facteurs `SrcAlpha` et `One`, et compose l’alpha avec
+`OVER`. Les formes, les sprites et le HUD partagent le layout par sommet de
+`velum::geometry::Vertex` : position et UV en `Float32x2`, couleur en
+`Float32x4`, aux emplacements 0, 1 et 2.
+
+Chaque passe applicative utilise un attachment couleur au format GPU du
+contexte, sans profondeur ni stencil, avec un seul échantillon et sans
+alpha-to-coverage. Le renderer valide le format et le nombre d’échantillons
+de la texture de sortie avant l’encodage. Aucun pipeline compute applicatif
+n’a été identifié.
+
+`try_material_template!` enregistre les templates de scène et plein écran
+dans Velum. `try_material!` enregistre les matériaux des formes avec leur
+contexte GPU explicite et une liste vide de bindings propres au matériau.
+La macro Velum accepte une liste d’expressions entre crochets. Les sprites,
+le HUD et les effets plein écran assemblent leurs bindings dans un vecteur
+à l’exécution et le transmettent à `material::try_register_in`, l’API
+d’enregistrement utilisée par la macro avec contexte explicite. Les sprites
+réutilisent un matériau par texture, blending et variante flash.
+`RenderData` conserve les propriétaires des ressources du registre Velum.
+Les `RenderObject` reçoivent les `MaterialId` natifs à la soumission.
+
+## Instances, passes et diagnostics
+
+`about_to_wait` met à jour le jeu, les animations et l’interface, puis demande un rafraîchissement à winit. À la réception de `RedrawRequested`, Alpha active la scène Velum de l’écran courant et collecte ses objets à partir du dernier état disponible. Les tuiles visibles et les libellés utilisent les dimensions courantes. Le renderer soumet ces données à Velum dans le même événement.
+
+La carte transmet les cellules visibles comme sprites. Alpha renseigne les transformations, couleurs, UV et matériaux. Velum fournit la représentation RenderInstance, le template standard, les uploads, le batching adjacent et le dessin. Les formes dynamiques utilisent son tessellateur et sa géométrie indexée. Les programmes de jeu restent décrits par leurs schémas de bindings.
+
+Les caméras monde et écran sont des standard::Cameras mises à jour avec Camera2D. Pour un shader personnalisé, Alpha fournit les emplacements déclarés par ce shader.
+
+En fenêtre, le texte passe par backend::text (registre, préparation et dessin). PresentEffect échantillonne la dernière cible et écrit dans la surface. Egui encode son panneau de debug sur la Frame Velum avant la présentation. Le panneau lit les compteurs de scène avant cet overlay.
+
+### Limites de la révision publiée 30c0ea3
+
+- Le chargeur de fichiers impose Rgba8Unorm. Le chargement des images sRGB utilise TextureBuilder et l’écriture de pixels dans la queue correspondante.
+- Le texte natif et PresentEffect utilisent le device global. Un device isolé fourni pour le rendu hors écran utilise Glyphon et un matériau de copie associés à ce device.
+- Egui fournit son propre renderer. Alpha emploie RenderPassBuilder pour lui ouvrir une passe sur la Frame Velum.
+- Les commandes Nodus utilisent des types CPU Prism. Le pont les convertit en descriptions pour Velum.
+- L’application conserve la sélection des effets de jeu, leurs paramètres, les UV d’atlas et l’ordre des calques. Les effets standard bloom, flou et HDR ne correspondent pas aux effets d’aveuglement et de flash d’Alpha.

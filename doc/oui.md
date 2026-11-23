@@ -28,8 +28,7 @@ Validation : Velum peut accéder au GPU et préparer une frame dans Alpha.
 - [x] Migrer les render targets.
 - [x] Raccorder les identifiants de ressources aux structures applicatives d'Alpha.
 - [x] Vérifier le partage des ressources entre plusieurs objets.
-- [ ] Vérifier la destruction des ressources lorsqu'elles ne sont plus utilisées. (bloquer par l'api
-  velum pas encore présente).
+- [x] Vérifier la destruction des ressources après libération du dernier propriétaire (tests GPU de stockage).
 - [x] Conserver les systèmes d'upload et de vues existants, sans refonte.
 - [x] Ne pas ajouter de nouveau système de cache.
 Validation : les ressources nécessaires à un rendu peuvent être créées, retrouvées, utilisées et libérées correctement.
@@ -53,51 +52,51 @@ C'est une étape fondamentale, mais la nouvelle branche de Velum possède déjà
 - [x] Vérifier que les macros permettent de construire les schémas et les ensembles de bindings. Le test unitaire compare le résultat de `binding_schema!` au schéma Alpha et le test GPU utilise un ensemble créé par `try_binding_set!`.
 Validation : Alpha peut utiliser des groupes et bindings arbitraires sans convention imposée par Velum.
 5. Migrer les shaders, matériaux et pipelines
-- [ ] Inventorier les shaders utilisés dans Alpha.
-- [ ] Identifier les variantes de shaders.
-- [ ] Migrer les shaders vers les nouveaux matériaux Velum.
-- [ ] Construire les MaterialTemplate.
-- [ ] Raccorder les MaterialId aux objets applicatifs.
-- [ ] Migrer les états de blending.
-- [ ] Migrer les états de profondeur et de stencil.
-- [ ] Migrer les formats des attachments.
-- [ ] Migrer les layouts de vertex buffers.
-- [ ] Vérifier les paramètres de multisampling.
-- [ ] Migrer les éventuels pipelines compute.
-- [ ] Vérifier que les matériaux restent constructibles par macros.
-- [ ] Vérifier la compatibilité des shaders avec les nouveaux schémas de bindings.
+- [x] Inventorier les shaders utilisés dans Alpha.
+- [x] Identifier les variantes de shaders.
+- [x] Migrer les shaders vers les nouveaux matériaux Velum.
+- [x] Construire les MaterialTemplate.
+- [x] Raccorder les MaterialId aux objets applicatifs.
+- [x] Migrer les états de blending.
+- [x] Migrer les états de profondeur et de stencil.
+- [x] Migrer les formats des attachments.
+- [x] Migrer les layouts de vertex buffers.
+- [x] Vérifier les paramètres de multisampling.
+- [x] Migrer les éventuels pipelines compute.
+- [x] Vérifier que les matériaux restent constructibles par macros.
+- [x] Vérifier la compatibilité des shaders avec les nouveaux schémas de bindings.
 Validation : un objet simple peut être rendu dans Alpha avec un matériau et un pipeline Velum.
 6. Migrer la géométrie et le dessin
-- [ ] Identifier les primitives graphiques utilisées par Alpha.
-- [ ] Migrer les vertex buffers.
-- [ ] Migrer les index buffers.
-- [ ] Migrer les formats de sommets.
-- [ ] Migrer les meshes.
-- [ ] Raccorder les géométries générées dynamiquement.
-- [ ] Migrer les formes 2D.
-- [ ] Migrer les rectangles, triangles et autres primitives nécessaires.
-- [ ] Migrer les formes à neuf zones (nine-patch) si utilisées.
-- [ ] Vérifier les UV et les couleurs.
-- [ ] Vérifier les coordonnées locales.
-- [ ] Vérifier le dessin indexé et non indexé.
-- [ ] Vérifier la génération de géométrie à partir des structures d'Alpha.
+- [x] Identifier les primitives graphiques utilisées par Alpha.
+- [x] Migrer les vertex buffers.
+- [x] Migrer les index buffers.
+- [x] Migrer les formats de sommets.
+- [x] Migrer les meshes.
+- [x] Raccorder les géométries générées dynamiquement.
+- [x] Migrer les formes 2D.
+- [x] Migrer les rectangles, triangles et autres primitives nécessaires.
+- [x] Migrer les formes à neuf zones (nine-patch) si utilisées.
+- [x] Vérifier les UV et les couleurs.
+- [x] Vérifier les coordonnées locales.
+- [x] Vérifier le dessin indexé et non indexé.
+- [x] Vérifier la génération de géométrie à partir des structures d'Alpha.
 Validation : les principales primitives d'Alpha sont dessinées correctement par Velum.
 
 Phase 3 — Instances et données applicatives
 7. Migrer les instances GPU
 Cette étape doit préserver un point important de ton architecture : Alpha fournit ses propres structures de données, qui implémentent les traits Velum.
-- [ ] Identifier les structures d'instances actuelles d'Alpha.
-- [ ] Conserver les structures métier d'Alpha autant que possible.
-- [ ] Implémenter les traits Velum nécessaires, notamment InstanceSource et ObjectInstance.
-- [ ] Définir les représentations GPU des instances.
+- [x] Identifier les structures d'instances actuelles d'Alpha.
+- [x] Conserver les structures métier d'Alpha autant que possible.
+- [x] Implémenter les traits Velum nécessaires, notamment InstanceSource et ObjectInstance.
+- [x] Définir les représentations GPU des instances.
 - [ ] Vérifier les conversions entre données CPU et GPU.
-- [ ] Raccorder les géométries aux instances.
-- [ ] Raccorder les matériaux aux instances.
-- [ ] Configurer librement les groupes et bindings des instances en storage buffer.
-- [ ] Configurer librement les slots des instances en vertex buffer.
+- [x] Raccorder les géométries aux instances.
+- [x] Raccorder les matériaux aux instances.
+- [x] Configurer librement les groupes et bindings des instances en storage buffer.
+- [x] Configurer librement les slots des instances en vertex buffer.
 - [ ] Vérifier les layouts et les strides.
-- [ ] Migrer le batching des instances.
-- [ ] Vérifier les draw calls instanciés.
+- [x] Migrer le batching des instances.
+- [x] Vérifier les draw calls instanciés. Le test GPU dessine deux tuiles avec un seul appel.
 - [ ] Vérifier les mises à jour des données d'instances.
 - [ ] Tester plusieurs types d'instances avec des bindings différents.
 - [ ] Vérifier que les macros restent utilisables là où elles étaient prévues.
@@ -106,63 +105,64 @@ Validation : Alpha peut soumettre ses propres objets à Velum sans dépendre de 
 Phase 4 — Caméras et orchestration
 8. Migrer les caméras
 Deux modes doivent être disponibles : caméra monde et caméra écran.
-- [ ] Identifier les caméras actuellement utilisées par Alpha.
-- [ ] Définir les données nécessaires à une caméra monde.
-- [ ] Définir les données nécessaires à une caméra écran.
-- [ ] Raccorder les matrices de vue.
-- [ ] Raccorder les matrices de projection.
+- [x] Identifier les caméras actuellement utilisées par Alpha.
+- [x] Définir les données nécessaires à une caméra monde.
+- [x] Définir les données nécessaires à une caméra écran.
+- [x] Raccorder les matrices de vue.
+- [x] Raccorder les matrices de projection.
 - [ ] Vérifier la projection orthographique.
-- [ ] Prévoir la projection perspective si Alpha en a besoin.
-- [ ] Raccorder les dimensions de la fenêtre.
-- [ ] Gérer les changements de résolution.
-- [ ] Raccorder les données des caméras aux bindings Velum.
-- [ ] Ne pas réserver de groupe ou binding obligatoire aux caméras.
+- [x] Prévoir la projection perspective si Alpha en a besoin. Les scènes actuelles utilisent une projection 2D orthographique.
+- [x] Raccorder les dimensions de la fenêtre.
+- [x] Gérer les changements de résolution.
+- [x] Raccorder les données des caméras aux bindings Velum.
+- [x] Ne pas réserver de groupe ou binding obligatoire aux caméras.
 - [ ] Vérifier que plusieurs matériaux peuvent utiliser la même caméra.
 - [ ] Vérifier les coordonnées écran et monde.
 - [ ] Tester les deux modes de caméra dans une même frame.
 Validation : les objets monde et les éléments écran sont affichés dans les bons espaces de coordonnées.
 9. Migrer la scène et l'orchestration
-- [ ] Identifier comment Alpha organise actuellement ses objets à rendre.
-- [ ] Raccorder les objets applicatifs aux RenderObject Velum.
-- [ ] Migrer les phases de rendu.
-- [ ] Définir les règles de tri.
-- [ ] Raccorder les objets opaques.
-- [ ] Raccorder les objets transparents.
-- [ ] Raccorder les éléments d'interface.
-- [ ] Préserver l'ordre de dessin attendu.
-- [ ] Migrer les soumissions d'objets à chaque frame.
-- [ ] Utiliser les mécanismes de scène et d'orchestration Velum.
-- [ ] Éviter de reconstruire une deuxième orchestration dans Alpha.
+- [x] Identifier comment Alpha organise actuellement ses objets à rendre.
+- [x] Raccorder les objets applicatifs aux RenderObject Velum.
+- [x] Migrer les phases de rendu.
+- [x] Définir les règles de tri.
+- [x] Raccorder les objets opaques.
+- [x] Raccorder les objets transparents.
+- [x] Raccorder les éléments d'interface.
+- [x] Préserver l'ordre de dessin attendu.
+- [x] Migrer les soumissions d'objets à chaque frame.
+- [x] Déclencher la collecte et le rendu de la scène sur `RedrawRequested` et retirer la file de frames d’`about_to_wait`.
+- [x] Utiliser les mécanismes de scène et d'orchestration Velum. Menu, lobby et jeu ont chacun leur Scene, leur SceneRenderer et leur RenderData natifs.
+- [x] Éviter de reconstruire une deuxième orchestration dans Alpha.
 - [ ] Vérifier les ajouts et suppressions d'objets en cours d'exécution.
 - [ ] Vérifier la gestion des objets qui changent de matériau ou de géométrie.
 Validation : une frame complète d'Alpha peut être décrite et exécutée par l'orchestration Velum.
 10. Migrer les passes et les effets
 La gestion des passes doit rester celle de Velum.
-- [ ] Recenser les passes actuellement utilisées dans Alpha.
-- [ ] Identifier les passes de rendu principales.
-- [ ] Identifier les éventuelles passes offscreen.
-- [ ] Identifier les effets de post-traitement.
-- [ ] Raccorder les render targets.
-- [ ] Raccorder les opérations de clear et load.
-- [ ] Migrer les dépendances entre passes.
-- [ ] Vérifier les formats et les dimensions des attachments.
-- [ ] Raccorder la présentation finale à la surface.
+- [x] Recenser les passes actuellement utilisées dans Alpha.
+- [x] Identifier les passes de rendu principales.
+- [x] Identifier les éventuelles passes offscreen.
+- [x] Identifier les effets de post-traitement.
+- [x] Raccorder les render targets.
+- [x] Raccorder les opérations de clear et load.
+- [x] Migrer les dépendances entre passes.
+- [x] Vérifier les formats et les dimensions des attachments.
+- [x] Raccorder la présentation finale à la surface.
 - [ ] Vérifier les effets de composition.
 - [ ] Vérifier les effets de flou ou autres effets utilisés.
-- [ ] Vérifier que les passes fonctionnent avec les matériaux et bindings explicites.
-- [ ] Conserver les fonctionnalités historiques de gestion des passes Velum.
+- [x] Vérifier que les passes fonctionnent avec les matériaux et bindings explicites.
+- [x] Conserver les fonctionnalités historiques de gestion des passes Velum.
 Validation : Velum produit la frame complète d'Alpha, effets compris.
 
 Phase 5 — Finalisation
 11. Migrer le rapport de frame et les diagnostics
-- [ ] Raccorder le début et la fin de frame au reporting Velum.
-- [ ] Compter les draw calls.
-- [ ] Compter les instances.
-- [ ] Compter les passes.
-- [ ] Mesurer les octets transférés lorsque les informations sont disponibles.
-- [ ] Raccorder les diagnostics d'erreur.
+- [x] Raccorder le début et la fin de frame au reporting Velum.
+- [x] Compter les draw calls.
+- [x] Compter les instances.
+- [x] Compter les passes.
+- [x] Mesurer les octets transférés lorsque les informations sont disponibles.
+- [x] Raccorder les diagnostics d'erreur.
 - [ ] Vérifier le comportement d'une frame abandonnée ou échouée.
-- [ ] Adapter les outils de diagnostic d'Alpha.
+- [x] Adapter les outils de diagnostic d'Alpha.
 - [ ] Comparer les métriques Prism et Velum sur des scènes équivalentes.
 Validation : Alpha peut diagnostiquer une frame Velum et suivre ses principales métriques.
 12. Vérifier la compatibilité et retirer Prism
@@ -177,9 +177,9 @@ Validation : Alpha peut diagnostiquer une frame Velum et suivre ses principales 
 - [ ] Vérifier que l'ancienne API Velum fonctionne toujours.
 - [ ] Vérifier que les nouvelles fonctionnalités restent constructibles par macros lorsque prévu.
 - [ ] Retirer les appels à Prism dans Alpha.
-- [ ] Supprimer la dépendance Prism.
+- [ ] Supprimer la dépendance Prism. Le DrawCommandBuffer de la révision Nodus utilisée exporte ses commandes via une Frame Prism.
 - [ ] Supprimer les adaptateurs temporaires devenus inutiles.
-- [ ] Nettoyer les anciens shaders et types inutilisés.
-- [ ] Documenter la nouvelle architecture.
+- [x] Nettoyer les anciens shaders et types inutilisés.
+- [x] Documenter la nouvelle architecture dans [migration-velum.md](migration-velum.md).
 - [ ] Fusionner la branche de migration après validation.
 Validation : Alpha fonctionne entièrement avec Velum, sans dépendance à Prism.

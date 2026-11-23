@@ -39,15 +39,3 @@ pub mod lobby {
     pub const INSTRUCTION: &str = "lobby/instruction";
     pub const CLASS: &str = "lobby/class";
 }
-pub mod shader {
-    pub const TEXTURED_VERTEX: &str = "shader/textured_vertex";
-    pub const TEXTURED_FRAGMENT: &str = "shader/textured_fragment";
-    pub const DEFAULT_VERTEX: &str = "shader/default_vertex";
-    pub const DEFAULT_FRAGMENT: &str = "shader/default_vertx";
-}
-pub mod post {
-    pub const DEFAULT_POST_VERTEX: &str = "post/default_post_vert";
-    pub const DEFAULT_POST_FRAGMENT: &str = "post/default_post_frag";
-    pub const HIT_FLASH_FRAG: &str = "post/hit_flash_frag";
-    pub const BLIND_FRAG: &str = "post/blind_frag";
-}

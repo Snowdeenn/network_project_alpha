@@ -27,7 +27,26 @@ pub fn handle_input(
     MenuAction::None
 }
 
-pub fn render(frame: &mut crate::rendering::SceneFrame, s: &crate::rendering::ScreenScale) {
+pub fn collect_labels(
+    frame: &mut crate::rendering::SceneFrame,
+    s: &crate::rendering::ScreenScale,
+    connecting: bool,
+) {
+    if connecting {
+        frame.push_hud(crate::rendering::Primitive::Text {
+            content: "Connecting ...".to_string(),
+            pos: [s.x(0.38) as f32, s.y(0.48) as f32],
+            size: s.font(0.035) as f32,
+            color: [
+                (crate::rendering::Color::LIGHTGRAY.r as f32) / 255.0,
+                (crate::rendering::Color::LIGHTGRAY.g as f32) / 255.0,
+                (crate::rendering::Color::LIGHTGRAY.b as f32) / 255.0,
+                1.0,
+            ],
+            layer: 0,
+        });
+        return;
+    }
     frame.push_hud(crate::rendering::Primitive::Text {
         content: "Project Alpha".to_string(),
         pos: [s.x(0.35) as f32, s.y(0.3) as f32],
@@ -63,24 +82,6 @@ pub fn render(frame: &mut crate::rendering::SceneFrame, s: &crate::rendering::Sc
         content: "ECHAP - Quitter".to_string(),
         pos: [s.x(0.40) as f32, s.y(0.77) as f32],
         size: s.font(0.025) as f32,
-        color: [
-            (crate::rendering::Color::LIGHTGRAY.r as f32) / 255.0,
-            (crate::rendering::Color::LIGHTGRAY.g as f32) / 255.0,
-            (crate::rendering::Color::LIGHTGRAY.b as f32) / 255.0,
-            1.0,
-        ],
-        layer: 0,
-    });
-}
-
-pub fn render_connecting(
-    frame: &mut crate::rendering::SceneFrame,
-    s: &crate::rendering::ScreenScale,
-) {
-    frame.push_hud(crate::rendering::Primitive::Text {
-        content: "Connecting ...".to_string(),
-        pos: [s.x(0.38) as f32, s.y(0.48) as f32],
-        size: s.font(0.035) as f32,
         color: [
             (crate::rendering::Color::LIGHTGRAY.r as f32) / 255.0,
             (crate::rendering::Color::LIGHTGRAY.g as f32) / 255.0,

@@ -143,6 +143,17 @@ impl InGameScene {
         }
 
         // Caméra & UI
+        if self.snapshots.last_snapshot.is_some()
+            && matches!(
+                *resources.read_resource::<crate::core::game_phase::GamePhase>(),
+                crate::core::game_phase::GamePhase::Wave
+                    | crate::core::game_phase::GamePhase::BetweenWave { .. }
+            )
+        {
+            let animations = resources
+                .read_resource::<crate::graphic_data::animation_manager::AnimationManager>();
+            self.anim_entities.tick_all(dt, &animations);
+        }
         cam.shake.update(dt);
         self.update_camera(cam);
 
@@ -150,11 +161,10 @@ impl InGameScene {
         Self::send_respawn_request(client, resources);
     }
 
-    pub fn render(
+    pub fn collect_objects(
         &mut self,
         frame: &mut crate::rendering::SceneFrame,
-        resources: &mut Resources,
-        dt: f32,
+        resources: &Resources,
         camera: &Camera,
         screen_size: winit::dpi::PhysicalSize<u32>,
     ) {
@@ -165,14 +175,13 @@ impl InGameScene {
             crate::core::game_phase::GamePhase::Wave
             | crate::core::game_phase::GamePhase::BetweenWave { .. } => {
                 if let Some(curr) = &self.snapshots.last_snapshot {
-                    crate::rendering::render_world(
+                    crate::rendering::collect_entities(
                         frame,
                         resources,
                         &mut self.anim_entities,
                         self.snapshots.prev_snapshot.as_ref(),
                         curr,
                         t,
-                        dt,
                         camera,
                         screen_size,
                     );
@@ -182,7 +191,7 @@ impl InGameScene {
         }
         let snapshot = resources.read_resource::<VfxSystem>().extract();
         crate::vfx::render_bridge::append_to_frame(&snapshot, frame);
-        crate::rendering::render_hud(frame, resources);
+        crate::rendering::collect_wave_timer(frame, resources);
     }
 
     /// Réception des snapshots, MAJ du HUD et génération des particules de mouvement

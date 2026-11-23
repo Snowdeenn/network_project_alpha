@@ -65,7 +65,7 @@ fn alpha_renders_explicit_bindings_storage_dynamic_offsets_and_rejects_collision
     let (device, queue) = pollster::block_on(adapter.request_device(&Default::default())).unwrap();
     let context =
         GpuContext::from_device(device, queue, 4, 2, wgpu::TextureFormat::Rgba8UnormSrgb).unwrap();
-    let ctx = Some(context.velum_context_id());
+    let ctx = context.context_id();
     let mut data = RenderData::new();
     let mut assets = AssetCache::new(&context, &mut data).unwrap();
     let mut renderer = SceneRenderer::new(&context, &mut assets, &mut data).unwrap();
@@ -87,7 +87,7 @@ fn alpha_renders_explicit_bindings_storage_dynamic_offsets_and_rejects_collision
     image::RgbaImage::from_pixel(1, 1, image::Rgba([255; 4]))
         .save(&path)
         .unwrap();
-    let texture = assets.load_texture(&context, &mut data, &path).unwrap();
+    let texture = client::rendering::texture::load_cached(&mut assets, &mut data, &path).unwrap();
     std::fs::remove_file(path).unwrap();
     let layout = MeshBindings {
         camera: UniformSlot {

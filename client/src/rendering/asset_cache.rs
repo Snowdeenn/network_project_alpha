@@ -1,12 +1,9 @@
 //! Non-owning asset lookups. GPU owners live in the application RenderData.
-use super::resource_loader::mesh_template;
-use super::shader_bindings::{self, SHAPE_BINDINGS, SPRITE_BINDINGS, TextureSlots};
+use super::material::mesh_template;
+use super::shader_bindings::{self, SPRITE_BINDINGS, TextureSlots};
 use super::{BlendMode, TextureId};
 use gpu::{RenderError, RenderResult};
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-};
+use std::{collections::HashMap, path::PathBuf};
 use velum::{
     RenderData, RenderDataId, SharedResource,
     backend::{
@@ -18,30 +15,41 @@ use velum::{
     },
 };
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub(super) enum SpriteProgram {
+    Standard,
+    NinePatch,
+    Flash,
+}
+
+pub(super) const SPRITE_SLOTS: gpu::standard::Slots = gpu::standard::Slots {
+    instances: (2, 0),
+    camera: (0, 0),
+    texture: (1, 0),
+    sampler: (1, 1),
+    vertices: 0,
+};
+
 pub struct AssetCache {
     pub context: Option<ContextId>,
-    textures: HashMap<PathBuf, (TextureId, RenderDataId<SharedResource<TextureId>>)>,
+    pub(super) textures: HashMap<PathBuf, (TextureId, RenderDataId<SharedResource<TextureId>>)>,
     texture_bindings:
         HashMap<(TextureId, TextureSlots), Vec<RenderDataId<SharedResource<gpu::BindingSetId>>>>,
     sprite_materials:
-        HashMap<(TextureId, BlendMode, bool), RenderDataId<SharedResource<MaterialId>>>,
+        HashMap<(TextureId, BlendMode, SpriteProgram), RenderDataId<SharedResource<MaterialId>>>,
     pub(crate) shapes: HashMap<BlendMode, RenderDataId<SharedResource<MaterialId>>>,
-    sprite_templates: HashMap<(BlendMode, bool), RenderDataId<SharedResource<MaterialTemplateId>>>,
+    sprite_templates:
+        HashMap<(BlendMode, SpriteProgram), RenderDataId<SharedResource<MaterialTemplateId>>>,
     pub(crate) sampler: RenderDataId<sampler::Sampler<sampler::Filtering>>,
 }
 
 impl AssetCache {
     pub fn new(context: &super::GpuContext, data: &mut RenderData) -> RenderResult<Self> {
-        let ctx = Some(context.velum_context_id());
+        let ctx = context.context_id();
         let vertex = gpu::try_shader(
             ctx,
             "scene vertex",
             include_str!("../graphic_data/shader/default_textured.vert.wgsl"),
-        )?;
-        let flat = gpu::try_shader(
-            ctx,
-            "scene color",
-            include_str!("../graphic_data/shader/default.frag.wgsl"),
         )?;
         let textured = gpu::try_shader(
             ctx,
@@ -56,20 +64,38 @@ impl AssetCache {
         let mut shapes = HashMap::new();
         let mut sprite_templates = HashMap::new();
         for blend in [BlendMode::Alpha, BlendMode::Additive] {
-            let template = mesh_template(
+            let template = gpu::standard::try_template(
                 ctx,
-                "shape",
-                vertex.clone(),
-                flat.clone(),
                 context.surface_format(),
-                blend,
-                SHAPE_BINDINGS.schema()?,
-            )?;
+                SPRITE_SLOTS,
+                None,
+                Some(super::material::blend_state(blend)),
+                None,
+            )?
+            .share();
             shapes.insert(
                 blend,
-                data.insert(velum::try_material!(template: template, bindings: [])?.share()),
+                data.insert(
+                    velum::try_material!(context_id: ctx, template: template, bindings: [])?
+                        .share(),
+                ),
             );
-            for (is_flash, fragment) in [(false, &textured), (true, &flash)] {
+            let standard = gpu::standard::try_template(
+                ctx,
+                context.surface_format(),
+                SPRITE_SLOTS,
+                Some(false),
+                Some(super::material::blend_state(blend)),
+                None,
+            )?;
+            sprite_templates.insert(
+                (blend, SpriteProgram::Standard),
+                data.insert(standard.share()),
+            );
+            for (program, fragment) in [
+                (SpriteProgram::NinePatch, &textured),
+                (SpriteProgram::Flash, &flash),
+            ] {
                 let template = mesh_template(
                     ctx,
                     "sprite",
@@ -79,7 +105,7 @@ impl AssetCache {
                     blend,
                     SPRITE_BINDINGS.schema()?,
                 )?;
-                sprite_templates.insert((blend, is_flash), data.insert(template));
+                sprite_templates.insert((blend, program), data.insert(template));
             }
         }
         Ok(Self {
@@ -91,35 +117,6 @@ impl AssetCache {
             sprite_templates,
             sampler: data.insert(sampler::pixel_art(ctx, "pixel art sampler")),
         })
-    }
-    pub fn load_texture(
-        &mut self,
-        context: &super::GpuContext,
-        data: &mut RenderData,
-        path: impl AsRef<Path>,
-    ) -> Result<TextureId, Box<dyn std::error::Error>> {
-        let ctx = Some(context.velum_context_id());
-        if ctx != self.context {
-            return Err(
-                RenderError::new("texture", "asset cache belongs to another GPU context").into(),
-            );
-        }
-        let path = path.as_ref();
-        if let Some(&(id, owner)) = self.textures.get(path) {
-            if data.get(owner).is_some() {
-                return Ok(id);
-            }
-        }
-        let raw = super::resource_loader::load_texture(ctx, path)?;
-        let (owner, _) = texture::register_texture(ctx, raw);
-        let owner = owner.share();
-        let id = owner.id();
-        self.textures
-            .insert(path.to_path_buf(), (id, data.insert(owner)));
-        Ok(id)
-    }
-    pub fn texture_size(&self, id: TextureId) -> RenderResult<(u32, u32)> {
-        super::resource_loader::texture_size(id)
     }
     pub(crate) fn texture_binding(
         &mut self,
@@ -177,31 +174,30 @@ impl AssetCache {
         );
         Ok(owners)
     }
-    pub(crate) fn sprite_material(
+    pub(super) fn sprite_material(
         &mut self,
         texture: TextureId,
         data: &mut RenderData,
         blend: BlendMode,
-        flash: bool,
+        program: SpriteProgram,
     ) -> RenderResult<MaterialId> {
         let bindings = self.texture_binding(texture, data, SPRITE_BINDINGS.texture.unwrap())?;
-        if let Some(owner) = self.sprite_materials.get(&(texture, blend, flash)) {
+        if let Some(owner) = self.sprite_materials.get(&(texture, blend, program)) {
             return data
                 .require(*owner)
                 .map(|owner| owner.id())
                 .map_err(|e| RenderError::new("asset cache", e.to_string()));
         }
-        let owner = material::try_register(material::Material {
-            template: data
-                .require(self.sprite_templates[&(blend, flash)])
-                .map_err(|e| RenderError::new("sprite template", e.to_string()))?
-                .clone(),
-            bindings,
-        })?
-        .share();
+        let template = data
+            .require(self.sprite_templates[&(blend, program)])
+            .map_err(|e| RenderError::new("sprite template", e.to_string()))?
+            .clone();
+        let owner =
+            material::try_register_in(material::Material { template, bindings }, self.context)?
+                .share();
         let id = owner.id();
         self.sprite_materials
-            .insert((texture, blend, flash), data.insert(owner));
+            .insert((texture, blend, program), data.insert(owner));
         Ok(id)
     }
     pub fn remove_texture(&mut self, data: &mut RenderData, id: TextureId) -> bool {

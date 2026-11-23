@@ -10,8 +10,31 @@ pub enum BlendMode {
     Additive,
 }
 
+/// A typed instance batch uploads when Velum starts recording the frame.
+pub trait InstanceBatch: std::fmt::Debug {
+    fn submit(
+        &self,
+        context: Option<velum::backend::context::ContextId>,
+        phase: &mut velum::backend::object::RenderPhase,
+    ) -> velum::backend::RenderResult<()>;
+}
+impl<T: velum::backend::ObjectInstance + std::fmt::Debug> InstanceBatch for Vec<T> {
+    fn submit(
+        &self,
+        context: Option<velum::backend::context::ContextId>,
+        phase: &mut velum::backend::object::RenderPhase,
+    ) -> velum::backend::RenderResult<()> {
+        velum::backend::instances::submit(context, self, phase)
+    }
+}
+
 #[derive(Debug)]
 pub enum Primitive {
+    Instances {
+        batch: Box<dyn InstanceBatch>,
+        camera: super::shader_bindings::UniformSlot,
+        layer: u8,
+    },
     Shape {
         shape: Shape,
         blend: BlendMode,
@@ -64,7 +87,8 @@ pub enum Primitive {
 impl Primitive {
     pub fn layer(&self) -> u8 {
         match self {
-            Self::Shape { layer, .. }
+            Self::Instances { layer, .. }
+            | Self::Shape { layer, .. }
             | Self::Texture { layer, .. }
             | Self::Text { layer, .. }
             | Self::Material { layer, .. }
@@ -96,20 +120,5 @@ impl SceneFrame {
     }
     pub fn push_hud(&mut self, primitive: Primitive) {
         self.hud.push(primitive);
-    }
-}
-
-/// Final surface overlay encoder shared by the text and Egui integrations.
-pub struct OverlayContext {
-    pub encoder: wgpu::CommandEncoder,
-    pub surface_view: wgpu::TextureView,
-    pub surface_texture: wgpu::SurfaceTexture,
-    pub size: (u32, u32),
-}
-
-impl OverlayContext {
-    pub fn present(self, context: &crate::rendering::GpuContext) {
-        context.queue().submit([self.encoder.finish()]);
-        context.present(self.surface_texture);
     }
 }

@@ -14,7 +14,7 @@ use crate::core;
 use crate::core::client::GameNetClient;
 use crate::core::event::SpellUseEvent;
 use crate::graphic_data::ClientSpellSlots;
-use crate::graphic_data::asset_manager::AssetManager;
+use crate::graphic_data::animation_manager::AnimationManager;
 use crate::graphic_data::tile_map::TileMap;
 use crate::rendering::ScreenScale;
 use crate::rendering::camera::Camera;
@@ -26,13 +26,9 @@ fn build_camera_matrix(
     screen_w: f32,
     screen_h: f32,
 ) -> utils::math::Mat4 {
-    let proj = utils::math::Mat4::orthographic_wgpu(0.0, screen_w, screen_h, 0.0, -1.0, 1.0);
-    let view = utils::math::Mat4::translation(
-        -pos.x + (screen_w * 0.5) + shake.x,
-        -pos.y + (screen_h * 0.5) + shake.y,
-        0.0,
-    );
-    proj.multiply(view)
+    let mut camera = velum::camera::Camera2D::new();
+    camera.set_pos(pos.x - shake.x, pos.y - shake.y);
+    camera.get_view_proj(screen_w, screen_h)
 }
 
 use crate::ui::hud;
@@ -44,9 +40,9 @@ pub struct App {
     window: Option<Arc<winit::window::Window>>,
     gpu_ctx: Option<crate::rendering::GpuContext>,
     asset_cache: Option<crate::rendering::AssetCache>,
-    render_data: velum::RenderData,
+    shared_data: velum::RenderData,
     nodus_bridge: crate::rendering::nodus_bridge::NodusBridge,
-    renderer: Option<crate::rendering::SceneRenderer>,
+    renderer: Option<crate::rendering::AlphaRenderer>,
     debug_renderer: Option<DebugRenderer>,
     ui_ctx: Option<nodus::UiContext>,
     client: Option<GameNetClient>,
@@ -109,7 +105,7 @@ impl App {
             debug_renderer: None,
             gpu_ctx: None,
             asset_cache: None,
-            render_data: velum::RenderData::new(),
+            shared_data: velum::RenderData::new(),
             nodus_bridge: Default::default(),
             ui_ctx: None,
             client: None,
@@ -127,12 +123,92 @@ impl App {
         }
     }
 
-    pub fn renderer(&self) -> &crate::rendering::SceneRenderer {
+    pub fn renderer(&self) -> &crate::rendering::AlphaRenderer {
         self.renderer.as_ref().unwrap()
     }
 
-    pub fn renderer_mut(&mut self) -> &mut crate::rendering::SceneRenderer {
+    pub fn renderer_mut(&mut self) -> &mut crate::rendering::AlphaRenderer {
         self.renderer.as_mut().unwrap()
+    }
+
+    fn redraw(&mut self) {
+        let (Some(gpu_ctx), Some(asset_cache), Some(renderer), Some(window), Some(scale)) = (
+            &self.gpu_ctx,
+            &mut self.asset_cache,
+            &mut self.renderer,
+            &self.window,
+            &self.scale,
+        ) else {
+            return;
+        };
+        if let Err(error) = renderer.activate(&self.screen) {
+            tracing::error!(%error, "Activation de la scène Velum");
+            return;
+        }
+        let mut frame = crate::rendering::SceneFrame::new();
+        frame.camera_pos = self.cam.pos();
+        frame.cam_shake_offset = self.cam.shake.offset();
+        match &self.screen {
+            core::screen::AppScreen::MainMenu => {
+                states::main_menu::collect_labels(&mut frame, scale, self.client.is_some());
+            }
+            core::screen::AppScreen::InGame if self.client.is_some() && self.ui_ctx.is_some() => {
+                self.in_game_scene.collect_objects(
+                    &mut frame,
+                    &self.resource,
+                    &self.cam,
+                    gpu_ctx.size,
+                );
+                if let Some(map) = &self.map {
+                    map.collect_visible_tiles(
+                        &self.resource,
+                        &mut frame,
+                        gpu_ctx.size.width as f32,
+                        gpu_ctx.size.height as f32,
+                    );
+                }
+            }
+            _ => {}
+        }
+        if let Some(ui_ctx) = &mut self.ui_ctx {
+            let mut buf = self.resource.write_resource::<nodus::DrawCommandBuffer>();
+            hud::prepare_hud(
+                &mut frame,
+                ui_ctx,
+                &mut buf,
+                &self.nodus_bridge,
+                &self.shared_data,
+            );
+        }
+        match renderer.render(gpu_ctx, asset_cache, &mut self.shared_data, frame) {
+            Ok(Some(mut frame_ctx)) => {
+                if let core::screen::AppScreen::InGame = &self.screen {
+                    let mode = self
+                        .resource
+                        .read_resource::<crate::core::debug_state::DebugState>()
+                        .mode;
+                    if mode != crate::core::debug_state::DebugMode::Off {
+                        if let Some(debug_renderer) = self.debug_renderer.as_mut() {
+                            debug_renderer.begin_frame(window);
+
+                            crate::ui::debug_ui::run_debug(
+                                debug_renderer,
+                                mode,
+                                &velum::backend::report::snapshot_in(gpu_ctx.context_id()),
+                                &self.debug_data,
+                                &self.resource,
+                                &mut self.cam,
+                            );
+                            debug_renderer.flush_into(window, &mut frame_ctx, gpu_ctx);
+                        }
+                    }
+                }
+
+                frame_ctx.finish(false);
+            }
+            Ok(None) => (),
+            Err(error) => tracing::error!(%error, "Échec du rendu Velum"),
+        }
     }
 
     fn check_gpu_errors(&self, event_loop: &winit::event_loop::ActiveEventLoop) -> bool {
@@ -149,11 +225,11 @@ impl App {
     }
 
     fn release_gpu(&mut self) {
-        // Drop resources and pending frames before unregistering their GPU context.
+        // Drop resources before unregistering their GPU context.
         self.renderer = None;
         self.debug_renderer = None;
         self.asset_cache = None;
-        self.render_data = velum::RenderData::new();
+        self.shared_data = velum::RenderData::new();
         self.nodus_bridge = Default::default();
         self.map = None;
         self.ui_ctx = None;
@@ -183,7 +259,12 @@ impl winit::application::ApplicationHandler for App {
                 return;
             }
         };
-        let gpu_ctx = match pollster::block_on(crate::rendering::GpuContext::new(window.clone())) {
+        let resumed_gpu = if let Some(mut gpu) = self.gpu_ctx.take() {
+            gpu.replace_window(window.clone()).map(|()| gpu)
+        } else {
+            pollster::block_on(crate::rendering::GpuContext::new(window.clone()))
+        };
+        let gpu_ctx = match resumed_gpu {
             Ok(ctx) => ctx,
             Err(e) => {
                 tracing::error!("Erreur lors de la création du gpu context : {e}");
@@ -203,9 +284,9 @@ impl winit::application::ApplicationHandler for App {
             self.debug_data.insert(flow_field);
             self.resource.insert(grid);
         }
-        let mut render_data = velum::RenderData::new();
+        let mut shared_data = velum::RenderData::new();
         let mut nodus_bridge = crate::rendering::nodus_bridge::NodusBridge::default();
-        let mut asset_cache = match crate::rendering::AssetCache::new(&gpu_ctx, &mut render_data) {
+        let mut asset_cache = match crate::rendering::AssetCache::new(&gpu_ctx, &mut shared_data) {
             Ok(assets) => assets,
             Err(error) => {
                 tracing::error!(%error, "Échec de l'initialisation des ressources Velum");
@@ -214,7 +295,7 @@ impl winit::application::ApplicationHandler for App {
             }
         };
 
-        let renderer = match self.initialize_renderer(&gpu_ctx, &mut asset_cache, &mut render_data)
+        let renderer = match self.initialize_renderer(&gpu_ctx, &mut asset_cache, &mut shared_data)
         {
             Ok(renderer) => renderer,
             Err(error) => {
@@ -228,12 +309,11 @@ impl winit::application::ApplicationHandler for App {
         let mut ui_ctx = nodus::UiContext::new(size.width as f32, size.height as f32);
         let scale = ScreenScale::new(size.width as i32, size.height as i32);
 
-        let mut asset_manager = AssetManager::new();
+        let mut animations = AnimationManager::new();
         {
-            match asset_manager.load_animations(
-                &gpu_ctx,
+            match animations.load_from_config(
                 &mut asset_cache,
-                &mut render_data,
+                &mut shared_data,
                 "assets/config/animations.json",
             ) {
                 Ok(_) => (),
@@ -244,10 +324,10 @@ impl winit::application::ApplicationHandler for App {
                 }
             }
         }
-        self.resource.insert(asset_manager);
+        self.resource.insert(animations);
 
         let hp_material_id =
-            match self.initialize_health_material(&gpu_ctx, &mut nodus_bridge, &mut render_data) {
+            match self.initialize_health_material(&gpu_ctx, &mut nodus_bridge, &mut shared_data) {
                 Ok(id) => id,
                 Err(error) => {
                     tracing::error!("{error}");
@@ -266,7 +346,11 @@ impl winit::application::ApplicationHandler for App {
             states::lobby::init_lobby(&mut ui_ctx, &self.resource);
         }
 
-        let map = match TileMap::new(&mut asset_cache, &mut render_data, &gpu_ctx) {
+        let map = match TileMap::new(
+            &mut asset_cache,
+            &mut shared_data,
+            "assets/map_texture/map_sprite_sheet.png",
+        ) {
             Ok(map) => map,
             Err(e) => {
                 tracing::error!("Erreur lors de la création de la map : {e}");
@@ -282,7 +366,7 @@ impl winit::application::ApplicationHandler for App {
         self.scale = Some(scale);
         self.gpu_ctx = Some(gpu_ctx);
         self.asset_cache = Some(asset_cache);
-        self.render_data = render_data;
+        self.shared_data = shared_data;
         self.nodus_bridge = nodus_bridge;
         self.map = Some(map);
         self.last_frame = std::time::Instant::now();
@@ -291,7 +375,10 @@ impl winit::application::ApplicationHandler for App {
     }
 
     fn suspended(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        // Keep the native desktop renderer available for the next surface.
+        let gpu = self.gpu_ctx.take();
         self.release_gpu();
+        self.gpu_ctx = gpu;
         event_loop.set_control_flow(winit::event_loop::ControlFlow::Wait);
     }
 
@@ -382,49 +469,7 @@ impl winit::application::ApplicationHandler for App {
                 self.input_state
                     .set_mouse_position(position.x as f32, position.y as f32);
             }
-            winit::event::WindowEvent::RedrawRequested => {
-                let gpu_ctx = self.gpu_ctx.as_mut().unwrap();
-                let asset_cache = self.asset_cache.as_mut().unwrap();
-                let window = self.window.as_ref().unwrap();
-                if let Some(renderer) = &mut self.renderer {
-                    if let Some(frame) = renderer.take_frame() {
-                        match renderer.render(gpu_ctx, asset_cache, &mut self.render_data, frame) {
-                            Ok(Some(mut frame_ctx)) => {
-                                if let core::screen::AppScreen::InGame = &self.screen {
-                                    let mode = self
-                                        .resource
-                                        .read_resource::<crate::core::debug_state::DebugState>()
-                                        .mode;
-                                    if mode != crate::core::debug_state::DebugMode::Off {
-                                        if let Some(debug_renderer) = self.debug_renderer.as_mut() {
-                                            debug_renderer.begin_frame(window);
-
-                                            crate::ui::debug_ui::run_debug(
-                                                debug_renderer,
-                                                mode,
-                                                &self.debug_data,
-                                                &self.resource,
-                                                &mut self.cam,
-                                            );
-                                            debug_renderer.flush_into(
-                                                window,
-                                                &mut frame_ctx,
-                                                gpu_ctx,
-                                            );
-                                        }
-                                    }
-                                }
-
-                                frame_ctx.present(gpu_ctx);
-                            }
-                            Ok(None) => (),
-                            Err(error) => tracing::error!(%error, "Échec du rendu Velum"),
-                        }
-                    } else {
-                        tracing::trace!("Aucune frame prête lors du RedrawRequested");
-                    }
-                }
-            }
+            winit::event::WindowEvent::RedrawRequested => self.redraw(),
             _ => (),
         }
     }
@@ -442,9 +487,7 @@ impl winit::application::ApplicationHandler for App {
             return;
         }
 
-        let (Some(gpu_ctx), Some(scale), Some(renderer)) =
-            (&mut self.gpu_ctx, &self.scale, &mut self.renderer)
-        else {
+        let (Some(gpu_ctx), Some(scale)) = (&self.gpu_ctx, &self.scale) else {
             return;
         };
 
@@ -454,9 +497,6 @@ impl winit::application::ApplicationHandler for App {
         let dt = frame_delta.as_secs_f32();
 
         let screen_size = gpu_ctx.size;
-        let mut frame = crate::rendering::SceneFrame::new();
-        frame.camera_pos = self.cam.pos();
-        frame.cam_shake_offset = self.cam.shake.offset();
 
         {
             let runtime = self.resource.read_resource::<tokio::runtime::Runtime>();
@@ -506,12 +546,6 @@ impl winit::application::ApplicationHandler for App {
                     }
                     MenuAction::None => {}
                 }
-
-                // Rendu Main Menu
-                match &self.client {
-                    None => crate::app::states::main_menu::render(&mut frame, scale),
-                    Some(_) => crate::app::states::main_menu::render_connecting(&mut frame, scale),
-                }
             }
 
             core::screen::AppScreen::Lobby(state) => {
@@ -520,9 +554,8 @@ impl winit::application::ApplicationHandler for App {
                     c.flush();
                 }
 
-                // Rendu Lobby
                 crate::app::states::lobby::update(
-                    &mut self.ui_ctx.as_mut().unwrap(),
+                    self.ui_ctx.as_mut().unwrap(),
                     &self.resource,
                     state,
                 );
@@ -531,7 +564,6 @@ impl winit::application::ApplicationHandler for App {
             core::screen::AppScreen::InGame => {
                 let client_ok = self.client.as_mut();
                 let ui_ok = self.ui_ctx.as_mut();
-                let asset_cache_ok = self.asset_cache.as_mut();
 
                 if self
                     .input_state
@@ -543,8 +575,8 @@ impl winit::application::ApplicationHandler for App {
                     debug.cycle();
                 }
 
-                match (client_ok, ui_ok, asset_cache_ok) {
-                    (Some(client), Some(ui_ctx), Some(asset_cache)) => {
+                match (client_ok, ui_ok) {
+                    (Some(client), Some(ui_ctx)) => {
                         let mut gui_ctx = crate::app::states::in_game::GuiContext { ui_ctx };
 
                         // Mise à jour logique
@@ -558,27 +590,6 @@ impl winit::application::ApplicationHandler for App {
                             &mut self.cam,
                             dt,
                         );
-                        // Rendu de la scène InGame
-                        self.in_game_scene.render(
-                            &mut frame,
-                            &mut self.resource,
-                            dt,
-                            &self.cam,
-                            screen_size,
-                        );
-
-                        frame.camera_pos = self.cam.pos();
-                        frame.cam_shake_offset = self.cam.shake.offset();
-                        if let Some(map) = &self.map {
-                            map.draw(
-                                &self.resource,
-                                asset_cache,
-                                &mut frame,
-                                screen_size.width as f32,
-                                screen_size.height as f32,
-                            );
-                        }
-
                         {
                             let debug_state = self
                                 .resource
@@ -652,23 +663,13 @@ impl winit::application::ApplicationHandler for App {
                 target: hud_root, // nœud racine du HUD in-game
                 visible: in_game,
             });
-            let mut buf = self.resource.write_resource::<nodus::DrawCommandBuffer>();
+
             ui_ctx.update(dt);
-            hud::prepare_hud(
-                &mut frame,
-                ui_ctx,
-                &mut buf,
-                &self.nodus_bridge,
-                &self.render_data,
-            );
         }
 
-        // Camera logic may have advanced while updating the game scene.
-        frame.camera_pos = self.cam.pos();
-        frame.cam_shake_offset = self.cam.shake.offset();
         let cam_matrix = build_camera_matrix(
-            frame.camera_pos,
-            frame.cam_shake_offset,
+            self.cam.pos(),
+            self.cam.shake.offset(),
             screen_size.width.max(1) as f32,
             screen_size.height.max(1) as f32,
         );
@@ -676,7 +677,6 @@ impl winit::application::ApplicationHandler for App {
         self.debug_data.insert(cam_matrix);
         self.debug_data.insert(screen_size);
         self.debug_data.insert(self.cam);
-        renderer.queue(frame);
 
         if let Some(window) = &self.window {
             window.request_redraw();

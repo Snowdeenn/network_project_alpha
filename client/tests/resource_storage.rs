@@ -46,7 +46,7 @@ fn native_buffer_leases_keep_allocations_live_until_submission() {
         const USAGE: wgpu::BufferUsages = wgpu::BufferUsages::COPY_SRC;
     }
     let context = context();
-    let ctx = Some(context.velum_context_id());
+    let ctx = context.context_id();
     let owner = buffer::allocate_in::<u8, CopyBuffer>(ctx, 16)
         .unwrap()
         .share();
@@ -71,7 +71,7 @@ fn native_buffer_leases_keep_allocations_live_until_submission() {
 #[ignore = "requires a graphics adapter"]
 fn native_texture_and_target_render_share_and_release_without_alpha_storage() {
     let context = context();
-    let ctx = Some(context.velum_context_id());
+    let ctx = context.context_id();
     let mut data = velum::RenderData::new();
     let mut assets = AssetCache::new(&context, &mut data).unwrap();
     let mut renderer = SceneRenderer::new(&context, &mut assets, &mut data).unwrap();
@@ -183,7 +183,7 @@ fn native_texture_and_target_render_share_and_release_without_alpha_storage() {
 #[ignore = "requires a graphics adapter"]
 fn native_targets_resize_by_context_preserve_snapshots_and_release_by_owner() {
     let context = context();
-    let ctx = Some(context.velum_context_id());
+    let ctx = context.context_id();
     let descriptor = RenderTargetDescriptor {
         label: "window",
         size: TargetSize::Window {
@@ -245,7 +245,7 @@ fn native_texture_registration_reports_gpu_validation_errors() {
     let scope = local
         .device()
         .push_error_scope(wgpu::ErrorFilter::Validation);
-    let (_owner, _) = texture::register_texture(Some(local.velum_context_id()), raw);
+    let (_owner, _) = texture::register_texture(local.context_id(), raw);
     assert!(pollster::block_on(scope.pop()).is_some());
     assert!(local.take_error().is_none());
 }

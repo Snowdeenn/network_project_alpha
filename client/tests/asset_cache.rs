@@ -17,9 +17,9 @@ fn render_data_owns_resources_independently_of_cache_and_renderer() {
     image::RgbaImage::from_pixel(1, 1, image::Rgba([255, 0, 0, 255]))
         .save(&path)
         .unwrap();
-    let id = cache.load_texture(&gpu, &mut data, &path).unwrap();
-    assert_eq!(id.context_id(), Some(gpu.velum_context_id()));
-    assert_eq!(cache.texture_size(id).unwrap(), (1, 1));
+    let id = client::rendering::texture::load_cached(&mut cache, &mut data, &path).unwrap();
+    assert_eq!(id.context_id(), gpu.context_id());
+    assert_eq!(client::rendering::texture::size(id).unwrap(), (1, 1));
     let texture = texture::get(id).unwrap();
     let texture::TextureResource::Separate(resource) = texture.as_ref() else {
         panic!("expected a separate texture");
@@ -29,10 +29,13 @@ fn render_data_owns_resources_independently_of_cache_and_renderer() {
         wgpu::TextureFormat::Rgba8UnormSrgb
     );
     drop(texture);
-    assert_eq!(id, cache.load_texture(&gpu, &mut data, &path).unwrap());
+    assert_eq!(
+        id,
+        client::rendering::texture::load_cached(&mut cache, &mut data, &path).unwrap()
+    );
     assert!(cache.remove_texture(&mut data, id));
     assert!(texture::get(id).is_none());
-    let id = cache.load_texture(&gpu, &mut data, &path).unwrap();
+    let id = client::rendering::texture::load_cached(&mut cache, &mut data, &path).unwrap();
     std::fs::remove_file(path).unwrap();
 
     drop(renderer);

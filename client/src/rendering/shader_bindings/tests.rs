@@ -85,21 +85,6 @@ const FULLSCREEN: &str = include_str!("../../graphic_data/shader/default_post_pr
 
 #[test]
 fn bundled_mesh_schemas_match_wgsl_locations_types_sizes_and_visibility() {
-    for vertex in [
-        VERTEX,
-        include_str!("../../graphic_data/shader/default.vert.wgsl"),
-    ] {
-        verify(
-            SHAPE_BINDINGS.schema().unwrap(),
-            &[
-                (vertex, wgpu::ShaderStages::VERTEX),
-                (
-                    include_str!("../../graphic_data/shader/default.frag.wgsl"),
-                    wgpu::ShaderStages::FRAGMENT,
-                ),
-            ],
-        );
-    }
     for fragment in [
         include_str!("../../graphic_data/shader/default_textured.frag.wgsl"),
         include_str!("../../graphic_data/shader/entity_flash.frag.wgsl"),

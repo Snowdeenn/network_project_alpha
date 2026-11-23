@@ -1,7 +1,7 @@
 use super::App;
 use crate::{
     graphic_data::post_process_effect_type as effects,
-    rendering::{AssetCache, SceneRenderer},
+    rendering::{AlphaRenderer, AssetCache},
 };
 
 impl App {
@@ -10,9 +10,9 @@ impl App {
         context: &crate::rendering::GpuContext,
         assets: &mut AssetCache,
         data: &mut velum::RenderData,
-    ) -> Result<SceneRenderer, String> {
+    ) -> Result<AlphaRenderer, String> {
         let mut renderer =
-            SceneRenderer::new(context, assets, data).map_err(|error| error.to_string())?;
+            AlphaRenderer::new(context, assets, data).map_err(|error| error.to_string())?;
         renderer
             .register_vfx_post_effect(
                 context,

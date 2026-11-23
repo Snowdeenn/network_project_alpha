@@ -103,12 +103,11 @@ impl TileMap {
     pub fn new(
         gpu_resource: &mut crate::rendering::AssetCache,
         data: &mut velum::RenderData,
-        ctx: &crate::rendering::GpuContext,
+        atlas_path: impl AsRef<std::path::Path>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let atlas_info_str = include_str!("../../../assets/map_texture/map_sprite_sheet.json");
         let atlas_info: TextureAtlasInfo = serde_json::from_str(atlas_info_str)?;
-        let texture_atlas =
-            gpu_resource.load_texture(ctx, data, "assets/map_texture/map_sprite_sheet.png")?;
+        let texture_atlas = crate::rendering::texture::load_cached(gpu_resource, data, atlas_path)?;
 
         Ok(Self {
             texture_atlas,
@@ -116,16 +115,15 @@ impl TileMap {
             tile_size: 64,
         })
     }
-    pub fn draw(
+    pub fn collect_visible_tiles(
         &self,
         app_resources: &Resources,
-        gpu_resources: &crate::rendering::AssetCache,
         frame: &mut crate::rendering::SceneFrame,
         screen_w: f32,
         screen_h: f32,
     ) {
         let grid = app_resources.read_resource::<utils::map::grid::Grid>();
-        let Ok((atlas_w, atlas_h)) = gpu_resources.texture_size(self.texture_atlas) else {
+        let Ok((atlas_w, atlas_h)) = crate::rendering::texture::size(self.texture_atlas) else {
             return;
         };
         let tile = self.tile_size as f32;
@@ -159,14 +157,15 @@ impl TileMap {
                 };
 
                 let bounds = self.atlas_info.get(tile_kind);
+                let uv = bounds.to_uv(atlas_w as f32, atlas_h as f32);
                 frame.push_world(crate::rendering::Primitive::Texture {
-                    flash: false,
                     id: self.texture_atlas,
+                    flash: false,
                     pos: [world_x, world_y],
                     size: [tile, tile],
                     rotation: 0.0,
-                    uv: Some(bounds.to_uv(atlas_w as f32, atlas_h as f32)),
-                    tint: [1.0, 1.0, 1.0, 1.0],
+                    uv: Some(uv),
+                    tint: [1.0; 4],
                     blend: crate::rendering::BlendMode::Alpha,
                     layer: 0,
                 });

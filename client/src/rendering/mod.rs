@@ -1,24 +1,29 @@
 mod asset_cache;
 pub mod camera;
+mod draw;
 mod gpu;
+mod material;
 pub mod nodus_bridge;
 mod post_process;
 mod renderer;
-mod resource_loader;
+pub mod texture;
 
 mod scene;
+mod scenes;
 pub mod shader_bindings;
 mod text;
 pub mod types;
 
 pub use asset_cache::AssetCache;
 pub use gpu::{GpuContext, GpuError};
+pub use material::create_health_material;
 pub use post_process::{
     PostProcessId, PostProcessInput, PostProcessRequest, PostProcessSubmission, PostProcessValue,
 };
-pub use renderer::SceneRenderer;
-pub use resource_loader::create_health_material;
-pub use scene::{BlendMode, Color, OverlayContext, Primitive, SceneFrame};
+pub use renderer::AlphaRenderer;
+/// Compatibility name for the Alpha frame preparation API.
+pub use renderer::AlphaRenderer as SceneRenderer;
+pub use scene::{BlendMode, Color, InstanceBatch, Primitive, SceneFrame};
 pub use velum::backend::{target::RenderTargetId, texture::TextureId};
 
 use crate::graphic_data::animation::AnimEntityManager;
@@ -60,19 +65,18 @@ impl ScreenScale {
     }
 }
 
-pub(crate) fn render_world(
+pub(crate) fn collect_entities(
     frame: &mut crate::rendering::SceneFrame,
     resources: &crate::app::resources::Resources,
     anim_entities: &mut AnimEntityManager,
     prev: Option<&utils::protocol::StateSnapshot>,
     curr: &utils::protocol::StateSnapshot,
     t: f32,
-    dt: f32,
     camera: &camera::Camera,
     screen_size: winit::dpi::PhysicalSize<u32>,
 ) {
-    let assets = resources.read_resource::<crate::graphic_data::asset_manager::AssetManager>();
-    anim_entities.tick_all(dt, assets.anims());
+    let animations =
+        resources.read_resource::<crate::graphic_data::animation_manager::AnimationManager>();
     let vfx = resources.read_resource::<crate::vfx::VfxSystem>();
     let blind = vfx.post_process("blind").weight;
     let vision_radius = crate::graphic_data::post_process_effect_type::blind_vision_radius(
@@ -106,10 +110,10 @@ pub(crate) fn render_world(
 
         let anim_key = resolve_anim(&entity.entity_kind, prev_entity, entity);
 
-        if let Some(anim_id) = assets.anims().get_by_key(anim_key) {
+        if let Some(anim_id) = animations.get_by_key(anim_key) {
             let anim = anim_entities.get_or_create(entity.entity_id, anim_id);
             anim.set(anim_id);
-            if let Some(data) = assets.anims().get(anim_id) {
+            if let Some(data) = animations.get(anim_id) {
                 if let Some(tex_id) = anim.current_texture_id(data) {
                     frame.push_world(crate::rendering::Primitive::Texture {
                         flash: vfx.entity_tint(entity.entity_id).is_some(),
@@ -248,7 +252,7 @@ fn draw_fallback(
     }
 }
 
-pub(crate) fn render_hud(
+pub(crate) fn collect_wave_timer(
     frame: &mut crate::rendering::SceneFrame,
     resources: &crate::app::resources::Resources,
 ) {

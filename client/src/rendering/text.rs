@@ -2,7 +2,7 @@
 use super::Primitive;
 use std::collections::{HashMap, HashSet};
 
-pub(crate) struct TextOverlay {
+pub(crate) struct DeviceText {
     fonts: glyphon::FontSystem,
     swash: glyphon::SwashCache,
     viewport: glyphon::Viewport,
@@ -11,7 +11,7 @@ pub(crate) struct TextOverlay {
     buffers: HashMap<(String, u32, u32, u32), glyphon::Buffer>,
 }
 
-impl TextOverlay {
+impl DeviceText {
     pub fn new(context: &crate::rendering::GpuContext) -> Self {
         let cache = glyphon::Cache::new(&context.device());
         let viewport = glyphon::Viewport::new(&context.device(), &cache);
@@ -33,14 +33,12 @@ impl TextOverlay {
         }
     }
 
-    pub fn render(
+    pub fn prepare(
         &mut self,
         context: &crate::rendering::GpuContext,
-        encoder: &mut wgpu::CommandEncoder,
-        target: &wgpu::TextureView,
         [width, height]: [u32; 2],
         commands: &[Primitive],
-    ) -> velum::backend::RenderResult<()> {
+    ) -> velum::backend::RenderResult<bool> {
         let texts: Vec<_> = commands
             .iter()
             .filter_map(|command| match command {
@@ -56,7 +54,7 @@ impl TextOverlay {
             .collect();
         if texts.is_empty() {
             self.buffers.clear();
-            return Ok(());
+            return Ok(false);
         }
         self.viewport
             .update(&context.queue(), glyphon::Resolution { width, height });
@@ -112,25 +110,108 @@ impl TextOverlay {
                 areas,
                 &mut self.swash,
             )
-            .map_err(|error| velum::backend::RenderError::new("text preparation", error.to_string()))?;
-        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("HUD text"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: target,
-                depth_slice: None,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            ..Default::default()
-        });
-        self.renderer
-            .render(&self.atlas, &self.viewport, &mut pass)
-            .map_err(|error| velum::backend::RenderError::new("text rendering", error.to_string()))?;
-        drop(pass);
-        self.atlas.trim();
+            .map_err(|error| {
+                velum::backend::RenderError::new("text preparation", error.to_string())
+            })?;
+        Ok(true)
+    }
+}
+
+use velum::backend::text;
+
+pub(crate) enum TextOverlay {
+    Window(HashMap<(String, u32, u32), velum::OwnedResource<text::TextId>>),
+    Device(DeviceText),
+}
+impl TextOverlay {
+    pub fn new(context: &super::GpuContext) -> Self {
+        if context.context_id().is_none() {
+            Self::Window(Default::default())
+        } else {
+            Self::Device(DeviceText::new(context))
+        }
+    }
+    pub fn prepare(
+        &mut self,
+        context: &super::GpuContext,
+        size: [u32; 2],
+        commands: &[Primitive],
+    ) -> velum::backend::RenderResult<bool> {
+        let cache = match self {
+            Self::Device(text) => return text.prepare(context, size, commands),
+            Self::Window(cache) => cache,
+        };
+        let mut visible = HashSet::new();
+        let mut instances = Vec::new();
+        for cmd in commands {
+            let Primitive::Text {
+                content,
+                pos,
+                size: font_size,
+                color,
+                ..
+            } = cmd
+            else {
+                continue;
+            };
+            let key = (content.clone(), font_size.to_bits(), size[0]);
+            visible.insert(key.clone());
+            let owner = match cache.entry(key) {
+                std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
+                std::collections::hash_map::Entry::Vacant(e) => e.insert(
+                    text::register(text::TextDescription {
+                        content,
+                        font_size: *font_size,
+                        line_height: *font_size * 1.2,
+                        max_width: Some(size[0] as f32),
+                        alignment: Some(text::Align::Left),
+                        ..Default::default()
+                    })
+                    .map_err(|e| velum::backend::RenderError::new("HUD text", e.to_string()))?,
+                ),
+            };
+            let mut item = text::Text::new(owner.id(), text::TextSpace::Screen);
+            item.position = *pos;
+            item.color = *color;
+            instances.push(item);
+        }
+        cache.retain(|key, _| visible.contains(key));
+        if instances.is_empty() {
+            return Ok(false);
+        }
+        text::prepare(
+            &instances,
+            &text::TextView {
+                resolution: size,
+                scale_factor: 1.0,
+                camera: &velum::camera::Camera2D::new(),
+            },
+        )
+        .map_err(|e| velum::backend::RenderError::new("HUD text", e.to_string()))?;
+        Ok(true)
+    }
+}
+pub(super) struct HudText(pub velum::RenderDataId<TextOverlay>);
+
+impl velum::backend::pass::RenderOperation for HudText {
+    fn execute(
+        &mut self,
+        pass: &mut wgpu::RenderPass<'_>,
+        data: &mut velum::RenderData,
+    ) -> Result<(), velum::backend::pass::PassError> {
+        let overlay = data
+            .require_mut(self.0)
+            .map_err(velum::backend::pass::PassError::Data)?;
+        let TextOverlay::Device(overlay) = overlay else {
+            return text::draw_all(pass).map_err(Into::into);
+        };
+        overlay
+            .renderer
+            .render(&overlay.atlas, &overlay.viewport, pass)
+            .map_err(|error| {
+                velum::backend::RenderError::new("text rendering", error.to_string())
+            })?;
+        overlay.atlas.trim();
         Ok(())
     }
 }

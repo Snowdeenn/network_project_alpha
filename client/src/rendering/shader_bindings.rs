@@ -240,3 +240,31 @@ pub fn register_sets(
 
 #[cfg(test)]
 mod tests;
+
+pub(super) fn uniform_set(
+    context: Option<velum::backend::context::ContextId>,
+    slot: UniformSlot,
+    bytes: &[u8],
+) -> RenderResult<SharedResource<velum::backend::BindingSetId>> {
+    use velum::{
+        OwnedResource,
+        backend::{buffer, geometry::BufferRegion},
+    };
+    if bytes.len() as u64 != slot.size || bytes.is_empty() || bytes.len() % 4 != 0 {
+        return Err(RenderError::new(
+            "uniform",
+            "data size differs from shader contract",
+        ));
+    }
+    let owner = buffer::allocate_in::<u8, buffer::Uniform>(context, slot.size)
+        .map_err(|e| RenderError::new("uniform", e.to_string()))?
+        .share();
+    buffer::try_write_buffer(&owner.id(), 0, bytes)
+        .map_err(|e| RenderError::new("uniform upload", e.to_string()))?;
+    velum::try_binding_set! {
+        context: context,
+        group: slot.location.group,
+        entries: [slot.location.binding => BindingResource::buffer(BufferRegion::from_shared(owner)?)],
+    }
+    .map(OwnedResource::share)
+}

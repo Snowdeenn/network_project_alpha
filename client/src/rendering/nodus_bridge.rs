@@ -144,7 +144,7 @@ fn convert(
             layer,
         } => {
             let id = bridge.nodus_texture(*id)?;
-            let (width, height) = super::resource_loader::texture_size(id)?;
+            let (width, height) = super::texture::size(id)?;
             Primitive::NinePatch {
                 id,
                 pos: *pos,
@@ -196,7 +196,7 @@ impl NodusBridge {
         &mut self,
         id: TextureId,
     ) -> RenderResult<prism_legacy::ids::TextureId> {
-        super::resource_loader::texture_size(id)?;
+        super::texture::size(id)?;
         Ok(self.nodus_textures.insert(id))
     }
     pub(crate) fn nodus_texture(
@@ -207,7 +207,7 @@ impl NodusBridge {
             .nodus_textures
             .get(id)
             .ok_or_else(|| RenderError::new("Nodus texture", "unregistered token"))?;
-        super::resource_loader::texture_size(texture)?;
+        super::texture::size(texture)?;
         Ok(texture)
     }
     pub fn unregister_nodus_texture(&mut self, id: prism_legacy::ids::TextureId) -> bool {

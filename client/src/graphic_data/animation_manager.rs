@@ -139,7 +139,6 @@ impl AnimationManager {
     /// Charge toutes les animations définies dans un fichier de configuration JSON.
     pub fn load_from_config(
         &mut self,
-        ctx: &crate::rendering::GpuContext,
         gpu_resources: &mut crate::rendering::AssetCache,
         data: &mut velum::RenderData,
         config_path: impl AsRef<Path>,
@@ -165,7 +164,9 @@ impl AnimationManager {
             let mut frame_ids = Vec::with_capacity(cfg.frames.len());
 
             for frame_path in &cfg.frames {
-                if let Ok(tex_id) = gpu_resources.load_texture(ctx, data, frame_path) {
+                if let Ok(tex_id) =
+                    crate::rendering::texture::load_cached(gpu_resources, data, frame_path)
+                {
                     frame_ids.push(tex_id);
                 } else {
                     tracing::warn!(

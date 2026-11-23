@@ -157,10 +157,10 @@ fn v2_renders_camera_layers_vfx_ui_text_effects_and_resize() {
     image::RgbaImage::from_pixel(2, 2, image::Rgba([255u8; 4]))
         .save(&path)
         .unwrap();
-    let texture = assets.load_texture(&context, &mut data, &path).unwrap();
+    let texture = client::rendering::texture::load_cached(&mut assets, &mut data, &path).unwrap();
     assert_eq!(
         texture,
-        assets.load_texture(&context, &mut data, &path).unwrap(),
+        client::rendering::texture::load_cached(&mut assets, &mut data, &path).unwrap(),
         "texture cache"
     );
     std::fs::remove_file(&path).unwrap();
@@ -300,7 +300,7 @@ fn v2_renders_camera_layers_vfx_ui_text_effects_and_resize() {
     );
     assert!(assets.remove_texture(&mut data, texture));
     assert!(
-        assets.load_texture(&context, &mut data, &path).is_err(),
+        client::rendering::texture::load_cached(&mut assets, &mut data, &path).is_err(),
         "removed texture must also leave the existing path cache"
     );
 }
@@ -347,7 +347,7 @@ fn migrated_gameplay_effects_render_through_vfx_system_and_prism_v2() {
     let texture_image =
         image::RgbaImage::from_raw(2, 1, vec![255, 0, 0, 255, 0, 255, 0, 0]).unwrap();
     texture_image.save(&path).unwrap();
-    let texture = assets.load_texture(&context, &mut data, &path).unwrap();
+    let texture = client::rendering::texture::load_cached(&mut assets, &mut data, &path).unwrap();
     std::fs::remove_file(path).unwrap();
     let tint = vfx.entity_tint(7).unwrap();
     scene.push_world(Primitive::Texture {
@@ -542,4 +542,44 @@ fn arbitrary_post_effects_need_only_a_shader_and_registration_and_keep_manual_pa
         .render_to_texture(&context, &mut assets, &mut data, SceneFrame::new(), &output)
         .unwrap();
     assert_eq!(&pixels(&context, &output)[..4], [0, 0, 0, 255]);
+}
+
+#[test]
+#[ignore = "requires a graphics adapter"]
+fn visible_tiles_share_an_instanced_draw() {
+    use client::{app::resources::Resources, graphic_data::tile_map::TileMap};
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
+    let adapter = pollster::block_on(instance.request_adapter(&Default::default())).unwrap();
+    let (device, queue) = pollster::block_on(adapter.request_device(&Default::default())).unwrap();
+    let ctx = GpuContext::from_device(device, queue, 128, 64, wgpu::TextureFormat::Rgba8UnormSrgb)
+        .unwrap();
+    let mut data = velum::RenderData::new();
+    let mut assets = AssetCache::new(&ctx, &mut data).unwrap();
+    let mut renderer = SceneRenderer::new(&ctx, &mut assets, &mut data).unwrap();
+    let map = TileMap::new(
+        &mut assets,
+        &mut data,
+        concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../assets/map_texture/map_sprite_sheet.png"
+        ),
+    )
+    .unwrap();
+    let mut resources = Resources::new();
+    resources.insert(utils::map::grid::Grid::new(2, 1, 64.0));
+    let mut scene = SceneFrame::new();
+    scene.camera_pos = Vec2::new(64.0, 32.0);
+    map.collect_visible_tiles(&resources, &mut scene, 128.0, 64.0);
+    let (_owner, output) = target(&mut assets, 128, 64);
+    let report = renderer
+        .render_to_texture(&ctx, &mut assets, &mut data, scene, &output)
+        .unwrap();
+    // Two tiles in one draw, followed by the fullscreen copy.
+    assert_eq!((report.instances, report.draw_calls), (3, 2));
+    assert!(
+        pixels(&ctx, &output)
+            .chunks_exact(4)
+            .any(|p| p[..3] != [0; 3])
+    );
+    assert!(ctx.take_error().is_none());
 }

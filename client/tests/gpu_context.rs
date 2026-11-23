@@ -40,14 +40,14 @@ fn velum_shares_the_gpu_and_unregisters_before_recreation() {
     let context = context();
     let device = context.device();
     let queue = context.queue();
-    let id = context.velum_context_id();
+    let id = context.context_id();
     {
-        let registered = velum::backend::context::try_context(Some(id)).unwrap();
+        let registered = velum::backend::context::try_context(id).unwrap();
         assert_eq!(registered.device, device);
         assert_eq!(registered.queue, queue);
     }
     drop(context);
-    assert!(velum::backend::context::try_context(Some(id)).is_none());
+    assert!(velum::backend::context::try_context(id).is_none());
     let recreated = GpuContext::from_device(
         device.clone(),
         queue.clone(),
@@ -56,9 +56,8 @@ fn velum_shares_the_gpu_and_unregisters_before_recreation() {
         wgpu::TextureFormat::Rgba8UnormSrgb,
     )
     .unwrap();
-    assert_ne!(recreated.velum_context_id(), id);
-    let registered =
-        velum::backend::context::try_context(Some(recreated.velum_context_id())).unwrap();
+    assert_ne!(recreated.context_id(), id);
+    let registered = velum::backend::context::try_context(recreated.context_id()).unwrap();
     assert_eq!(registered.device, device);
     assert_eq!(registered.queue, queue);
 }

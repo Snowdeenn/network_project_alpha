@@ -104,7 +104,7 @@ impl DebugRenderer {
     pub fn flush_into(
         &mut self,
         window: &winit::window::Window,
-        frame_context: &mut crate::rendering::OverlayContext,
+        frame_context: &mut velum::backend::renderer::Frame<'_>,
         gpu_ctx: &crate::rendering::GpuContext,
     ) {
         let mut full_output = self.end_frame();
@@ -123,40 +123,28 @@ impl DebugRenderer {
         }
 
         let screen_descriptor = egui_wgpu::ScreenDescriptor {
-            size_in_pixels: [frame_context.size.0, frame_context.size.1],
+            size_in_pixels: frame_context.size_in_pixels(),
             pixels_per_point: window.scale_factor() as f32,
         };
 
+        let (encoder, view) = frame_context.render_parts();
         self.renderer.update_buffers(
             &gpu_ctx.device(),
             &gpu_ctx.queue(),
-            &mut frame_context.encoder,
+            encoder,
             &paint_jobs,
             &screen_descriptor,
         );
 
         let renderer = &mut self.renderer;
         {
-            let debug_pass = frame_context
-                .encoder
-                .begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("Debug RenderPass"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: &frame_context.surface_view,
-                        depth_slice: None,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Load,
-                            store: wgpu::StoreOp::Store,
-                        },
-                    })],
-                    depth_stencil_attachment: None,
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                    multiview_mask: None,
-                });
-
-            let mut debug_pass = debug_pass.forget_lifetime();
+            let mut debug_pass = velum::backend::pass::RenderPassBuilder::new()
+                .with_color_attachment(view, |a| {
+                    a.with_load_op(wgpu::LoadOp::Load)
+                        .with_store_op(wgpu::StoreOp::Store)
+                })
+                .begin(encoder)
+                .forget_lifetime();
             renderer.render(&mut debug_pass, &paint_jobs, &screen_descriptor);
             drop(debug_pass);
         }
@@ -445,6 +433,7 @@ impl DebugData {
 pub fn run_debug(
     debug_renderer: &DebugRenderer,
     mode: DebugMode,
+    report: &velum::backend::report::FrameReport,
     debug_data: &DebugData,
     resources: &Resources,
     camera: &mut Camera,
@@ -474,6 +463,15 @@ pub fn run_debug(
             .show(|w| {
                 w.metric_colored("Mode actif", format!("{:?}", mode), egui::Color32::GREEN);
 
+                w.create_widget("Rendu Velum").header(true).show(|w| {
+                    w.metric("Draw calls", report.draw_calls);
+                    w.metric("Instances", report.instances);
+                    w.metric("Passes", report.render_passes);
+                    w.metric("Octets GPU envoyés", report.uploaded_bytes);
+                    for diagnostic in &report.diagnostics {
+                        w.ui.label(format!("{}: {}", diagnostic.context, diagnostic.message));
+                    }
+                });
                 w.create_widget("Effets du joueur")
                     .header(true)
                     .show(|w| draw_effect_preview(w, resources, camera));

@@ -5,10 +5,12 @@ use std::time::{Duration, Instant};
 use tokio::task::JoinHandle;
 use utils::arena::*;
 
+use super::document::VfxDocument;
+#[cfg(test)]
 use crate::vfx::parser::parse_effect;
 use crate::vfx::parser::r#struct::VfxEffectDescriptor;
 
-type LoadHandle = JoinHandle<std::io::Result<VfxEffectDescriptor>>;
+type LoadHandle = JoinHandle<std::io::Result<VfxDocument>>;
 
 /// Identifiant à conserver jusqu'à publication du résultat ou annulation.
 pub type LoadRequestId = Id<Loader>;
@@ -18,7 +20,7 @@ pub enum LoadingState {
     #[default]
     NotLoaded,
     Loading,
-    Loaded(VfxEffectDescriptor),
+    Loaded(VfxDocument),
     Failed(std::io::Error),
 }
 
@@ -59,7 +61,8 @@ impl Loader {
         self.context.state = LoadingState::Loading;
         // Lecture et parsing restent hors de la boucle qui collecte les résultats.
         tokio::task::spawn_blocking(move || {
-            let result = std::fs::read_to_string(&path).and_then(|content| parse_effect(&content));
+            let result =
+                std::fs::read_to_string(&path).and_then(|content| VfxDocument::parse(&content));
             result.map_err(|error| {
                 std::io::Error::new(error.kind(), format!("{}: {error}", path.display()))
             })
@@ -94,6 +97,19 @@ impl AssetLoader {
 
     /// Une récupération prématurée conserve la requête et son résultat futur.
     pub fn take_loaded_asset(&mut self, id: Id<Loader>) -> Option<VfxEffectDescriptor> {
+        if !matches!(
+            self.state(id),
+            Some(LoadingState::Loaded(VfxDocument::Effect(_)))
+        ) {
+            return None;
+        }
+        match self.take_document(id)? {
+            VfxDocument::Effect(descriptor) => Some(descriptor),
+            VfxDocument::Composite(_) => unreachable!(),
+        }
+    }
+
+    pub(crate) fn take_document(&mut self, id: Id<Loader>) -> Option<VfxDocument> {
         if !matches!(self.state(id), Some(LoadingState::Loaded(_))) {
             return None;
         }
@@ -226,7 +242,7 @@ mod test {
                     .loaders
                     .insert(Loader::new(AssetLoadContext::new(PARTICLE_PATH)));
                 let handle = tokio::spawn(async {
-                    parse_effect(include_str!(concat!(
+                    VfxDocument::parse(include_str!(concat!(
                         env!("CARGO_MANIFEST_DIR"),
                         "/../assets/vfx/exemples_vfx/particle.json"
                     )))

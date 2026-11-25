@@ -482,7 +482,16 @@ impl VfxSystem {
                     MissingOwner::Immediate => {
                         self.stop(handle, StopMode::Immediate);
                     }
-                    MissingOwner::Detach => {}
+                    MissingOwner::Detach => {
+                        // A detached occurrence must no longer hit the implicit
+                        // owner-loss drain path on the following frame.
+                        for &id in &effect.components {
+                            let instance = self.instances.get_mut(id).unwrap();
+                            if instance.params.entity == Some(attachment.entity) {
+                                instance.params.entity = None;
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -574,8 +583,18 @@ fn reservation(effect: &VfxEffectDescriptor, duration: f32) -> Reservation {
         VfxEmissionMode::Continuous => (emission.count as f32 * duration).ceil() as usize,
     };
     match &effect.family {
-        VfxFamily::Particle { logical, .. } => Reservation {
-            particles: count(&logical.emission),
+        VfxFamily::Particle { logical, visual } => Reservation {
+            // Réserver les particules simultanées, y compris leur disparition,
+            // plutôt que toutes celles émises pendant la vie du projectile.
+            particles: match logical.emission.mode {
+                VfxEmissionMode::Burst => count(&logical.emission),
+                VfxEmissionMode::Continuous => {
+                    let alive = logical.init.life_time_seconds[1]
+                        + visual.visual_disappearance.duration_seconds;
+                    (logical.emission.count as f32 * duration.min(alive)).ceil() as usize
+                        + logical.emission.count.div_ceil(60) as usize
+                }
+            },
             ..Reservation::default()
         },
         VfxFamily::Mesh { logical, .. } => Reservation {

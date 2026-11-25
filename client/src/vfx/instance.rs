@@ -13,8 +13,8 @@ use super::dag::VfxGraph;
 use super::parser::r#struct::VfxEffectDescriptor;
 use super::particle::*;
 use super::simulation::{self, VfxSimulation};
-use velum::backend::MaterialId;
 use utils::{Arena, Id};
+use velum::backend::MaterialId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VfxInstanceState {
@@ -24,7 +24,8 @@ pub enum VfxInstanceState {
     Finished,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, serde::Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct VfxSpawnParams {
     pub tint: [f32; 4],
     /// Optional surface size; ring sizes are [inner radius, outer radius].

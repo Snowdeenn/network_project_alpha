@@ -1,4 +1,5 @@
 pub mod dag;
+pub(crate) mod document;
 pub mod instance;
 mod loader;
 mod parser;

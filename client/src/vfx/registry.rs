@@ -9,7 +9,6 @@ use std::sync::Arc;
 use utils::Id;
 
 use super::loader::{AssetLoader, LoadRequestId};
-use super::parser::parse_effect;
 use super::parser::r#struct::VfxEffectDescriptor;
 use super::storage::AssetRegister;
 
@@ -75,8 +74,8 @@ impl VfxRegistry {
         if let Some(error) = loader.take_error(request) {
             return Err(error);
         }
-        if let Some(descriptor) = loader.take_loaded_asset(request) {
-            self.register_descriptor(descriptor, priority);
+        if let Some(descriptor) = loader.take_document(request) {
+            self.register_document(descriptor, priority)?;
             return Ok(true);
         }
         if loader.state(request).is_none() {
@@ -89,39 +88,31 @@ impl VfxRegistry {
     }
 
     pub fn register_json(&mut self, source: &str, priority: Priority) -> io::Result<()> {
-        let document: serde_json::Value = serde_json::from_str(source)?;
-        if document.get("family").and_then(|family| family.as_str()) == Some("composite") {
-            super::validation::validate_json(source)?;
-            #[derive(serde::Deserialize)]
-            #[serde(deny_unknown_fields)]
-            struct Component {
-                effect: String,
-                delay_seconds: f32,
-            }
-            #[derive(serde::Deserialize)]
-            #[serde(deny_unknown_fields)]
-            struct Composite {
-                version: u32,
-                name: String,
-                family: String,
-                components: Vec<Component>,
-            }
-            let composite: Composite = serde_json::from_value(document)?;
-            if composite.version != 1 || composite.family != "composite" {
-                return Err(invalid("composite: expected version 1"));
-            }
-            let children: Vec<_> = composite
-                .components
-                .iter()
-                .map(|c| (c.effect.as_str(), c.delay_seconds))
-                .collect();
-            return self.register_composite(&composite.name, &children, priority);
-        }
-        let descriptor = parse_effect(source)?;
-        self.register_descriptor(descriptor, priority);
-        Ok(())
+        self.register_document(super::document::VfxDocument::parse(source)?, priority)
     }
 
+    pub(crate) fn register_document(
+        &mut self,
+        document: super::document::VfxDocument,
+        priority: Priority,
+    ) -> io::Result<()> {
+        use super::document::VfxDocument;
+        match document {
+            VfxDocument::Effect(descriptor) => self.register_descriptor(descriptor, priority),
+            VfxDocument::Composite(composite) => {
+                if composite.version != 1 || composite.family != "composite" {
+                    return Err(invalid("composite: expected version 1"));
+                }
+                let children: Vec<_> = composite
+                    .components
+                    .iter()
+                    .map(|c| (c.effect.as_str(), c.delay_seconds))
+                    .collect();
+                self.register_composite(&composite.name, &children, priority)?;
+            }
+        }
+        Ok(())
+    }
     /// Les deux chemins publient uniquement un résultat validé par parse_effect.
     fn register_descriptor(&mut self, descriptor: VfxEffectDescriptor, priority: Priority) {
         let name = descriptor.name.clone();

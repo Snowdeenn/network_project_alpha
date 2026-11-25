@@ -18,39 +18,43 @@ pub enum VfxCommandError {
     InvalidParams,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Deserialize)]
 pub struct VisualEventKey {
     pub session: u64,
     pub event: u64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Deserialize)]
 pub struct PredictionKey {
     pub session: u64,
     pub action: u64,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum StopMode {
     Drain,
     Immediate,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum MissingOwner {
     Drain,
     Detach,
     Immediate,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Attachment {
     pub entity: u64,
     pub offset: Vec2,
     pub on_missing: MissingOwner,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, serde::Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct SpawnOptions {
     /// Replace the occurrence with the same name/owner, or append to a manual trail.
     pub refresh: bool,

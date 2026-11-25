@@ -1,5 +1,3 @@
-use crate::vfx::AssetLoader;
-
 pub struct SpellUseEvent(pub Option<utils::protocol::SpellSlot>);
 
 pub fn handle_event(
@@ -120,14 +118,15 @@ pub fn handle_event(
         }
         utils::protocol::GameEventKind::SpellAcquired { slot, config } => {
             {
-                let runtime = app_resource.read_resource::<tokio::runtime::Runtime>();
-                let mut asset_loader = app_resource.write_resource::<AssetLoader>();
-                let vfx = app_resource.read_resource::<crate::vfx::VfxSystem>();
-
-                let _guard = runtime.enter();
-                app_resource
-                    .write_resource::<crate::core::spell_vfx::SpellVfxLoads>()
-                    .request_fireball(&mut asset_loader, &vfx.registry);
+                if let Some(profile) = config.visual_profile {
+                    app_resource
+                        .read_resource::<crate::core::visual_triggers::VisualProfiles>()
+                        .preload(
+                            profile,
+                            &mut app_resource
+                                .write_resource::<crate::core::visual_assets::VisualAssets>(),
+                        );
+                }
             }
             let mut spell_slots =
                 app_resource.write_resource::<crate::graphic_data::ClientSpellSlots>();
@@ -148,14 +147,8 @@ pub fn handle_event(
         utils::protocol::GameEventKind::SpellUsed { slot } => {
             app_resource.write_resource::<SpellUseEvent>().0 = Some(slot);
         }
-        utils::protocol::GameEventKind::PlayerBlind { duration } => {
-            if let Err(error) = app_resource
-                .read_resource::<crate::vfx::VfxApi>()
-                .blind(duration)
-            {
-                tracing::warn!(%error, "Blind VFX refusé");
-            }
-        }
+        utils::protocol::GameEventKind::PlayerBlind { .. } => {} // Routed through visual profiles by InGameScene.
+        utils::protocol::GameEventKind::Visual(_) => {}
     }
 }
 

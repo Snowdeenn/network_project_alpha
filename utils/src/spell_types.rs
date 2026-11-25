@@ -136,6 +136,8 @@ pub enum Element {
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
 pub struct RawSpell {
+    #[serde(default)]
+    pub visual_profile: Option<crate::protocol::VisualProfileId>,
     pub id: String,
     pub name: String,
     pub description: String,
@@ -147,6 +149,7 @@ pub struct RawSpell {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, Debug, bincode::Encode, bincode::Decode)]
 pub struct Spell {
+    pub visual_profile: Option<crate::protocol::VisualProfileId>,
     pub name: String,
     pub description: String,
     pub purchase_cost: PurchaseCost,
@@ -160,6 +163,7 @@ impl RawSpell {
         (
             self.id,
             Spell {
+                visual_profile: self.visual_profile,
                 name: self.name,
                 description: self.description,
                 purchase_cost: self.purchase_cost,
@@ -170,5 +174,3 @@ impl RawSpell {
         )
     }
 }
-
-

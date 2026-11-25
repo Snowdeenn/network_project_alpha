@@ -5,7 +5,7 @@
   "logical": {
     "emission": {
       "mode": "continuous",
-      "count": 24,
+      "count": 120,
       "delay_seconds": 0
     },
     "initialization": {

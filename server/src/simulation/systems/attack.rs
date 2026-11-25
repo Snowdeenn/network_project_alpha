@@ -219,6 +219,8 @@ pub fn create_attack_box(
 #[read_component(Health)]
 #[read_component(Damage)]
 #[read_component(SpellEffects)]
+#[read_component(VisualProfile)]
+#[read_component(EntityId)]
 pub fn check_collide_attackbox(
     world: &mut SubWorld,
     command: &mut CommandBuffer,
@@ -381,6 +383,23 @@ pub fn check_collide_attackbox(
             }
 
             if is_projectile {
+                if let Ok(entry) = world.entry_ref(*attackbox_entt) {
+                    if let (Ok(profile), Ok(id)) = (
+                        entry.get_component::<VisualProfile>(),
+                        entry.get_component::<EntityId>(),
+                    ) {
+                        game_event_queue.push(GameEvent {
+                            kind: GameEventKind::Visual(utils::protocol::VisualEvent {
+                                id: crate::app::next_id(),
+                                profile: profile.0,
+                                trigger: utils::protocol::VisualTrigger::Impact,
+                                entity: Some(id.0),
+                                position: [attackbox_pos.x as f32, attackbox_pos.y as f32],
+                                direction: attackbox_geom.dir,
+                            }),
+                        });
+                    }
+                }
                 command.remove(*attackbox_entt);
                 break;
             }
@@ -550,12 +569,30 @@ mod tests {
         let owner = spawn_player(&mut world);
         let victim = spawn_enemy(&mut world, 20.0, 20.0, 100);
         let projectile = spawn_spell_projectile(&mut world, owner, None);
+        world.entry(projectile).unwrap().add_component(EntityId(42));
+        world
+            .entry(projectile)
+            .unwrap()
+            .add_component(VisualProfile(123));
         let mut resources = test_resources();
 
         combat_schedule().execute(&mut world, &mut resources);
 
         assert_eq!(health(&world, victim), 90);
         assert!(world.entry_ref(projectile).is_err());
+        let events = resources.get::<Queue<GameEvent>>().unwrap();
+        let impacts: Vec<_> = events
+            .iter()
+            .filter_map(|event| match &event.kind {
+                GameEventKind::Visual(event) => Some(event),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(impacts.len(), 1);
+        assert_eq!(impacts[0].profile, 123);
+        assert_eq!(impacts[0].entity, Some(42));
+        assert_eq!(impacts[0].position, [20.0, 20.0]);
+        assert_eq!(impacts[0].trigger, utils::protocol::VisualTrigger::Impact);
     }
 
     #[test]

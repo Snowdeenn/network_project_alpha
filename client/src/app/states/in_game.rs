@@ -9,12 +9,13 @@ use crate::app::resources::Resources;
 use crate::core::client::GameNetClient;
 use crate::core::config;
 use crate::core::event::handle_shop_ui_event;
-use crate::graphic_data::ClientSpellSlots;
+use crate::core::visual_triggers::{VisualContext, VisualProfiles, VisualTriggers};
 use crate::graphic_data::animation::AnimEntityManager;
 use crate::rendering::ScreenScale;
 use crate::rendering::camera::{self, Camera};
 use crate::ui::hud;
-use crate::vfx::{VfxApi, VfxSystem};
+use crate::vfx::VfxSystem;
+use utils::protocol::VisualTrigger;
 
 pub struct Snapshots {
     pub prev_snapshot: Option<StateSnapshot>,
@@ -82,6 +83,7 @@ pub struct InGameScene {
     pub ticks: Ticks,
     pub hud_buffers: HudBuffers,
     pub anim_entities: AnimEntityManager,
+    visual_triggers: crate::core::visual_triggers::VisualTriggers,
 }
 
 impl Default for InGameScene {
@@ -91,11 +93,17 @@ impl Default for InGameScene {
             ticks: Ticks::default(),
             hud_buffers: HudBuffers::new(),
             anim_entities: AnimEntityManager::new(),
+            visual_triggers: Default::default(),
         }
     }
 }
 
 impl InGameScene {
+    pub fn clear_visuals(&mut self, resources: &Resources) {
+        self.visual_triggers
+            .clear(&mut resources.write_resource::<VfxSystem>());
+        self.snapshots = Snapshots::default();
+    }
     pub fn update(
         &mut self,
         resources: &mut Resources,
@@ -115,6 +123,11 @@ impl InGameScene {
 
         // Mises à jour logiques
         crate::core::update_state_timer(resources, dt);
+        self.visual_triggers.update(
+            dt,
+            &mut resources.write_resource::<crate::core::visual_assets::VisualAssets>(),
+            &mut resources.write_resource::<VfxSystem>(),
+        );
         {
             let t = self.snapshots.interpolation_factor();
             let mut vfx = resources.write_resource::<VfxSystem>();
@@ -202,6 +215,10 @@ impl InGameScene {
         resources: &mut Resources,
     ) {
         while let Some(snap) = client.recv_snapshot() {
+            self.visual_triggers.sync(
+                &resources.read_resource::<crate::core::visual_triggers::VisualProfiles>(),
+                &snap.entities,
+            );
             self.snapshots.prev_snapshot = self.snapshots.last_snapshot.take();
             self.snapshots.last_snapshot = Some(snap);
             self.snapshots.last_snap_time = Instant::now();
@@ -242,21 +259,45 @@ impl InGameScene {
                         let dx = entity.position[0] - prev.position[0];
                         let dy = entity.position[1] - prev.position[1];
 
-                        Self::spawn_movement_particle(resources, Vec2::new(x, y), dx, dy);
+                        Self::spawn_movement_particle(
+                            &mut self.visual_triggers,
+                            resources,
+                            Vec2::new(x, y),
+                            dx,
+                            dy,
+                        );
                     }
                 }
             }
         }
     }
 
-    fn spawn_movement_particle(resources: &mut Resources, pos: Vec2, dx: f32, dy: f32) {
+    fn spawn_movement_particle(
+        triggers: &mut VisualTriggers,
+        resources: &Resources,
+        pos: Vec2,
+        dx: f32,
+        dy: f32,
+    ) {
         if !(dx.abs() > 0.05 || dy.abs() > 0.05) {
             return;
         }
 
-        let _ = resources
-            .read_resource::<VfxApi>()
-            .movement_dust(pos, Vec2::new(dx, dy));
+        let profiles = resources.read_resource::<VisualProfiles>();
+        if let Some(profile) = profiles.id("movement_dust") {
+            triggers.emit_with(
+                &profiles,
+                profile,
+                &VisualTrigger::Move,
+                &VisualContext {
+                    scope: 0,
+                    entity: None,
+                    position: pos,
+                    direction: Vec2::new(1.0, 0.0),
+                },
+                |request| request.params.velocity = Vec2::new(-dx * 4.0, 0.0),
+            );
+        }
     }
 
     fn process_game_event(
@@ -274,10 +315,33 @@ impl InGameScene {
     }
 
     fn handle_vfx_event(&mut self, event: &GameEvent, resources: &Resources) {
-        let vfx = resources.read_resource::<VfxApi>();
+        if let GameEventKind::Visual(event) = &event.kind {
+            self.visual_triggers.event(
+                &resources.read_resource::<crate::core::visual_triggers::VisualProfiles>(),
+                event,
+            );
+            return;
+        }
+        let profiles = resources.read_resource::<VisualProfiles>();
+        let context = VisualContext {
+            scope: 0,
+            entity: None,
+            position: Vec2::zero(),
+            direction: Vec2::new(1.0, 0.0),
+        };
         match event.kind {
             GameEventKind::EntityHit { pos } => {
-                let _ = vfx.entity_hit(Vec2::new(pos[0], pos[1]));
+                if let Some(profile) = profiles.id("entity_hit") {
+                    self.visual_triggers.emit(
+                        &profiles,
+                        profile,
+                        &VisualTrigger::Hit,
+                        &VisualContext {
+                            position: Vec2::new(pos[0], pos[1]),
+                            ..context
+                        },
+                    );
+                }
             }
             GameEventKind::SpawnRect {
                 x,
@@ -286,59 +350,39 @@ impl InGameScene {
                 half_width,
                 dir,
             } => {
-                let _ = vfx.slash(
-                    Vec2::new(x, y),
-                    Vec2::new(dir[0], dir[1]),
-                    half_length,
-                    half_width,
-                );
+                if let Some(profile) = profiles.id("melee_slash") {
+                    self.visual_triggers.emit_with(
+                        &profiles,
+                        profile,
+                        &VisualTrigger::Spawn,
+                        &VisualContext {
+                            position: Vec2::new(x, y),
+                            direction: Vec2::new(dir[0], dir[1]),
+                            ..context
+                        },
+                        |request| {
+                            let inner = half_length * 0.5;
+                            request.params.size =
+                                Some([inner.min(half_width), inner.max(half_width)]);
+                        },
+                    );
+                }
             }
             GameEventKind::PlayerHit => {
-                let _ = vfx.player_hit();
+                if let Some(profile) = profiles.id("player_hit_screen") {
+                    self.visual_triggers
+                        .emit(&profiles, profile, &VisualTrigger::Hit, &context);
+                }
             }
-            GameEventKind::SpellUsed { slot } => {
-                if resources
-                    .read_resource::<VfxSystem>()
-                    .registry
-                    .get("fireball")
-                    .is_none()
-                {
-                    return;
-                }
-                if resources.read_resource::<ClientSpellSlots>().slots[slot.index()].is_none() {
-                    return;
-                }
-                let entity_id = resources.read_resource::<crate::core::LocalId>().entity_id;
-                let Some(current) = self.snapshots.last_snapshot.as_ref().and_then(|snapshot| {
-                    snapshot
-                        .entities
-                        .iter()
-                        .find(|entity| entity.entity_id == entity_id)
-                }) else {
-                    return;
-                };
-                let t = self.snapshots.interpolation_factor();
-                let previous = self.snapshots.prev_snapshot.as_ref().and_then(|snapshot| {
-                    snapshot
-                        .entities
-                        .iter()
-                        .find(|entity| entity.entity_id == entity_id)
-                });
-                let position = previous.map_or(current.position, |previous| {
-                    [
-                        utils::math::lerp(previous.position[0], current.position[0], t),
-                        utils::math::lerp(previous.position[1], current.position[1], t),
-                    ]
-                });
-                let params = crate::vfx::VfxSpawnParams {
-                    pos: Vec2::new(position[0], position[1]),
-                    entity: Some(entity_id),
-                    ..Default::default()
-                };
-                if let Err(error) =
-                    vfx.spawn_detached("fireball", params, crate::vfx::SpawnOptions::default())
-                {
-                    tracing::warn!(%error, "VFX du sort refusé");
+            GameEventKind::PlayerBlind { duration } => {
+                if let Some(profile) = profiles.id("blind_screen") {
+                    self.visual_triggers.emit_with(
+                        &profiles,
+                        profile,
+                        &VisualTrigger::Hit,
+                        &context,
+                        |request| request.params.duration = Some(duration),
+                    );
                 }
             }
             _ => (),

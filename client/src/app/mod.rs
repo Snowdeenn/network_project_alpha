@@ -97,7 +97,13 @@ impl App {
 
         let asset_loader = crate::vfx::AssetLoader::new();
         resource.insert(asset_loader);
-        resource.insert(core::spell_vfx::SpellVfxLoads::default());
+        resource.insert(
+            core::visual_assets::VisualAssets::bundled().expect("VFX catalog must be valid"),
+        );
+        resource.insert(
+            core::visual_triggers::VisualProfiles::bundled()
+                .expect("Visual profiles must be valid"),
+        );
 
         Self {
             window: None,
@@ -504,11 +510,10 @@ impl winit::application::ApplicationHandler for App {
             runtime.block_on(asset_loader.run_request());
             let mut loads = self
                 .resource
-                .write_resource::<core::spell_vfx::SpellVfxLoads>();
+                .write_resource::<core::visual_assets::VisualAssets>();
             let mut vfx = self.resource.write_resource::<crate::vfx::VfxSystem>();
-            if let Err(error) = loads.publish(&mut asset_loader, &mut vfx.registry) {
-                tracing::warn!(%error, "Échec du chargement des VFX fireball");
-            }
+            let _guard = runtime.enter();
+            loads.publish(&mut asset_loader, &mut vfx.registry);
         }
 
         if let Some(ref mut c) = self.client {
@@ -526,6 +531,9 @@ impl winit::application::ApplicationHandler for App {
                     );
                 }
             }
+        }
+        if !matches!(self.screen, core::screen::AppScreen::InGame) {
+            self.in_game_scene.clear_visuals(&self.resource);
         }
         match &mut self.screen {
             core::screen::AppScreen::MainMenu => {

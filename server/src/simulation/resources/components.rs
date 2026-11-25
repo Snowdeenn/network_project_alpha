@@ -8,6 +8,7 @@ pub struct Player;
 pub struct IA;
 pub struct Coin;
 pub struct Projectile;
+pub struct VisualProfile(pub utils::protocol::VisualProfileId);
 #[derive(Debug)]
 pub struct EntityId(pub u64);
 pub struct RangedBrain;

@@ -1,7 +1,7 @@
 use crate::session::player_registry::PlayerRegistry;
 use crate::simulation::resources::components::Coin;
 use crate::simulation::resources::components::{
-    Active, EntityId, Health, IA, Player, Position, Projectile,
+    Active, EntityId, Geometry, Health, IA, Player, Position, Projectile, VisualProfile,
 };
 use crate::simulation::resources::wave::{WaveManager, WaveState as SimWaveState};
 use legion::*;
@@ -38,6 +38,8 @@ pub fn build_entities(world: &World, entities: &mut Vec<EntityState>) {
                 continue;
             }
             entities.push(EntityState {
+                visual_profile: None,
+                direction: [1.0, 0.0],
                 entity_id: id.0,
                 position: [pos.x as f32, pos.y as f32],
                 health: health.hp as f32,
@@ -56,6 +58,8 @@ pub fn build_entities(world: &World, entities: &mut Vec<EntityState>) {
                 continue;
             }
             entities.push(EntityState {
+                visual_profile: None,
+                direction: [1.0, 0.0],
                 entity_id: id.0,
                 position: [pos.x as f32, pos.y as f32],
                 health: health.hp as f32,
@@ -74,6 +78,8 @@ pub fn build_entities(world: &World, entities: &mut Vec<EntityState>) {
                 continue;
             }
             entities.push(EntityState {
+                visual_profile: None,
+                direction: [1.0, 0.0],
                 entity_id: id.0,
                 position: [pos.x as f32, pos.y as f32],
                 health: 0.0,
@@ -92,12 +98,31 @@ pub fn build_entities(world: &World, entities: &mut Vec<EntityState>) {
                 continue;
             }
             entities.push(EntityState {
+                visual_profile: None,
+                direction: [1.0, 0.0],
                 entity_id: id.0,
                 position: [pos.x as f32, pos.y as f32],
                 health: 0.0,
                 max_health: 0.0,
                 entity_kind: EntityKind::Projectile,
             });
+        }
+    }
+    // Visual metadata is orthogonal to gameplay entity kinds.
+    let mut visuals = <(&EntityId, Option<&VisualProfile>, Option<&Geometry>)>::query();
+    let metadata: std::collections::HashMap<_, _> = visuals
+        .iter(world)
+        .map(|(id, profile, geometry)| {
+            (
+                id.0,
+                (profile.map(|p| p.0), geometry.map_or([1.0, 0.0], |g| g.dir)),
+            )
+        })
+        .collect();
+    for entity in entities {
+        if let Some((profile, direction)) = metadata.get(&entity.entity_id) {
+            entity.visual_profile = *profile;
+            entity.direction = *direction;
         }
     }
 }

@@ -165,6 +165,7 @@ fn handle_shop_action(
                                 kind: utils::protocol::GameEventKind::SpellAcquired {
                                     slot: spell_slot,
                                     config: utils::protocol::SpellClientConfig {
+                                        visual_profile: spell.visual_profile,
                                         targeting_kind: spell.targeting.kind,
                                         range: spell.targeting.range,
                                         aoe: spell.targeting.aoe,

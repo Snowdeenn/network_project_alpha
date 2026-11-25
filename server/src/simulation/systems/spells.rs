@@ -106,8 +106,10 @@ pub fn spell_cast_resolver(
     pending_cast: &PendingSpellCast,
     caster_entity: &legion::Entity,
     caster_pos: &Position,
+    caster_id: Option<&EntityId>,
     command: &mut CommandBuffer,
     #[resource] spell_registry: &SpellRegister,
+    #[resource] game_events: &mut crate::utils::Queue<GameEvent>,
 ) {
     let Some(spell) = spell_registry.get_spell(pending_cast.spell_id) else {
         tracing::error!(
@@ -118,6 +120,18 @@ pub fn spell_cast_resolver(
         return;
     };
 
+    if let (Some(profile), Some(caster_id)) = (spell.visual_profile, caster_id) {
+        game_events.push(GameEvent {
+            kind: utils::protocol::GameEventKind::Visual(utils::protocol::VisualEvent {
+                id: crate::app::next_id(),
+                profile,
+                trigger: utils::protocol::VisualTrigger::Cast,
+                entity: Some(caster_id.0),
+                position: [caster_pos.x as f32, caster_pos.y as f32],
+                direction: pending_cast.aim_dir,
+            }),
+        });
+    }
     match spell.targeting.kind {
         SpellTargetingKind::Directional => {
             let dir = pending_cast.aim_dir;
@@ -152,11 +166,26 @@ pub fn spell_cast_resolver(
             );
             command.add_component(projectile, TeamFilter { is_player: true });
             command.add_component(projectile, Owner(*caster_entity));
+            if let Some(profile) = spell.visual_profile {
+                command.add_component(projectile, VisualProfile(profile));
+            }
         }
         SpellTargetingKind::SingleTarget => {
             let dir = pending_cast.aim_dir;
             let center_x = caster_pos.x as f32 + dir[0] * spell.targeting.range;
             let center_y = caster_pos.y as f32 + dir[1] * spell.targeting.range;
+            if let Some(profile) = spell.visual_profile {
+                game_events.push(GameEvent {
+                    kind: utils::protocol::GameEventKind::Visual(utils::protocol::VisualEvent {
+                        id: crate::app::next_id(),
+                        profile,
+                        trigger: utils::protocol::VisualTrigger::Impact,
+                        entity: caster_id.map(|id| id.0),
+                        position: [center_x, center_y],
+                        direction: dir,
+                    }),
+                });
+            }
             // Applique l'AOE immédiatement à la position visée
             command.push((
                 PendingAoe {
@@ -710,6 +739,7 @@ mod tests {
         ));
         let mut resources = Resources::default();
         resources.insert(registry);
+        resources.insert(crate::utils::Queue::<GameEvent> { data: Vec::new() });
         let mut schedule = Schedule::builder()
             .add_system(spell_cast_resolver_system())
             .build();
@@ -736,6 +766,14 @@ mod tests {
         let projectiles: Vec<_> = query.iter(&world).collect();
         assert_eq!(projectiles.len(), 1);
         assert_eq!((projectiles[0].4).0, caster);
+        let mut entities = Vec::new();
+        crate::replication::snapshot::build_entities(&world, &mut entities);
+        assert_eq!(entities.len(), 1);
+        assert!(matches!(
+            entities[0].entity_kind,
+            utils::protocol::EntityKind::Projectile
+        ));
+        assert_eq!(entities[0].visual_profile, Some(1));
     }
 
     #[test]

@@ -7,6 +7,33 @@ use crate::{config::PlayerClass, spell_types::Spell};
 
 pub const SPELL_SLOT_COUNT: usize = 4;
 
+/// Stable identifiers declared in assets/config/visual_profiles.json.
+pub type VisualProfileId = u32;
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash, Encode, Decode)]
+#[serde(rename_all = "snake_case")]
+pub enum VisualTrigger {
+    Spawn,
+    Despawn,
+    Cast,
+    Impact,
+    Hit,
+    Death,
+    Move,
+    Stop,
+    Custom(String),
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Encode, Decode)]
+pub struct VisualEvent {
+    pub id: u64,
+    pub profile: VisualProfileId,
+    pub trigger: VisualTrigger,
+    pub entity: Option<u64>,
+    pub position: [f32; 2],
+    pub direction: [f32; 2],
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, Encode, Decode)]
 pub struct InputPacket {
     pub move_dir: [f32; 2],
@@ -157,10 +184,12 @@ pub enum GameEventKind {
     PlayerBlind {
         duration: f32,
     },
+    Visual(VisualEvent),
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Encode, Decode)]
 pub struct SpellClientConfig {
+    pub visual_profile: Option<VisualProfileId>,
     pub targeting_kind: crate::spell_types::SpellTargetingKind,
     pub range: f32,
     pub aoe: Option<crate::spell_types::AoeSpellShape>,
@@ -195,6 +224,8 @@ pub enum EntityKind {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Decode, Encode)]
 pub struct EntityState {
+    pub visual_profile: Option<VisualProfileId>,
+    pub direction: [f32; 2],
     pub entity_id: u64,
     pub position: [f32; 2],
     pub health: f32,

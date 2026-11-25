@@ -1,6 +1,7 @@
 [
   {
     "id": "fireball",
+    "visual_profile": 1,
     "name": "Boule de feu",
     "description": "Invoque une sphère enflammée qui explose à l'impact.",
     "purchase_cost": {
@@ -76,6 +77,7 @@
   },
   {
     "id": "slow",
+    "visual_profile": 2,
     "name": "Entrave glaciale",
     "description": "Projette une sphère glaciale qui ralentit les ennemis à l'impact.",
     "purchase_cost": {

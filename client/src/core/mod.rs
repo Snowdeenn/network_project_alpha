@@ -1,8 +1,9 @@
 pub mod client;
 pub mod config;
 pub mod event;
-pub mod spell_vfx;
 mod state_logic;
+pub mod visual_assets;
+pub mod visual_triggers;
 
 pub use state_logic::LocalId;
 pub use state_logic::debug_state;

@@ -1,0 +1,111 @@
+[
+  {
+    "id": 1,
+    "name": "projectile_feu",
+    "rules": [
+      {
+        "trigger": "spawn",
+        "actions": [
+          {
+            "kind": "spawn",
+            "effect": "fireball",
+            "params": { "lifetime": 10.0 },
+            "bindings": {
+              "entity": true,
+              "attachment": { "on_missing": "immediate" }
+            },
+            "track_as": "flight",
+            "max_delay_seconds": null
+          }
+        ]
+      },
+      {
+        "trigger": "impact",
+        "actions": [
+          { "kind": "stop", "tracked": "flight", "mode": "immediate" },
+          {
+            "kind": "spawn",
+            "effect": "fireball_impact",
+            "params": { "lifetime": 0.6 }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "name": "projectile_glace",
+    "rules": [
+      {
+        "trigger": "spawn",
+        "actions": [
+          {
+            "kind": "spawn",
+            "effect": "ice_orb",
+            "params": { "lifetime": 10.0 },
+            "bindings": {
+              "entity": true,
+              "attachment": { "on_missing": "immediate" }
+            },
+            "track_as": "flight",
+            "max_delay_seconds": null
+          }
+        ]
+      },
+      {
+        "trigger": "impact",
+        "actions": [
+          { "kind": "stop", "tracked": "flight", "mode": "immediate" },
+          {
+            "kind": "spawn",
+            "effect": "gameplay/entity_hit",
+            "params": { "tint": [0.3, 0.8, 1.0, 1.0] }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 10,
+    "name": "entity_hit",
+    "rules": [{ "trigger": "hit", "actions": [
+      { "kind": "spawn", "effect": "gameplay/entity_hit" }
+    ] }]
+  },
+  {
+    "id": 11,
+    "name": "melee_slash",
+    "rules": [{ "trigger": "spawn", "actions": [
+      { "kind": "spawn", "effect": "gameplay/slash" }
+    ] }]
+  },
+  {
+    "id": 12,
+    "name": "player_hit_screen",
+    "rules": [{ "trigger": "hit", "actions": [
+      {
+        "kind": "spawn", "effect": "gameplay/player_hit",
+        "params": { "duration": 0.2 }, "options": { "refresh": true },
+        "bindings": { "position": false, "direction": false }
+      }
+    ] }]
+  },
+  {
+    "id": 13,
+    "name": "movement_dust",
+    "rules": [{ "trigger": "move", "actions": [
+      { "kind": "spawn", "effect": "gameplay/movement_dust" }
+    ] }]
+  },
+  {
+    "id": 14,
+    "name": "blind_screen",
+    "rules": [{ "trigger": "hit", "actions": [
+      {
+        "kind": "spawn", "effect": "gameplay/blind",
+        "options": { "refresh": true },
+        "bindings": { "position": false, "direction": false }
+      }
+    ] }]
+  }
+]
